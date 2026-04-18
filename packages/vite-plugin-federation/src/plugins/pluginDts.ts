@@ -8,6 +8,7 @@ import {
   normalizeGenerateTypesOptions,
 } from '@module-federation/dts-plugin';
 import { rpc, type DTSManagerOptions } from '@module-federation/dts-plugin/core';
+import { createRequire } from 'node:module';
 import * as path from 'pathe';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
@@ -36,8 +37,8 @@ type DevWorkerOptions = DTSManagerOptions & {
 };
 
 const forkDevWorkerPath = (() => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  return require.resolve('@module-federation/dts-plugin/dist/fork-dev-worker.js');
+  const currentPackageRequire = createRequire(import.meta.url);
+  return currentPackageRequire.resolve('@module-federation/dts-plugin/dist/fork-dev-worker.js');
 })();
 
 class DevWorker {

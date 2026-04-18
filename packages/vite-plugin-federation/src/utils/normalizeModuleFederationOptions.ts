@@ -54,6 +54,7 @@ export interface RemoteObjectConfig {
 }
 
 const INTERNAL_NAME_PREFIX = '__mfe_internal__';
+const currentPackageRequire = createRequire(import.meta.url);
 type ShareImportOption = string | false | undefined;
 type ShareConfigWithImport = SharedConfig & {
   import?: ShareImportOption;
@@ -266,8 +267,9 @@ function normalizeShareItem(
   // provide the package, so it may not be installed at all.
   if (!isImportFalse) {
     try {
+      const projectRequire = createRequire(path.join(process.cwd(), 'package.json'));
       try {
-        version = require(path.join(removePathFromNpmPackage(key), 'package.json')).version;
+        version = projectRequire(path.join(removePathFromNpmPackage(key), 'package.json')).version;
       } catch (e1) {
         try {
           const localPath = path.join(
@@ -276,7 +278,7 @@ function normalizeShareItem(
             removePathFromNpmPackage(key),
             'package.json'
           );
-          version = require(localPath).version;
+          version = projectRequire(localPath).version;
         } catch (e2) {
           version = searchPackageVersion(key);
           if (!version) mfError(e1);
@@ -612,7 +614,7 @@ export function normalizeModuleFederationOptions(
     shareScope: options.shareScope || 'default',
     shared: normalizeShared(options.shared),
     runtimePlugins: options.runtimePlugins || [],
-    implementation: options.implementation || require.resolve('@module-federation/runtime'),
+    implementation: options.implementation || currentPackageRequire.resolve('@module-federation/runtime'),
     manifest: normalizeManifest(options.manifest),
     dev: options.dev,
     dts: options.dts,
