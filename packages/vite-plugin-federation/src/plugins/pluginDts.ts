@@ -218,7 +218,10 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
       }
 
       if (!options.name) {
-        throw createModuleFederationError('name is required if you want to enable dev server!');
+        throw createModuleFederationError(
+          'MFV-001',
+          'name is required if you want to enable dev server!'
+        );
       }
 
       const outputDir = resolveOutputDir(resolvedConfig);

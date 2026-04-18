@@ -1,0 +1,110 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  createInstanceMock,
+  getInstanceMock,
+  loadRemoteMock,
+  preloadRemoteMock,
+  registerPluginsMock,
+  registerRemotesMock,
+  registerSharedMock,
+} = vi.hoisted(() => ({
+  createInstanceMock: vi.fn((options) => ({ options })),
+  getInstanceMock: vi.fn(() => ({ name: 'host', options: { name: 'host' } })),
+  loadRemoteMock: vi.fn(),
+  preloadRemoteMock: vi.fn(),
+  registerPluginsMock: vi.fn(),
+  registerRemotesMock: vi.fn(),
+  registerSharedMock: vi.fn(),
+}));
+
+vi.mock('@module-federation/runtime', () => ({
+  createInstance: createInstanceMock,
+  getInstance: getInstanceMock,
+  getRemoteEntry: vi.fn(),
+  getRemoteInfo: vi.fn(),
+  loadRemote: loadRemoteMock,
+  loadScript: vi.fn(),
+  loadScriptNode: vi.fn(),
+  loadShare: vi.fn(),
+  loadShareSync: vi.fn(),
+  preloadRemote: preloadRemoteMock,
+  registerGlobalPlugins: vi.fn(),
+  registerPlugins: registerPluginsMock,
+  registerRemotes: registerRemotesMock,
+  registerShared: registerSharedMock,
+}));
+
+import {
+  createFederationInstance,
+  getFederationDebugInfo,
+  loadRemote,
+  preloadRemote,
+  registerPlugins,
+  registerRemotes,
+  registerShared,
+} from '../index';
+import { clearModuleFederationDebugState } from '../../utils/logger';
+
+describe('runtime api', () => {
+  beforeEach(() => {
+    clearModuleFederationDebugState();
+    createInstanceMock.mockClear();
+    getInstanceMock.mockClear();
+    loadRemoteMock.mockReset();
+    preloadRemoteMock.mockReset();
+    registerPluginsMock.mockReset();
+    registerRemotesMock.mockReset();
+    registerSharedMock.mockReset();
+  });
+
+  it('tracks registered remotes and shared keys in debug info', () => {
+    registerRemotes([{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js' }] as any);
+    registerShared({
+      react: [{ version: '19.0.0' }],
+    } as any);
+    registerPlugins([] as any);
+
+    const debugInfo = getFederationDebugInfo();
+
+    expect(registerRemotesMock).toHaveBeenCalled();
+    expect(registerSharedMock).toHaveBeenCalled();
+    expect(registerPluginsMock).toHaveBeenCalled();
+    expect(debugInfo.runtime.registeredRemotes[0]).toMatchObject({
+      name: 'remoteApp',
+    });
+    expect(debugInfo.runtime.registeredSharedKeys).toEqual(['react']);
+  });
+
+  it('tracks remote load failures for debug inspection', async () => {
+    loadRemoteMock.mockRejectedValueOnce(new Error('manifest fetch failed'));
+
+    await expect(loadRemote('remoteApp/Button')).rejects.toThrow('manifest fetch failed');
+
+    const debugInfo = getFederationDebugInfo();
+    expect(debugInfo.runtime.lastLoadError).toMatchObject({
+      code: 'MFV-004',
+      remoteId: 'remoteApp/Button',
+    });
+  });
+
+  it('exposes instance snapshot and preload history', () => {
+    preloadRemote([{ nameOrAlias: 'remoteApp' }] as any);
+    createFederationInstance({
+      name: 'host',
+      remotes: [],
+      shared: {},
+      plugins: [],
+      inBrowser: false,
+    });
+
+    const debugInfo = getFederationDebugInfo();
+
+    expect(preloadRemoteMock).toHaveBeenCalled();
+    expect(createInstanceMock).toHaveBeenCalled();
+    expect(debugInfo.instance).toMatchObject({
+      name: 'host',
+    });
+    expect(debugInfo.runtime.lastPreloadRemote).toHaveLength(1);
+  });
+});

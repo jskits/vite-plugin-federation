@@ -79,6 +79,7 @@ const VarRemoteEntry = (): Plugin[] => {
 
         if (!remoteEntryFile)
           throw createModuleFederationError(
+            'MFV-005',
             `Couldn't find a remoteEntry chunk file for ${mfOptions.filename}, can't generate varRemoteEntry file`
           );
 

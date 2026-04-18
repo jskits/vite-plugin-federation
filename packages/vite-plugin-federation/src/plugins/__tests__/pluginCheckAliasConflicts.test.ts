@@ -59,7 +59,7 @@ describe('pluginCheckAliasConflicts', () => {
 
     expect(consoleWarnSpy).toHaveBeenCalledTimes(4);
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      '[Module Federation] Detected alias conflicts with shared modules:'
+      '[Module Federation] MFV-002 Detected alias conflicts with shared modules:'
     );
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Shared module "vue" is aliased by "vue"')

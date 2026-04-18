@@ -593,6 +593,7 @@ export function normalizeModuleFederationOptions(
   warnOnReservedInternalNamePrefix(options.name, 'containerName');
   if (options.virtualModuleDir && options.virtualModuleDir.includes('/')) {
     throw createModuleFederationError(
+      'MFV-001',
       `Invalid virtualModuleDir: "${options.virtualModuleDir}". ` +
         `The virtualModuleDir option cannot contain slashes (/). ` +
         `Please use a single directory name like '__mf__virtual__your_app_name'.`

@@ -250,7 +250,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
   const options = normalizeModuleFederationOptions(mfUserOptions);
   const isVinext = hasPackageDependency('vinext');
   const { name, remotes, shared, filename, hostInitInjectLocation } = options;
-  if (!name) throw createModuleFederationError('name is required');
+  if (!name) throw createModuleFederationError('MFV-001', 'name is required');
 
   const remoteEntryId = getRemoteEntryId(options);
   const virtualExposesId = getVirtualExposesId(options);

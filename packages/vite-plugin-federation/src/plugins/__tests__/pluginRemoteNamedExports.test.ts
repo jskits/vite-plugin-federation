@@ -207,6 +207,19 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform('const m = import("remoteApp/utils");');
       expect(result).toContain('if (!__mf_m__ || !__mf_m__.__moduleExports) return __mf_m__');
     });
+
+    it('warns when using dynamic remote import variables', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const result = await transform('const m = import(`remoteApp/${name}`);');
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('MFV-007'),
+      );
+      expect(result).toBeUndefined();
+
+      warnSpy.mockRestore();
+    });
   });
 
   // ── re-exports ───────────────────────────────────────────────

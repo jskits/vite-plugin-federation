@@ -40,6 +40,7 @@ const Manifest = (): Plugin[] => {
         : undefined;
 
   let mfManifestStatsName = mfManifestName ? getStatsFileName(mfManifestName) : undefined;
+  let mfDebugName = mfManifestName ? getDebugFileName(mfManifestName) : undefined;
   const isConsumerProject = Object.keys(mfOptions.exposes).length === 0;
   let disableAssetsAnalyze = false;
 
@@ -140,6 +141,13 @@ const Manifest = (): Plugin[] => {
                 },
               })
             );
+          } else if (
+            mfDebugName &&
+            req.url?.replace(/\?.*/, '') === (viteConfig.base + mfDebugName).replace(/^\/?/, '/')
+          ) {
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.end(JSON.stringify(generateMFDebug({}, disableAssetsAnalyze)));
           } else {
             next();
           }
@@ -257,6 +265,14 @@ const Manifest = (): Plugin[] => {
             type: 'asset',
             fileName: mfManifestStatsName,
             source: JSON.stringify(generateMFStats(filesMap, bundle, disableAssetsAnalyze)),
+          });
+        }
+
+        if (mfDebugName) {
+          this.emitFile({
+            type: 'asset',
+            fileName: mfDebugName,
+            source: JSON.stringify(generateMFDebug(filesMap, disableAssetsAnalyze)),
           });
         }
       },
@@ -396,6 +412,49 @@ const Manifest = (): Plugin[] => {
       ...(disableAssetsAnalyze ? {} : { assetAnalysis: preloadMap }),
     };
   }
+
+  function generateMFDebug(preloadMap: PreloadMap, disableAssetsAnalyze = false) {
+    const options = getNormalizeModuleFederationOptions();
+
+    return {
+      generatedAt: new Date().toISOString(),
+      manifestFile: mfManifestName,
+      statsFile: mfManifestStatsName,
+      metaData: {
+        pluginName: 'vite-plugin-federation',
+        pluginVersion: '0.2.5',
+      },
+      options: {
+        bundleAllCSS: options.bundleAllCSS,
+        compatibility: options.compat,
+        filename: options.filename,
+        publicPath: publicPath || options.publicPath,
+        shareStrategy: options.shareStrategy,
+      },
+      remotes: Object.entries(options.remotes).map(([alias, remote]) => ({
+        alias,
+        entry: remote.entry,
+        entryGlobalName: remote.entryGlobalName,
+        format: remote.format,
+        from: remote.from,
+        shareScope: remote.shareScope,
+        type: remote.type,
+      })),
+      shared: Object.entries(options.shared).map(([name, share]) => ({
+        import: share.shareConfig.import,
+        requiredVersion: share.shareConfig.requiredVersion,
+        singleton: share.shareConfig.singleton,
+        version: share.version,
+        name,
+      })),
+      exposes: Object.entries(options.exposes).map(([name, expose]) => ({
+        css: expose.css,
+        import: expose.import,
+        name,
+      })),
+      snapshot: generateMFManifest(preloadMap, disableAssetsAnalyze),
+    };
+  }
 };
 
 function getStatsFileName(manifestFileName: string) {
@@ -404,6 +463,13 @@ function getStatsFileName(manifestFileName: string) {
   const baseName = parsed.ext ? parsed.name : parsed.base;
   const baseWithoutManifestSuffix = baseName === 'mf-manifest' ? 'mf' : baseName;
   const fileName = `${baseWithoutManifestSuffix}-stats${fileExt}`;
+
+  return parsed.dir ? path.join(parsed.dir, fileName) : fileName;
+}
+
+function getDebugFileName(manifestFileName: string) {
+  const parsed = path.parse(manifestFileName);
+  const fileName = 'mf-debug.json';
 
   return parsed.dir ? path.join(parsed.dir, fileName) : fileName;
 }

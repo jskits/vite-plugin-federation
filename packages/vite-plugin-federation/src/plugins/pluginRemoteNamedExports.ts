@@ -22,6 +22,7 @@ import { init as initEsLexer, parse as parseEsImports } from 'es-module-lexer';
 import MagicString from 'magic-string';
 import type { Plugin } from 'vite';
 import { loadWalk } from '../utils/loadWalk';
+import { mfWarnWithCode } from '../utils/logger';
 import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 import { getIsRolldown } from '../utils/packageUtils';
 import { LOAD_REMOTE_TAG, LOAD_SHARE_TAG } from '../virtualModules';
@@ -536,6 +537,58 @@ function collectFromRegex(
   return result.length > 0 ? result : undefined;
 }
 
+async function warnOnDynamicRemoteImportVariables(
+  ast: any,
+  code: string,
+  remoteNames: string[],
+  importerId: string
+) {
+  const walk = await loadWalk();
+
+  walk(ast, {
+    enter(node: any) {
+      if (node.type !== 'ImportExpression') return;
+
+      const source = node.source;
+      if (source.type === 'TemplateLiteral' && source.expressions?.length > 0) {
+        const templateText = code.slice(source.start, source.end);
+        const hasRemotePrefix = remoteNames.some(
+          (name) =>
+            templateText.includes(`\`${name}/`) ||
+            templateText.includes(`'${name}/`) ||
+            templateText.includes(`"${name}/`)
+        );
+
+        if (!hasRemotePrefix) return;
+
+        mfWarnWithCode(
+          'MFV-007',
+          `Dynamic remote import variables are not supported for "${templateText}" in ${importerId}. ` +
+            'Use loadRemote() for variable-based remote requests instead.'
+        );
+        return;
+      }
+
+      if (
+        source.type !== 'Literal' &&
+        source.type !== 'StringLiteral' &&
+        source.type !== 'TemplateLiteral'
+      ) {
+        const expressionText = code.slice(source.start, source.end);
+        const mentionsRemote = remoteNames.some((name) => expressionText.includes(name));
+
+        if (!mentionsRemote) return;
+
+        mfWarnWithCode(
+          'MFV-007',
+          `Dynamic remote import variables are not supported for "${expressionText}" in ${importerId}. ` +
+            'Use loadRemote() for variable-based remote requests instead.'
+        );
+      }
+    },
+  });
+}
+
 // ── Plugin factory ────────────────────────────────────────────────
 
 export function pluginRemoteNamedExports(options: NormalizedModuleFederationOptions): Plugin {
@@ -557,7 +610,6 @@ export function pluginRemoteNamedExports(options: NormalizedModuleFederationOpti
     name: 'module-federation-remote-named-exports',
     enforce: 'post',
     async transform(code: string, id: string) {
-      if (!getIsRolldown(this)) return;
       if (remoteNames.length === 0) return;
       // Skip federation internal modules
       if (id.includes(LOAD_REMOTE_TAG) || id.includes(LOAD_SHARE_TAG)) return;
@@ -571,8 +623,11 @@ export function pluginRemoteNamedExports(options: NormalizedModuleFederationOpti
 
       try {
         const ast = this.parse(code);
+        await warnOnDynamicRemoteImportVariables(ast, code, remoteNames, id);
+        if (!getIsRolldown(this)) return;
         imports = await collectFromAST(ast, code, matchesRemoteImport);
       } catch {
+        if (!getIsRolldown(this)) return;
         // this.parse() delegates to acorn which does not support TypeScript
         // syntax (import type, interfaces, generics, etc.).  Fall back to
         // es-module-lexer so TS/TSX consumer files are still transformed.

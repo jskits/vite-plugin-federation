@@ -110,9 +110,12 @@ describe('pluginMFManifest', () => {
 
     const manifest = JSON.parse(emitted['mf-manifest.json']);
     const stats = JSON.parse(emitted['mf-stats.json']);
+    const debug = JSON.parse(emitted['mf-debug.json']);
 
     expect(manifest).toHaveProperty('metaData');
     expect(stats).toHaveProperty('buildOutput');
+    expect(debug).toHaveProperty('snapshot');
+    expect(debug.metaData.pluginName).toBe('vite-plugin-federation');
     expect(
       stats.buildOutput.find((chunk: any) => chunk.fileName === 'remoteEntry.js')
     ).toBeTruthy();
@@ -125,9 +128,11 @@ describe('pluginMFManifest', () => {
 
     const manifest = emitted['path/custom-manifest.json'];
     const stats = emitted['path/custom-manifest-stats.json'];
+    const debug = emitted['path/mf-debug.json'];
 
     expect(manifest).toBeDefined();
     expect(stats).toBeDefined();
+    expect(debug).toBeDefined();
   });
 
   it('defaults disableAssetsAnalyze to true in serve when project is consumer-only', async () => {
