@@ -1,6 +1,6 @@
 # vite-plugin-federation
 
-基于 `npm workspaces` + `turbo` 的 monorepo，用来开发和发布 `vite-plugin-federation`。
+An `npm workspaces` + `turbo` monorepo for developing and publishing `vite-plugin-federation`.
 
 ## Structure
 
@@ -37,13 +37,13 @@ npm run commit
 
 ## Release Flow
 
-1. 开发完成后执行 `npm run changeset`
-2. 合并到主分支前保持 `npm run check` 通过
-3. 本地手动发版时执行 `npm run version-packages`
-4. 执行 `npm run release`
+1. Run `npm run changeset` after finishing development work.
+2. Make sure `npm run check` passes before merging into the main branch.
+3. Run `npm run version-packages` for manual local versioning.
+4. Run `npm run release`.
 
 ## CI/CD
 
-- `.github/workflows/ci.yml` 会在 `push` 和 `pull_request` 上执行 `npm run check`
-- `.github/workflows/release.yml` 会在 `main` 分支 push 后通过 Changesets 创建 release PR 或直接发布
-- 使用自动发布前，需要在 GitHub 仓库配置 `NPM_TOKEN`
+- `.github/workflows/ci.yml` runs `npm run check` on `push` and `pull_request`.
+- `.github/workflows/release.yml` uses Changesets to open a release PR or publish directly after pushes to `main`.
+- Configure `NPM_TOKEN` in the GitHub repository before enabling automated publishing.
