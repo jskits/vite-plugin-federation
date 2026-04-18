@@ -1,0 +1,167 @@
+import { existsSync, mkdirSync, writeFile, writeFileSync } from 'fs';
+import { dirname, join, parse, resolve, basename } from 'pathe';
+import { packageNameDecode, packageNameEncode } from '../utils/packageUtils';
+import { createModuleFederationError } from './logger';
+import { getNormalizeModuleFederationOptions } from './normalizeModuleFederationOptions';
+
+/**
+ * Initialize virtual module infrastructure BEFORE VirtualModule class is used.
+ * This must be called in the config hook to ensure the directory exists
+ * before Vite's optimization phase.
+ */
+export function initVirtualModuleInfrastructure(
+  root: string,
+  virtualModuleDir = '__mf__virtual'
+): void {
+  const nodeModulesPath = join(root, 'node_modules');
+  const virtualPackagePath = join(nodeModulesPath, virtualModuleDir);
+
+  mkdirSync(virtualPackagePath, { recursive: true });
+  writeFileSync(join(virtualPackagePath, 'empty.js'), '');
+  writeFileSync(
+    join(virtualPackagePath, 'package.json'),
+    JSON.stringify({
+      name: virtualModuleDir,
+      main: 'empty.js',
+    })
+  );
+}
+
+// Cache root path
+let rootDir: string | undefined;
+
+function findNodeModulesDir(root: string = process.cwd()) {
+  let currentDir = root;
+
+  while (currentDir !== parse(currentDir).root) {
+    const nodeModulesPath = join(currentDir, 'node_modules');
+    if (existsSync(nodeModulesPath)) {
+      return nodeModulesPath;
+    }
+    currentDir = dirname(currentDir);
+  }
+
+  return '';
+}
+
+// Cache nodeModulesDir result to avoid repeated calculations
+let cachedNodeModulesDir: string | undefined;
+
+function getNodeModulesDir() {
+  if (!cachedNodeModulesDir) {
+    cachedNodeModulesDir = findNodeModulesDir(rootDir);
+  }
+  return cachedNodeModulesDir;
+}
+
+export function getSuffix(name: string): string {
+  const base = basename(name);
+  const dotIndex = base.lastIndexOf('.');
+
+  if (dotIndex > 0 && dotIndex < base.length - 1) {
+    return base.slice(dotIndex);
+  }
+
+  return '.js';
+}
+
+const patternMap: {
+  [tag: string]: RegExp;
+} = {};
+
+const cacheMap: {
+  [tag: string]: {
+    [name: string]: VirtualModule;
+  };
+} = {};
+
+/**
+ * Physically generate files as virtual modules under node_modules/__mf__virtual/*
+ */
+export function assertModuleFound(tag: string, str: string = ''): VirtualModule {
+  const module = VirtualModule.findModule(tag, str);
+  if (!module) {
+    throw createModuleFederationError(
+      `Module Federation shared module '${str}' not found. Please ensure it's installed as a dependency in your package.json.`
+    );
+  }
+  return module;
+}
+
+export default class VirtualModule {
+  name: string;
+  tag: string;
+  suffix: string;
+  inited: boolean = false;
+
+  /**
+   * Set the root path for finding node_modules
+   * @param root - Root path
+   */
+  static setRoot(root: string) {
+    rootDir = root;
+    // Reset cache to ensure using the new root path
+    cachedNodeModulesDir = undefined;
+  }
+
+  /**
+   * Ensure virtual package directory exists
+   */
+  static ensureVirtualPackageExists() {
+    const nodeModulesDir = getNodeModulesDir();
+    const { virtualModuleDir } = getNormalizeModuleFederationOptions();
+    const virtualPackagePath = resolve(nodeModulesDir, virtualModuleDir);
+
+    mkdirSync(virtualPackagePath, { recursive: true });
+    writeFileSync(resolve(virtualPackagePath, 'empty.js'), '');
+    writeFileSync(
+      resolve(virtualPackagePath, 'package.json'),
+      JSON.stringify({
+        name: virtualModuleDir,
+        main: 'empty.js',
+      })
+    );
+  }
+
+  static findModule(tag: string, str: string = ''): VirtualModule | undefined {
+    if (!patternMap[tag])
+      patternMap[tag] = new RegExp(`(.*${packageNameEncode(tag)}(.+?)${packageNameEncode(tag)}.*)`);
+    const moduleName = (str.match(patternMap[tag]) || [])[2];
+    if (moduleName)
+      return cacheMap[tag][packageNameDecode(moduleName)] as VirtualModule | undefined;
+    return undefined;
+  }
+
+  constructor(name: string, tag: string = '__mf_v__', suffix = '') {
+    this.name = name;
+    this.tag = tag;
+    this.suffix = suffix || getSuffix(name);
+    if (!cacheMap[this.tag]) cacheMap[this.tag] = {};
+    cacheMap[this.tag][this.name] = this;
+  }
+
+  getPath() {
+    return resolve(getNodeModulesDir(), this.getImportId());
+  }
+
+  getImportId() {
+    const { internalName: mfName, virtualModuleDir } = getNormalizeModuleFederationOptions();
+    return `${virtualModuleDir}/${packageNameEncode(`${mfName}${this.tag}${this.name}${this.tag}`)}${this.suffix}`;
+  }
+
+  writeSync(code: string, force?: boolean) {
+    if (!force && this.inited) return;
+    if (!this.inited) {
+      this.inited = true;
+    }
+    const path = this.getPath();
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, code);
+  }
+
+  write(code: string) {
+    const path = this.getPath();
+    mkdirSync(dirname(path), { recursive: true });
+    writeFile(path, code, function () {});
+  }
+}

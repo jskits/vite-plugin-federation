@@ -7,8 +7,13 @@ export default defineProject({
       reporter: ['text', 'html'],
       reportsDirectory: './coverage',
     },
+    env: {
+      MFE_VITE_NO_TEST_ENV_CHECK: 'true',
+    },
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    exclude: ['**/e2e/**', '**/node_modules/**'],
+    globals: true,
+    include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
     name: 'vite-plugin-federation',
   },
 });

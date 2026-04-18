@@ -2,11 +2,28 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
+    "declaration": true,
+    "esModuleInterop": true,
+    "exactOptionalPropertyTypes": false,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false,
     "outDir": "./dist",
     "rootDir": "./src",
-    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo"
+    "strict": true,
+    "types": [
+      "node",
+      "vitest/globals"
+    ],
+    "verbatimModuleSyntax": false
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["coverage", "dist"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "coverage",
+    "dist",
+    "src/**/__tests__/**"
+  ]
 }

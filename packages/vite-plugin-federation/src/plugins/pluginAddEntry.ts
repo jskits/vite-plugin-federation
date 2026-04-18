@@ -1,0 +1,295 @@
+import * as fs from 'fs';
+import * as path from 'pathe';
+import { Plugin } from 'vite';
+import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap';
+
+import {
+  injectEntryScript,
+  rewriteEntryScripts,
+  sanitizeDevEntryPath,
+} from '../utils/htmlEntryUtils';
+import { mfWarn } from '../utils/logger';
+import { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
+import { hasPackageDependency } from '../utils/packageUtils';
+
+interface AddEntryOptions {
+  entryName: string;
+  entryPath: string | (() => string);
+  fileName?: string;
+  inject?: NormalizedModuleFederationOptions['hostInitInjectLocation'];
+}
+
+function getFirstHtmlEntryFile(entryFiles: string[]): string | undefined {
+  return entryFiles.find((file) => file.endsWith('.html'));
+}
+
+const addEntry = ({
+  entryName,
+  entryPath,
+  fileName,
+  inject = 'entry',
+}: AddEntryOptions): Plugin[] => {
+  const DEV_HTML_PROXY_PREFIX = 'virtual:mf-html-entry-proxy?';
+  const getEntryPath = () => (typeof entryPath === 'function' ? entryPath() : entryPath);
+  let devEntryPath = '';
+  let entryFiles: string[] = [];
+  let htmlFilePath: string | undefined;
+  let _command: string;
+  let emitFileId: string;
+  let viteConfig: any;
+  let clientInjected = false;
+
+  function injectHtml() {
+    return inject === 'html' && htmlFilePath;
+  }
+
+  function injectEntry() {
+    return inject === 'entry' || !htmlFilePath;
+  }
+
+  return [
+    {
+      name: 'add-entry',
+      apply: 'serve',
+      config(config, { command }) {
+        _command = command;
+      },
+      configResolved(config) {
+        viteConfig = config;
+        const resolvedEntryPath = getEntryPath();
+        if (resolvedEntryPath.startsWith('virtual:mf')) {
+          devEntryPath = config.base + '@id/' + resolvedEntryPath;
+        } else {
+          // Convert absolute filesystem path to root-relative URL path.
+          // On Windows, naive drive-letter stripping leaves the full directory
+          // tree in the URL (e.g. /Repositories/.../node_modules/...) causing 404s.
+          // Instead, compute the path relative to Vite's project root.
+          const normalized = resolvedEntryPath.replace(/\\\\?/g, '/');
+          const root = config.root.replace(/\\\\?/g, '/').replace(/\/$/, '');
+          const relativePath = normalized.startsWith(root + '/')
+            ? normalized.slice(root.length)
+            : '/' + normalized.replace(/^[A-Za-z]:[\\/]/, '');
+          devEntryPath = config.base + relativePath.replace(/^\//, '');
+        }
+      },
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (!fileName) {
+            next();
+            return;
+          }
+          if (req.url && req.url.startsWith((viteConfig.base + fileName).replace(/^\/?/, '/'))) {
+            req.url = devEntryPath;
+          }
+          next();
+        });
+      },
+      transformIndexHtml: {
+        // Run before Vite's devHtmlHook so we see the original HTML.
+        // devHtmlHook converts inline <script type="module"> tags into
+        // external proxy modules; if we ran after it, rewriteEntryScripts
+        // would mistakenly rewrite those proxied inline scripts too (#571).
+        order: 'pre',
+        handler(c) {
+          if (!injectHtml()) return;
+          clientInjected = true;
+          // Normalize all paths to root-relative (without base) before storing
+          // in query params. devHtmlHook runs after pre hooks and prepends base
+          // to script src attributes automatically, and Vite's server-side import
+          // resolver also handles base — so query params must be base-free.
+          // Note: originalSrc may or may not include the base depending on the
+          // user's HTML (#590), so we normalize both directions uniformly.
+          const base = viteConfig.base.replace(/\/$/, '');
+          const stripBase = (p: string) =>
+            base && p.startsWith(base + '/') ? p.slice(base.length) : p;
+          const html = rewriteEntryScripts(c, (originalSrc) => {
+            const query = new URLSearchParams({
+              init: sanitizeDevEntryPath(stripBase(devEntryPath)),
+              entry: sanitizeDevEntryPath(stripBase(originalSrc)),
+            }).toString();
+            return `/@id/${DEV_HTML_PROXY_PREFIX}${query}`;
+          });
+          return html === c ? injectEntryScript(c, stripBase(devEntryPath)) : html;
+        },
+      },
+      resolveId(id) {
+        if (id.startsWith(DEV_HTML_PROXY_PREFIX)) {
+          return id;
+        }
+      },
+      load(id) {
+        if (!id.startsWith(DEV_HTML_PROXY_PREFIX)) return;
+        const params = new URLSearchParams(id.slice(DEV_HTML_PROXY_PREFIX.length));
+        const initSrc = params.get('init');
+        const entrySrc = params.get('entry');
+        if (!initSrc || !entrySrc) return;
+        // Use static imports (not dynamic `await import()`) so that init and
+        // entry become part of the browser's static module dependency graph.
+        // This guarantees:
+        //   1. init executes fully (including TLA) before entry starts (#396)
+        //   2. the browser waits for the entire import tree before firing the
+        //      `load` event, preserving standard script execution order (#571)
+        //   3. no inline script content in the HTML, keeping CSP intact (#528)
+        return `import ${JSON.stringify(initSrc)};\nimport ${JSON.stringify(entrySrc)};\n`;
+      },
+      transform(code, id) {
+        if (id.includes('node_modules') || inject !== 'html' || htmlFilePath) {
+          return;
+        }
+
+        if (id.includes('.svelte-kit') && id.includes('internal.js')) {
+          return code.replace(
+            /<head>/g,
+            '<head><script type=\\"module\\" src=\\"' +
+              sanitizeDevEntryPath(devEntryPath) +
+              '\\"></script>'
+          );
+        }
+      },
+    },
+    {
+      name: 'add-entry',
+      enforce: 'post',
+      configResolved(config) {
+        viteConfig = config;
+        const inputOptions = config.build.rollupOptions.input;
+
+        if (!inputOptions) {
+          htmlFilePath = path.resolve(config.root, 'index.html');
+        } else if (typeof inputOptions === 'string') {
+          entryFiles = [inputOptions];
+        } else if (Array.isArray(inputOptions)) {
+          entryFiles = inputOptions;
+        } else if (typeof inputOptions === 'object') {
+          entryFiles = Object.values(inputOptions);
+        }
+
+        if (entryFiles && entryFiles.length > 0) {
+          htmlFilePath = getFirstHtmlEntryFile(entryFiles);
+        }
+
+        if (_command === 'serve' && htmlFilePath && fs.existsSync(htmlFilePath)) {
+          const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
+          const scriptRegex = /<script\s+[^>]*src=["']([^"']+)["'][^>]*>/gi;
+          let match: RegExpExecArray | null;
+
+          while ((match = scriptRegex.exec(htmlContent)) !== null) {
+            entryFiles.push(match[1]);
+          }
+        }
+      },
+      buildStart() {
+        if (_command === 'serve') return;
+        const hasHash = fileName?.includes?.('[hash');
+        const emitFileOptions: any = {
+          name: entryName,
+          type: 'chunk',
+          id: getEntryPath(),
+          preserveSignature: 'strict',
+        };
+        if (!hasHash) {
+          emitFileOptions.fileName = fileName;
+        }
+        emitFileId = this.emitFile(emitFileOptions);
+        if (htmlFilePath && fs.existsSync(htmlFilePath)) {
+          const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
+          const scriptRegex = /<script\s+[^>]*src=["']([^"']+)["'][^>]*>/gi;
+          let match: RegExpExecArray | null;
+
+          while ((match = scriptRegex.exec(htmlContent)) !== null) {
+            entryFiles.push(match[1]);
+          }
+        }
+      },
+      generateBundle(options, bundle) {
+        if (!injectHtml()) return;
+        const file = this.getFileName(emitFileId);
+        // Helper to resolve path with proper renderBuiltUrl handling
+        const resolvePath = (htmlFileName: string): string => {
+          if (!viteConfig.experimental?.renderBuiltUrl) {
+            return viteConfig.base + file;
+          }
+
+          const result = viteConfig.experimental.renderBuiltUrl(file, {
+            hostId: htmlFileName,
+            hostType: 'html',
+            type: 'asset',
+            ssr: false,
+          });
+
+          // Handle return types
+          if (typeof result === 'string') {
+            return result;
+          }
+
+          if (result && typeof result === 'object') {
+            if ('runtime' in result) {
+              // Runtime code cannot be used in <script src="">
+              mfWarn(
+                'renderBuiltUrl returned runtime code for HTML injection. ' +
+                  'Runtime code cannot be used in <script src="">. Falling back to base path.'
+              );
+              return viteConfig.base + file;
+            }
+            if (result.relative) {
+              return file;
+            }
+          }
+
+          // Fallback for undefined or unexpected values
+          return viteConfig.base + file;
+        };
+
+        // Process each HTML file
+        for (const fileName in bundle) {
+          if (fileName.endsWith('.html')) {
+            let htmlAsset = bundle[fileName];
+            if (htmlAsset.type === 'chunk') return;
+
+            const path = resolvePath(fileName);
+            const scriptContent = `
+          <script type="module" src="${path}"></script>
+        `;
+
+            let htmlContent = htmlAsset.source.toString() || '';
+            htmlContent = htmlContent.replace('<head>', `<head>${scriptContent}`);
+            htmlAsset.source = htmlContent;
+          }
+        }
+      },
+      transform(code, id) {
+        const isVinext = hasPackageDependency('vinext');
+        if (
+          isVinext &&
+          inject === 'html' &&
+          (id.includes('virtual:vite-rsc/entry-browser') ||
+            id.includes('virtual:vinext-app-browser-entry'))
+        ) {
+          const injection = `import ${JSON.stringify(getEntryPath())};\n`;
+          if (code.includes(injection.trim())) {
+            clientInjected = true;
+            return;
+          }
+          clientInjected = true;
+          return mapCodeToCodeWithSourcemap(injection + code);
+        }
+
+        const shouldInject =
+          (injectEntry() && entryFiles.some((file) => id.endsWith(file))) ||
+          // Fallback for SSR frameworks (e.g. Nuxt) that bypass transformIndexHtml.
+          (_command === 'serve' &&
+            inject === 'html' &&
+            !clientInjected &&
+            !id.includes('node_modules') &&
+            /\.(js|ts|mjs|vue|jsx|tsx)(\?|$)/.test(id));
+        if (shouldInject) {
+          clientInjected = true;
+          const injection = `import ${JSON.stringify(getEntryPath())};\n`;
+          return mapCodeToCodeWithSourcemap(injection + code);
+        }
+      },
+    },
+  ];
+};
+
+export default addEntry;
