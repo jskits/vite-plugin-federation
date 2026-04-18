@@ -3,16 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "description": "Monorepo for building vite-plugin-federation.",
-  "packageManager": "npm@10.9.4",
+  "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=20.19.0"
   },
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
     "build": "turbo run build",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "clean": "turbo run clean && rimraf .turbo coverage",
     "commit": "cz",
     "changeset": "changeset",
@@ -32,6 +29,11 @@
     "commitizen": {
       "path": "node_modules/cz-git"
     }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "overrides": {
     "commitizen": {
