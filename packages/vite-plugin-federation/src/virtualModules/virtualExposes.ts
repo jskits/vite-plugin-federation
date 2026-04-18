@@ -14,6 +14,7 @@ export function getVirtualExposesId(
 }
 
 export function generateExposes(options: NormalizedModuleFederationOptions) {
+  const cssBucketKeyPrefix = `css__${options.name}__`;
   return `
     const cssAssetMap = ${JSON.stringify(options.bundleAllCSS ? EXPOSES_CSS_MAP_PLACEHOLDER : {})};
     const injectedCssHrefs = new Set();
@@ -28,7 +29,7 @@ export function generateExposes(options: NormalizedModuleFederationOptions) {
       return currentLoad;
     }
 
-    async function injectCssAssets(exposeKey) {
+    async function handleCssAssets(exposeKey, injectCss) {
       if (typeof document === "undefined") {
         return;
       }
@@ -36,9 +37,15 @@ export function generateExposes(options: NormalizedModuleFederationOptions) {
       // Replaced at build time with expose -> css asset paths.
       const cssAssets = cssAssetMap[exposeKey] || [];
 
+      const hrefs = cssAssets.map((cssAsset) => new URL(cssAsset, import.meta.url).href);
+
+      if (!injectCss) {
+        globalThis[${JSON.stringify(cssBucketKeyPrefix)} + exposeKey] = hrefs;
+        return;
+      }
+
       await Promise.all(
-        cssAssets.map((cssAsset) => {
-          const href = new URL(cssAsset, import.meta.url).href;
+        hrefs.map((href) => {
 
           // Same expose can be resolved multiple times in one page.
           if (injectedCssHrefs.has(href)) {
@@ -71,7 +78,7 @@ export function generateExposes(options: NormalizedModuleFederationOptions) {
       .map((key) => {
         return `
         ${JSON.stringify(key)}: async () => {
-          await injectCssAssets(${JSON.stringify(key)})
+          await handleCssAssets(${JSON.stringify(key)}, ${options.exposes[key].css?.inject !== false})
           const importModule = await importExposedModule(
             () => import(${JSON.stringify(options.exposes[key].import)})
           )

@@ -187,4 +187,47 @@ describe('virtualExposes', () => {
     );
     expect(dynamicImport).not.toHaveBeenCalled();
   });
+
+  it('records css hrefs on globalThis instead of injecting when css.inject=false', async () => {
+    const code = generateExposes(
+      getDefaultMockOptions({
+        name: 'remote-app',
+        exposes: {
+          './one': {
+            import: './one.js',
+            css: { inject: false },
+          } as any,
+        },
+        bundleAllCSS: true as any,
+      })
+    ).replace(
+      `"${getExposesCssMapPlaceholder()}"`,
+      JSON.stringify({
+        './one': ['./style.css'],
+      })
+    );
+
+    const document = {
+      head: {
+        appendChild: vi.fn(),
+      },
+      querySelector: vi.fn(() => null),
+      createElement: vi.fn(),
+    };
+    const dynamicImport = vi.fn(async (id: string) => ({ default: id }));
+
+    const exposes = await toRunnableModule(code)(
+      document,
+      URL,
+      dynamicImport,
+      'file:///repo/remoteEntry.js'
+    );
+
+    await exposes['./one']();
+
+    expect(globalThis['css__remote-app__./one']).toEqual(['file:///repo/style.css']);
+    expect(document.head.appendChild).not.toHaveBeenCalled();
+
+    delete globalThis['css__remote-app__./one'];
+  });
 });

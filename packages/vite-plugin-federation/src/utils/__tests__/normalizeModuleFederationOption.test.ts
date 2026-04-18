@@ -37,11 +37,15 @@ describe('normalizeModuleFederationOption', () => {
       runtime: undefined,
       runtimePlugins: [],
       implementation: require.resolve('@module-federation/runtime'),
-      manifest: undefined,
+      manifest: true,
       dev: undefined,
       dts: undefined,
       shareStrategy: 'loaded-first',
       ignoreOrigin: false,
+      compat: {
+        originjs: true,
+        virtualFederationShim: true,
+      },
       virtualModuleDir: '__mf__virtual',
       hostInitInjectLocation: 'html',
       bundleAllCSS: false,
@@ -190,10 +194,39 @@ describe('normalizeModuleFederationOption', () => {
       ).toEqual({
         remote1: {
           type: 'var',
+          format: 'var',
+          from: 'vite',
           name: 'remote1',
           internalName: '__mfe_internal__remote1',
           entry: 'http://localhost:3001/remoteEntry.js',
           entryGlobalName: 'Button',
+          shareScope: 'default',
+        },
+      });
+    });
+
+    it('maps legacy originjs format/from fields onto remote config', () => {
+      expect(
+        normalizeModuleFederationOptions({
+          ...minimalOptions,
+          remotes: {
+            remote1: {
+              name: 'remote1',
+              entry: 'http://localhost:3001/assets/remoteEntry.js',
+              format: 'esm',
+              from: 'webpack',
+            },
+          },
+        }).remotes
+      ).toEqual({
+        remote1: {
+          type: 'module',
+          format: 'esm',
+          from: 'webpack',
+          name: 'remote1',
+          internalName: '__mfe_internal__remote1',
+          entry: 'http://localhost:3001/assets/remoteEntry.js',
+          entryGlobalName: 'remote1',
           shareScope: 'default',
         },
       });
@@ -319,8 +352,8 @@ describe('normalizeModuleFederationOption', () => {
   });
 
   describe('manifest', () => {
-    it('returns undefined if manifest is not set', () => {
-      expect(normalizeModuleFederationOptions(minimalOptions).manifest).toBeUndefined();
+    it('defaults manifest to true when not set', () => {
+      expect(normalizeModuleFederationOptions(minimalOptions).manifest).toBe(true);
     });
 
     it('returns true if manifest is set to true', () => {
@@ -426,6 +459,29 @@ describe('normalizeModuleFederationOption', () => {
           virtualModuleDir: undefined,
         }).virtualModuleDir
       ).toEqual('__mf__virtual');
+    });
+  });
+
+  describe('compat expose css mapping', () => {
+    it('maps dontAppendStylesToHead to css.inject=false', () => {
+      expect(
+        normalizeModuleFederationOptions({
+          ...minimalOptions,
+          exposes: {
+            './Button': {
+              import: './src/Button.tsx',
+              dontAppendStylesToHead: true,
+            },
+          },
+        }).exposes
+      ).toEqual({
+        './Button': {
+          import: './src/Button.tsx',
+          css: {
+            inject: false,
+          },
+        },
+      });
     });
   });
 });

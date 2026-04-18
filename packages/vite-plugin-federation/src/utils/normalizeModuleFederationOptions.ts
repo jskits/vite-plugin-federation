@@ -27,14 +27,25 @@ import * as path from 'pathe';
 import { createModuleFederationError, mfError, mfWarn } from './logger';
 import { getInstalledPackageJson, removePathFromNpmPackage } from './packageUtils';
 
-interface ExposesItem {
+export interface ExposeCssOptions {
+  inject?: boolean;
+}
+
+export interface ExposesItem {
   import: string;
+  css?: ExposeCssOptions;
 }
 export interface NormalizedShared {
   [key: string]: ShareItem;
 }
+export interface CompatibilityOptions {
+  originjs?: boolean;
+  virtualFederationShim?: boolean;
+}
 export interface RemoteObjectConfig {
   type?: string;
+  format?: string;
+  from?: string;
   name: string;
   internalName?: string;
   entry: string;
@@ -60,21 +71,41 @@ function warnOnReservedInternalNamePrefix(name: string, kind: 'containerName' | 
   );
 }
 
-function normalizeExposesItem(key: string, item: string | { import: string }): ExposesItem {
+function normalizeExposesItem(
+  key: string,
+  item: string | { import: string; css?: ExposeCssOptions; dontAppendStylesToHead?: boolean }
+): ExposesItem {
   let importPath: string = '';
+  let css: ExposeCssOptions | undefined;
   if (typeof item === 'string') {
     importPath = item;
   }
   if (typeof item === 'object') {
     importPath = item.import;
+    const injectCss = item.dontAppendStylesToHead ? false : item.css?.inject;
+    css =
+      injectCss === undefined
+        ? item.css
+        : {
+            ...(item.css || {}),
+            inject: injectCss,
+          };
   }
-  return {
-    import: importPath,
-  };
+  return css
+    ? {
+        import: importPath,
+        css,
+      }
+    : {
+        import: importPath,
+      };
 }
 
 function normalizeExposes(
-  exposes: Record<string, string | { import: string }> | undefined
+  exposes: Record<
+    string,
+    string | { import: string; css?: ExposeCssOptions; dontAppendStylesToHead?: boolean }
+  > | undefined
 ): Record<string, ExposesItem> {
   if (!exposes) return {};
   const res: Record<string, ExposesItem> = {};
@@ -121,9 +152,20 @@ function normalizeRemoteItem(key: string, remote: string | RemoteObjectConfig): 
       shareScope: 'default',
     };
   }
+  const normalizedType =
+    remote.type ||
+    (remote.format === 'var'
+      ? 'var'
+      : remote.format === 'systemjs'
+        ? 'system'
+        : remote.format === 'esm'
+          ? 'module'
+          : undefined);
   return Object.assign(
     {
-      type: 'var',
+      type: normalizedType || 'var',
+      format: remote.format || normalizedType || 'var',
+      from: remote.from || 'vite',
       name: key,
       internalName: toInternalModuleFederationName(key),
       shareScope: 'default',
@@ -328,7 +370,7 @@ export interface PluginManifestOptions {
 }
 function normalizeManifest(manifest: ModuleFederationOptions['manifest']) {
   if (manifest === undefined) {
-    return undefined;
+    return true;
   }
   if (typeof manifest === 'boolean') {
     return manifest;
@@ -339,8 +381,41 @@ function normalizeManifest(manifest: ModuleFederationOptions['manifest']) {
   };
 }
 
+function normalizeCompat(
+  compat: ModuleFederationOptions['compat']
+): CompatibilityOptions {
+  if (compat === false) {
+    return {
+      originjs: false,
+      virtualFederationShim: false,
+    };
+  }
+
+  if (compat === true || compat === undefined) {
+    return {
+      originjs: true,
+      virtualFederationShim: true,
+    };
+  }
+
+  return {
+    originjs: compat.originjs ?? true,
+    virtualFederationShim: compat.virtualFederationShim ?? compat.originjs ?? true,
+  };
+}
+
 export type ModuleFederationOptions = {
-  exposes?: Record<string, string | { import: string }> | undefined;
+  exposes?:
+    | Record<
+        string,
+        | string
+        | {
+            import: string;
+            css?: ExposeCssOptions;
+            dontAppendStylesToHead?: boolean;
+          }
+      >
+    | undefined;
   filename?: string;
   library?: any;
   name: string;
@@ -383,6 +458,7 @@ export type ModuleFederationOptions = {
   dts?: boolean | PluginDtsOptions;
   shareStrategy?: ShareStrategy;
   ignoreOrigin?: boolean;
+  compat?: boolean | CompatibilityOptions;
   virtualModuleDir?: string;
   hostInitInjectLocation?: HostInitInjectLocationOptions;
   /**
@@ -426,6 +502,7 @@ export interface NormalizedModuleFederationOptions extends Omit<
   implementation: string;
   manifest?: PluginManifestOptions | boolean;
   shareStrategy: ShareStrategy;
+  compat: CompatibilityOptions;
   virtualModuleDir: string;
   hostInitInjectLocation: HostInitInjectLocationOptions;
   bundleAllCSS: boolean;
@@ -542,6 +619,7 @@ export function normalizeModuleFederationOptions(
     publicPath: options.publicPath,
     shareStrategy: options.shareStrategy || 'version-first',
     ignoreOrigin: options.ignoreOrigin || false,
+    compat: normalizeCompat(options.compat),
     virtualModuleDir: options.virtualModuleDir || '__mf__virtual',
     hostInitInjectLocation: options.hostInitInjectLocation || 'html',
     bundleAllCSS: options.bundleAllCSS || false,

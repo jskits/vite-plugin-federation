@@ -17,6 +17,10 @@ export function getDefaultMockOptions(
     implementation: require.resolve('@module-federation/runtime'),
     manifest: false,
     shareStrategy: 'loaded-first',
+    compat: {
+      originjs: true,
+      virtualFederationShim: true,
+    },
     virtualModuleDir: '__mf__virtual',
     hostInitInjectLocation: 'html',
     ...overrides,
