@@ -91,6 +91,8 @@ export function proxySharedModule(options: {
   let _command = 'serve';
   let useDirectReactImport = false;
   const savePrebuild = new PromiseStore<string>();
+  const getProxyableSharedKeys = () =>
+    Object.keys(shared).filter((key) => !(useDirectReactImport && key === 'react'));
 
   return [
     {
@@ -125,10 +127,9 @@ export function proxySharedModule(options: {
           excludeSharedSubDependencies(shared);
         }
 
-        (config.resolve as any).alias.push(
-          ...Object.keys(shared)
-            .filter((key) => !(useDirectReactImport && key === 'react'))
-            .map((key) => {
+        if (command === 'serve') {
+          (config.resolve as any).alias.push(
+            ...getProxyableSharedKeys().map((key) => {
               const keyBase = key.endsWith('/') ? key.slice(0, -1) : key;
               const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
               const escapedKeyBase = escapeRegex(keyBase);
@@ -177,12 +178,10 @@ export function proxySharedModule(options: {
                 },
               };
             })
-        );
+          );
 
-        (config.resolve as any).alias.push(
-          ...Object.keys(shared)
-            .filter((key) => !(useDirectReactImport && key === 'react'))
-            .map((key) => {
+          (config.resolve as any).alias.push(
+            ...getProxyableSharedKeys().map((key) => {
               return command === 'build'
                 ? {
                     find: new RegExp(`(.*${PREBUILD_TAG}.*)`),
@@ -214,7 +213,38 @@ export function proxySharedModule(options: {
                     },
                   };
             })
-        );
+          );
+        }
+      },
+      async resolveId(source, importer) {
+        if (_command !== 'build') return;
+
+        if (source.includes(PREBUILD_TAG)) {
+          const module = assertModuleFound(PREBUILD_TAG, source) as VirtualModule;
+          const pkgName = module.name;
+          const importSource = getPrebuildResolutionSource(pkgName, getPreBuildShareItem(pkgName));
+
+          return (this as any).resolve(importSource, importer, { skipSelf: true });
+        }
+
+        if (/\.css$/.test(source)) return;
+        if (useDirectReactImport && source === 'react') return;
+        if (importer && importer.includes('localSharedImportMap')) return;
+
+        const isRolldown = getIsRolldown(this);
+        for (const key of getProxyableSharedKeys()) {
+          const keyBase = key.endsWith('/') ? key.slice(0, -1) : key;
+          if (source !== keyBase) continue;
+
+          const loadSharePath = getLoadShareModulePath(source, isRolldown, _command);
+          writeLoadShareModule(source, shared[key], _command, isRolldown);
+          if (shared[key].shareConfig.import !== false) {
+            writePreBuildLibPath(source, shared[key]);
+          }
+          addUsedShares(source);
+          writeLocalSharedImportMap();
+          return (this as any).resolve(loadSharePath, importer, { skipSelf: true });
+        }
       },
       configResolved(config) {
         _config = config;

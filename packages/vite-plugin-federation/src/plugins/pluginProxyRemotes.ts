@@ -36,6 +36,7 @@ export default function (options: NormalizedModuleFederationOptions): Plugin {
     config(config, { command: _command }) {
       command = _command;
       root = config.root || process.cwd();
+      if (_command === 'build') return;
       const isRolldown = getIsRolldown(this);
       Object.keys(remotes).forEach((key) => {
         const remote = remotes[key];
@@ -52,7 +53,7 @@ export default function (options: NormalizedModuleFederationOptions): Plugin {
       if (!filter(source)) return;
       const isRolldown = getIsRolldown(this);
       for (const remote of Object.values(remotes)) {
-        if (source !== remote.name) continue;
+        if (source !== remote.name && !source.startsWith(`${remote.name}/`)) continue;
         return resolveRemoteId(source, importer, remote.name, isRolldown);
       }
     },

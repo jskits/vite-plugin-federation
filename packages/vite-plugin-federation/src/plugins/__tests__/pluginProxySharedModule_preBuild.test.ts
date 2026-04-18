@@ -267,28 +267,22 @@ describe('pluginProxySharedModule_preBuild', () => {
 
     const plugins = proxySharedModule({ shared: makeShared() });
     const proxyPlugin = plugins[1];
-    const config = {
-      resolve: {
-        alias: [] as Array<{
-          find: RegExp;
-          replacement?: string | ((value: string) => string);
-        }>,
-      },
-    };
-
-    proxyPlugin.config?.call({ meta: {} }, config as any, {
+    proxyPlugin.config?.call({ meta: {} }, { resolve: { alias: [] as any[] } } as any, {
       command: 'build',
       mode: 'production',
     });
 
     preBuildShareItemMap.set('transitive', makeShared().transitive);
 
-    const alias = config.resolve.alias.find((entry) => entry.find.test('x__prebuild__x'));
-    expect(alias).toBeDefined();
-    expect(typeof alias?.replacement).toBe('function');
-    expect((alias?.replacement as (value: string) => string)('transitive__prebuild__')).toBe(
-      '/abs/transitive/index.js'
+    const resolution = await proxyPlugin.resolveId?.call(
+      {
+        resolve: async (id: string) => ({ id: `/resolved/${id}` }),
+      } as any,
+      'transitive__prebuild__',
+      '/src/main.ts'
     );
+
+    expect(resolution).toEqual({ id: '/resolved//abs/transitive/index.js' });
   });
 
   it('resolves prebuild aliases from the original shared key, not just pkg name', async () => {
@@ -306,22 +300,12 @@ describe('pluginProxySharedModule_preBuild', () => {
 
     const plugins = proxySharedModule({ shared });
     const proxyPlugin = plugins[1];
-    const config = {
-      resolve: {
-        alias: [] as Array<{
-          find: RegExp;
-          customResolver?: (source: string, importer: string) => unknown;
-          replacement?: string | ((value: string) => string);
-        }>,
-      },
-    };
-
     proxyPlugin.config?.call(
       {
         meta: {},
         resolve: async (id: string) => ({ id: `/resolved/${id}` }),
       },
-      config as any,
+      { resolve: { alias: [] as any[] } } as any,
       {
         command: 'build',
         mode: 'production',
@@ -330,12 +314,15 @@ describe('pluginProxySharedModule_preBuild', () => {
 
     preBuildShareItemMap.set('transitive', shared['transitive/']);
 
-    const prebuildAlias = config.resolve.alias.find((entry) => entry.find.test('x__prebuild__x'));
-    expect(prebuildAlias).toBeDefined();
-    expect(typeof prebuildAlias?.replacement).toBe('function');
-    expect(
-      (prebuildAlias?.replacement as (value: string) => string)('transitive__prebuild__')
-    ).toBe('/abs/transitive/slash-entry.js');
+    const resolution = await proxyPlugin.resolveId?.call(
+      {
+        resolve: async (id: string) => ({ id: `/resolved/${id}` }),
+      } as any,
+      'transitive__prebuild__',
+      '/src/main.ts'
+    );
+
+    expect(resolution).toEqual({ id: '/resolved//abs/transitive/slash-entry.js' });
   });
 
   it('resolves prebuild aliases to auto-detected workspace sources without explicit share.import', async () => {
@@ -343,28 +330,24 @@ describe('pluginProxySharedModule_preBuild', () => {
 
     const plugins = proxySharedModule({ shared: makeShared() });
     const proxyPlugin = plugins[1];
-    const config = {
-      resolve: {
-        alias: [] as Array<{
-          find: RegExp;
-          replacement?: string | ((value: string) => string);
-        }>,
-      },
-    };
-
-    proxyPlugin.config?.call({ meta: {} }, config as any, {
+    proxyPlugin.config?.call({ meta: {} }, { resolve: { alias: [] as any[] } } as any, {
       command: 'build',
       mode: 'production',
     });
 
     preBuildShareItemMap.set('transitive-no-override', makeShared()['transitive-no-override']);
 
-    const alias = config.resolve.alias.find((entry) => entry.find.test('x__prebuild__x'));
-    expect(alias).toBeDefined();
-    expect(typeof alias?.replacement).toBe('function');
-    expect(
-      (alias?.replacement as (value: string) => string)('transitive-no-override__prebuild__')
-    ).toBe('/workspace/packages/transitive-no-override/dist/index.js');
+    const resolution = await proxyPlugin.resolveId?.call(
+      {
+        resolve: async (id: string) => ({ id: `/resolved/${id}` }),
+      } as any,
+      'transitive-no-override__prebuild__',
+      '/src/main.ts'
+    );
+
+    expect(resolution).toEqual({
+      id: '/resolved//workspace/packages/transitive-no-override/dist/index.js',
+    });
   });
 
   it('excludes shared sub-dependencies in dev mode and warns', () => {
