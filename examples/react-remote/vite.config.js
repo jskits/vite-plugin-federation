@@ -1,0 +1,44 @@
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import federation from 'vite-plugin-federation';
+
+export default defineConfig({
+  server: {
+    origin: 'http://localhost:4174',
+    port: 4174,
+  },
+  preview: {
+    port: 4174,
+  },
+  plugins: [
+    react(),
+    federation({
+      name: 'reactRemote',
+      filename: 'remoteEntry.js',
+      manifest: true,
+      dts: false,
+      exposes: {
+        './Button': './src/Button.jsx',
+        './Card': './src/Card.jsx',
+      },
+      shared: {
+        react: {
+          singleton: true,
+          requiredVersion: '^19.2.4',
+        },
+        'react/': {
+          singleton: true,
+          requiredVersion: '^19.2.4',
+        },
+        'react-dom': {
+          singleton: true,
+          requiredVersion: '^19.2.4',
+        },
+        'react-dom/': {
+          singleton: true,
+          requiredVersion: '^19.2.4',
+        },
+      },
+    }),
+  ],
+});

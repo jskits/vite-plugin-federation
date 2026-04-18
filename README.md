@@ -28,11 +28,27 @@ pnpm check
 ```bash
 pnpm dev
 pnpm build
+pnpm examples:build
+pnpm examples:dev
 pnpm lint
 pnpm test
 pnpm format
 pnpm changeset
 pnpm commit
+```
+
+## Examples
+
+This repo includes a minimal React host/remote verification pair:
+
+- `examples/react-remote`
+- `examples/react-host`
+
+Use the following commands:
+
+```bash
+pnpm examples:build
+pnpm examples:dev
 ```
 
 ## Release Flow

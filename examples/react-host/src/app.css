@@ -1,0 +1,27 @@
+body {
+  margin: 0;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.host-shell {
+  box-sizing: border-box;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  margin: 0 auto;
+  max-width: 56rem;
+  min-height: 100vh;
+  padding: 3rem 1.25rem;
+}
+
+.host-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.host-panel {
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  background: white;
+  padding: 1rem;
+}

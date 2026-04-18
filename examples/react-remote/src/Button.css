@@ -1,0 +1,14 @@
+.remote-button {
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0f172a, #334155);
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0.8rem 1.2rem;
+}
+
+.remote-button:hover {
+  filter: brightness(1.08);
+}
