@@ -1,0 +1,63 @@
+{
+  "name": "vite-plugin-federation-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo for building vite-plugin-federation.",
+  "packageManager": "npm@10.9.4",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "clean": "turbo run clean && rimraf .turbo coverage",
+    "commit": "cz",
+    "changeset": "changeset",
+    "dev": "turbo run dev --parallel",
+    "format": "prettier . --cache --write",
+    "format:check": "prettier . --cache --check",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "prepare": "husky",
+    "release": "changeset publish",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch --parallel",
+    "typecheck": "turbo run typecheck",
+    "version-packages": "changeset version"
+  },
+  "config": {
+    "commitizen": {
+      "path": "node_modules/cz-git"
+    }
+  },
+  "overrides": {
+    "commitizen": {
+      "inquirer": "8.2.7",
+      "lodash": "4.18.1"
+    }
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.31.0",
+    "@commitlint/cli": "20.5.0",
+    "@commitlint/config-conventional": "20.5.0",
+    "@eslint/js": "10.0.1",
+    "@types/node": "25.6.0",
+    "commitizen": "4.3.1",
+    "cz-git": "1.12.0",
+    "eslint": "10.2.1",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.5.0",
+    "husky": "9.1.7",
+    "lint-staged": "16.4.0",
+    "prettier": "3.8.3",
+    "rimraf": "6.1.3",
+    "tsup": "8.5.1",
+    "turbo": "2.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.58.2",
+    "vitest": "4.1.4"
+  }
+}
