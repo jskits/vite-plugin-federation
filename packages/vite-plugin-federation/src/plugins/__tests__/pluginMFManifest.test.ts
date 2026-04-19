@@ -349,6 +349,72 @@ describe('pluginMFManifest', () => {
     });
   });
 
+  it('serves dev manifest with a dedicated ssr remote entry name', () => {
+    getNormalizeModuleFederationOptions.mockReturnValue({
+      name: 'basicRemote',
+      filename: 'remoteEntry.js',
+      getPublicPath: undefined,
+      varFilename: undefined,
+      manifest: true,
+      exposes: {
+        './Button': { import: './src/exposed.js' },
+      },
+      remotes: {},
+      shared: {},
+      bundleAllCSS: false,
+      shareStrategy: 'version-first',
+      implementation: 'module-federation-runtime',
+      runtimePlugins: [],
+      virtualModuleDir: '__mf__virtual',
+      hostInitInjectLocation: 'html',
+      moduleParseTimeout: 10,
+      ignoreOrigin: false,
+    } as any);
+    getUsedRemotesMap.mockReturnValue(new Map());
+    getUsedShares.mockReturnValue(new Set());
+    getNormalizeShareItem.mockImplementation(() => ({
+      version: '1.0.0',
+      shareConfig: { requiredVersion: '*', singleton: false, strictVersion: false },
+    }));
+
+    const [servePlugin, buildPlugin] = manifestPlugin();
+    const middlewares: Array<(req: any, res: any, next: () => void) => void> = [];
+
+    buildPlugin.config?.({}, { command: 'serve', mode: 'test' });
+    buildPlugin.configResolved?.({
+      root: '/',
+      base: '/',
+      build: {},
+      server: { origin: 'http://localhost:4174' },
+    } as any);
+    servePlugin.configResolved?.({
+      base: '/',
+      server: { origin: 'http://localhost:4174' },
+    } as any);
+    servePlugin.configureServer?.({
+      middlewares: {
+        use: (handler: (req: any, res: any, next: () => void) => void) => {
+          middlewares.push(handler);
+        },
+      },
+    } as any);
+
+    expect(middlewares).toHaveLength(1);
+
+    const res = {
+      end: vi.fn(),
+      setHeader: vi.fn(),
+    };
+    const next = vi.fn();
+
+    middlewares[0]({ url: '/mf-manifest.json' }, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    const manifest = JSON.parse(res.end.mock.calls[0][0]);
+    expect(manifest.metaData.remoteEntry.name).toBe('remoteEntry.js');
+    expect(manifest.metaData.ssrRemoteEntry.name).toBe('remoteEntry.ssr.js');
+  });
+
   it('emits share and remote diagnostics in stats/debug artifacts', async () => {
     getConcreteSharedImportSource.mockImplementation((shareKey: string) =>
       shareKey === 'react' ? '/workspace/packages/react/index.js' : undefined

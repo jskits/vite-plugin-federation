@@ -82,6 +82,11 @@ const Manifest = (): Plugin[] => {
     });
   };
 
+  const getEffectiveRemoteEntryFile = () => remoteEntryFile || filename;
+  const getEffectiveSsrRemoteEntryFile = () =>
+    ssrRemoteEntryFile ||
+    (Object.keys(mfOptions.exposes).length > 0 ? getSsrRemoteEntryFileName(filename) : filename);
+
   return [
     {
       name: 'module-federation-manifest',
@@ -121,12 +126,12 @@ const Manifest = (): Plugin[] => {
                   type: 'app',
                   buildInfo: { buildVersion: '1.0.0', buildName: name },
                   remoteEntry: {
-                    name: filename,
+                    name: getEffectiveRemoteEntryFile(),
                     path: '',
                     type: 'module',
                   },
                   ssrRemoteEntry: {
-                    name: filename,
+                    name: getEffectiveSsrRemoteEntryFile(),
                     path: '',
                     type: 'module',
                   },
@@ -299,12 +304,12 @@ const Manifest = (): Plugin[] => {
     const options = getNormalizeModuleFederationOptions();
     const { name, varFilename } = options;
     const remoteEntry = {
-      name: remoteEntryFile,
+      name: getEffectiveRemoteEntryFile(),
       path: '',
       type: 'module',
     };
     const ssrRemoteEntry = {
-      name: ssrRemoteEntryFile || remoteEntryFile,
+      name: getEffectiveSsrRemoteEntryFile(),
       path: '',
       type: 'module',
     };
@@ -548,10 +553,10 @@ const Manifest = (): Plugin[] => {
       }),
       ssr: {
         hasGetPublicPath: Boolean(getPublicPath),
-        hasSsrRemoteEntry: Boolean(ssrRemoteEntryFile),
+        hasSsrRemoteEntry: Boolean(getEffectiveSsrRemoteEntryFile()),
         publicPath,
-        remoteEntryFile: remoteEntryFile || null,
-        ssrRemoteEntryFile: ssrRemoteEntryFile || null,
+        remoteEntryFile: getEffectiveRemoteEntryFile() || null,
+        ssrRemoteEntryFile: getEffectiveSsrRemoteEntryFile() || null,
       },
     };
   }
