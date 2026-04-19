@@ -182,36 +182,27 @@ export function proxySharedModule(options: {
 
           (config.resolve as any).alias.push(
             ...getProxyableSharedKeys().map((key) => {
-              return command === 'build'
-                ? {
-                    find: new RegExp(`(.*${PREBUILD_TAG}.*)`),
-                    replacement: function ($1: string) {
-                      const module = assertModuleFound(PREBUILD_TAG, $1) as VirtualModule;
-                      const pkgName = module.name;
-                      return getPrebuildResolutionSource(pkgName, getPreBuildShareItem(pkgName));
-                    },
+              return {
+                find: new RegExp(`(.*${PREBUILD_TAG}.*)`),
+                replacement: '$1',
+                async customResolver(source: string, importer: string) {
+                  const module = assertModuleFound(PREBUILD_TAG, source) as VirtualModule;
+                  const pkgName = module.name;
+                  const importSource = getPrebuildResolutionSource(
+                    pkgName,
+                    getPreBuildShareItem(pkgName)
+                  );
+                  const resolved = await (this as any).resolve(importSource, importer);
+                  if (!resolved?.id) return;
+                  const result = resolved.id;
+                  if (_config && !result.includes(_config.cacheDir)) {
+                    // save pre-bunding module id
+                    savePrebuild.set(pkgName, Promise.resolve(result));
                   }
-                : {
-                    find: new RegExp(`(.*${PREBUILD_TAG}.*)`),
-                    replacement: '$1',
-                    async customResolver(source: string, importer: string) {
-                      const module = assertModuleFound(PREBUILD_TAG, source) as VirtualModule;
-                      const pkgName = module.name;
-                      const importSource = getPrebuildResolutionSource(
-                        pkgName,
-                        getPreBuildShareItem(pkgName)
-                      );
-                      const resolved = await (this as any).resolve(importSource, importer);
-                      if (!resolved?.id) return;
-                      const result = resolved.id;
-                      if (_config && !result.includes(_config.cacheDir)) {
-                        // save pre-bunding module id
-                        savePrebuild.set(pkgName, Promise.resolve(result));
-                      }
-                      // Fix localSharedImportMap import id
-                      return await (this as any).resolve(await savePrebuild.get(pkgName), importer);
-                    },
-                  };
+                  // Fix localSharedImportMap import id
+                  return await (this as any).resolve(await savePrebuild.get(pkgName), importer);
+                },
+              };
             })
           );
         }
