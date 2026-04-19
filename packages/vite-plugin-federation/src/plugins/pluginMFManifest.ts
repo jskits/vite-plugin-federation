@@ -5,7 +5,8 @@ import {
   getNormalizeModuleFederationOptions,
   getNormalizeShareItem,
 } from '../utils/normalizeModuleFederationOptions';
-import { getUsedRemotesMap, getUsedShares } from '../virtualModules';
+import { getInstalledPackageEntry } from '../utils/packageUtils';
+import { getConcreteSharedImportSource, getUsedRemotesMap, getUsedShares } from '../virtualModules';
 
 import { findEntryFile, findRemoteEntryFile } from '../utils/bundleHelpers';
 import { getSsrRemoteEntryFileName } from '../virtualModules';
@@ -282,7 +283,7 @@ const Manifest = (): Plugin[] => {
           this.emitFile({
             type: 'asset',
             fileName: mfDebugName,
-            source: JSON.stringify(generateMFDebug(filesMap, disableAssetsAnalyze)),
+            source: JSON.stringify(generateMFDebug(filesMap, bundle, disableAssetsAnalyze)),
           });
         }
       },
@@ -424,11 +425,16 @@ const Manifest = (): Plugin[] => {
     return {
       ...baseManifest,
       buildOutput: bundleSummary,
+      diagnostics: generateBuildDiagnostics(bundle),
       ...(disableAssetsAnalyze ? {} : { assetAnalysis: preloadMap }),
     };
   }
 
-  function generateMFDebug(preloadMap: PreloadMap, disableAssetsAnalyze = false) {
+  function generateMFDebug(
+    preloadMap: PreloadMap,
+    bundle: Record<string, { [key: string]: any }> = {},
+    disableAssetsAnalyze = false
+  ) {
     const options = getNormalizeModuleFederationOptions();
 
     return {
@@ -446,6 +452,14 @@ const Manifest = (): Plugin[] => {
         publicPath: publicPath || options.publicPath,
         shareStrategy: options.shareStrategy,
       },
+      capabilities: {
+        debugArtifacts: Boolean(mfDebugName),
+        manifest: Boolean(mfManifestName),
+        remoteHmr: typeof options.dev === 'object' && options.dev?.remoteHmr === true,
+        ssr: Boolean(ssrRemoteEntryFile || remoteEntryFile),
+        stats: Boolean(mfManifestStatsName),
+        types: options.dts !== false,
+      },
       remotes: Object.entries(options.remotes).map(([alias, remote]) => ({
         alias,
         entry: remote.entry,
@@ -455,19 +469,90 @@ const Manifest = (): Plugin[] => {
         shareScope: remote.shareScope,
         type: remote.type,
       })),
-      shared: Object.entries(options.shared).map(([name, share]) => ({
-        import: share.shareConfig.import,
-        requiredVersion: share.shareConfig.requiredVersion,
-        singleton: share.shareConfig.singleton,
-        version: share.version,
-        name,
-      })),
+      shared: Object.keys(options.shared).map((name) => {
+        const share = getNormalizeShareItem(name);
+
+        return {
+          import: share.shareConfig.import,
+          requiredVersion: share.shareConfig.requiredVersion,
+          singleton: share.shareConfig.singleton,
+          strictVersion: share.shareConfig.strictVersion || false,
+          version: share.version,
+          name,
+        };
+      }),
       exposes: Object.entries(options.exposes).map(([name, expose]) => ({
         css: expose.css,
         import: expose.import,
         name,
       })),
+      diagnostics: generateBuildDiagnostics(bundle),
       snapshot: generateMFManifest(preloadMap, disableAssetsAnalyze),
+    };
+  }
+
+  function generateBuildDiagnostics(bundle: Record<string, { [key: string]: any }>) {
+    const options = getNormalizeModuleFederationOptions();
+    const usedShares = getUsedShares();
+
+    return {
+      controlChunks: Object.entries(bundle)
+        .filter(([fileName]) =>
+          /(remoteEntry|localSharedImportMap|__loadShare__|hostInit|virtualExposes)/.test(fileName)
+        )
+        .map(([fileName, chunkOrAsset]) => ({
+          fileName,
+          isEntry: chunkOrAsset.isEntry || false,
+          type: chunkOrAsset.type,
+        })),
+      remoteAliases: Object.entries(options.remotes).map(([alias, remote]) => {
+        const installedPackageEntry = getInstalledPackageEntry(alias, { cwd: root });
+
+        return {
+          alias,
+          collidesWithInstalledPackage: Boolean(installedPackageEntry),
+          entry: remote.entry,
+          installedPackageEntry: installedPackageEntry || null,
+          remoteName: remote.name,
+          shareScope: remote.shareScope,
+          type: remote.type,
+        };
+      }),
+      sharedResolution: Object.entries(options.shared).map(([shareKey]) => {
+        const shareItem = getNormalizeShareItem(shareKey);
+        const concreteImportSource = getConcreteSharedImportSource(shareKey, shareItem);
+        const isPrefixMatch = shareKey.endsWith('/');
+
+        return {
+          concreteImportSource: concreteImportSource || null,
+          configuredImport:
+            typeof shareItem.shareConfig.import === 'string' ? shareItem.shareConfig.import : null,
+          fallbackMode:
+            shareItem.shareConfig.import === false
+              ? 'host-only'
+              : concreteImportSource
+                ? 'concrete-import'
+                : 'prebuild',
+          importDisabled: shareItem.shareConfig.import === false,
+          key: shareKey,
+          matchType: isPrefixMatch ? 'prefix' : 'exact',
+          requiredVersion: shareItem.shareConfig.requiredVersion,
+          singleton: shareItem.shareConfig.singleton,
+          strictVersion: shareItem.shareConfig.strictVersion || false,
+          used:
+            usedShares.has(shareKey) ||
+            (isPrefixMatch &&
+              [...usedShares].some((usedShareKey) => usedShareKey.startsWith(shareKey))),
+          version: shareItem.version || null,
+        };
+      }),
+      ssr: {
+        hasGetPublicPath: Boolean(getPublicPath),
+        hasSsrRemoteEntry: Boolean(ssrRemoteEntryFile),
+        publicPath,
+        remoteEntryFile: remoteEntryFile || null,
+        ssrRemoteEntryFile: ssrRemoteEntryFile || null,
+      },
     };
   }
 };

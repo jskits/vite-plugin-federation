@@ -7,6 +7,8 @@ const {
   getUsedRemotesMap,
   getUsedShares,
   getNormalizeShareItem,
+  getConcreteSharedImportSource,
+  getInstalledPackageEntry,
   getPreBuildLibImportId,
   getSsrRemoteEntryFileName,
 } = vi.hoisted(() => ({
@@ -14,6 +16,8 @@ const {
   getUsedRemotesMap: vi.fn(),
   getUsedShares: vi.fn(),
   getNormalizeShareItem: vi.fn(),
+  getConcreteSharedImportSource: vi.fn(() => undefined),
+  getInstalledPackageEntry: vi.fn(() => undefined),
   getPreBuildLibImportId: vi.fn((shareKey: string) => shareKey),
   getSsrRemoteEntryFileName: vi.fn((filename: string) => filename.replace('.js', '.ssr.js')),
 }));
@@ -24,10 +28,15 @@ vi.mock('../../utils/normalizeModuleFederationOptions', () => ({
 }));
 
 vi.mock('../../virtualModules', () => ({
+  getConcreteSharedImportSource,
   getUsedRemotesMap,
   getUsedShares,
   getPreBuildLibImportId,
   getSsrRemoteEntryFileName,
+}));
+
+vi.mock('../../utils/packageUtils', () => ({
+  getInstalledPackageEntry,
 }));
 
 const makeBundle = () => ({
@@ -62,6 +71,8 @@ async function runGenerateBundleWithManifest(
     usedRemotes?: Map<string, Set<string>>;
     exposePaths?: Record<string, { import: string; css?: { inject?: string | boolean } }>;
     dts?: unknown;
+    shared?: Record<string, unknown>;
+    remotes?: Record<string, unknown>;
   } = {},
   command: 'serve' | 'build' = 'build'
 ): Promise<Record<string, string>> {
@@ -72,8 +83,8 @@ async function runGenerateBundleWithManifest(
     varFilename: undefined,
     manifest: manifestOptions,
     exposes: runtime.exposePaths || {},
-    remotes: {},
-    shared: {},
+    remotes: runtime.remotes || {},
+    shared: runtime.shared || {},
     dts: runtime.dts,
     bundleAllCSS: false,
     shareStrategy: 'version-first',
@@ -86,9 +97,17 @@ async function runGenerateBundleWithManifest(
   } as any);
   getUsedRemotesMap.mockReturnValue(runtime.usedRemotes || new Map());
   getUsedShares.mockReturnValue(runtime.usedShares || new Set());
-  getNormalizeShareItem.mockReturnValue({
-    version: '1.0.0',
-    shareConfig: { requiredVersion: '*' },
+  getNormalizeShareItem.mockImplementation((shareKey: string) => {
+    const sharedConfig = (runtime.shared as Record<string, any> | undefined)?.[shareKey] || {};
+    return {
+      version: sharedConfig.version || '1.0.0',
+      shareConfig: {
+        import: sharedConfig.import,
+        requiredVersion: sharedConfig.requiredVersion || '*',
+        singleton: sharedConfig.singleton || false,
+        strictVersion: sharedConfig.strictVersion || false,
+      },
+    };
   });
 
   const [, buildPlugin] = manifestPlugin();
@@ -129,7 +148,10 @@ describe('pluginMFManifest', () => {
     expect(manifest).toHaveProperty('metaData');
     expect(stats).toHaveProperty('buildOutput');
     expect(debug).toHaveProperty('snapshot');
+    expect(stats).toHaveProperty('diagnostics');
+    expect(debug).toHaveProperty('diagnostics');
     expect(debug.metaData.pluginName).toBe('vite-plugin-federation');
+    expect(debug.capabilities.debugArtifacts).toBe(true);
     expect(manifest.metaData.ssrRemoteEntry).toEqual({
       name: 'remoteEntry.ssr.js',
       path: '',
@@ -139,6 +161,16 @@ describe('pluginMFManifest', () => {
       path: '',
       name: '@mf-types.zip',
       api: '@mf-types.d.ts',
+    });
+    expect(stats.diagnostics).toMatchObject({
+      controlChunks: expect.any(Array),
+      remoteAliases: expect.any(Array),
+      sharedResolution: expect.any(Array),
+      ssr: expect.objectContaining({
+        hasSsrRemoteEntry: true,
+        remoteEntryFile: 'remoteEntry.js',
+        ssrRemoteEntryFile: 'remoteEntry.ssr.js',
+      }),
     });
     expect(
       stats.buildOutput.find((chunk: any) => chunk.fileName === 'remoteEntry.js')
@@ -314,6 +346,78 @@ describe('pluginMFManifest', () => {
       path: '',
       name: '',
       api: '',
+    });
+  });
+
+  it('emits share and remote diagnostics in stats/debug artifacts', async () => {
+    getConcreteSharedImportSource.mockImplementation((shareKey: string) =>
+      shareKey === 'react' ? '/workspace/packages/react/index.js' : undefined
+    );
+    getInstalledPackageEntry.mockImplementation((pkg: string) =>
+      pkg === 'scheduler' ? '/repo/node_modules/.pnpm/scheduler/index.js' : undefined
+    );
+
+    const emitted = await runGenerateBundleWithManifest(true, {
+      shared: {
+        react: {
+          import: '/workspace/packages/react/index.js',
+          requiredVersion: '^19.0.0',
+          singleton: true,
+          strictVersion: true,
+        },
+        'lit/': {
+          requiredVersion: '^3.0.0',
+        },
+        'host-only': {
+          import: false,
+          singleton: true,
+        },
+      },
+      remotes: {
+        scheduler: {
+          entry: 'http://remote.example/assets/remoteEntry.js',
+          name: 'scheduler',
+          shareScope: 'default',
+          type: 'module',
+        },
+      },
+      usedShares: new Set(['react', 'lit/directives/class-map.js']),
+    });
+
+    const stats = JSON.parse(emitted['mf-stats.json']);
+    const debug = JSON.parse(emitted['mf-debug.json']);
+
+    expect(stats.diagnostics.remoteAliases).toEqual([
+      expect.objectContaining({
+        alias: 'scheduler',
+        collidesWithInstalledPackage: true,
+        installedPackageEntry: '/repo/node_modules/.pnpm/scheduler/index.js',
+      }),
+    ]);
+    expect(stats.diagnostics.sharedResolution).toEqual([
+      expect.objectContaining({
+        key: 'react',
+        fallbackMode: 'concrete-import',
+        matchType: 'exact',
+        used: true,
+      }),
+      expect.objectContaining({
+        key: 'lit/',
+        fallbackMode: 'prebuild',
+        matchType: 'prefix',
+        used: true,
+      }),
+      expect.objectContaining({
+        key: 'host-only',
+        fallbackMode: 'host-only',
+        importDisabled: true,
+        used: false,
+      }),
+    ]);
+    expect(debug.diagnostics.ssr).toMatchObject({
+      hasSsrRemoteEntry: true,
+      remoteEntryFile: 'remoteEntry.js',
+      ssrRemoteEntryFile: 'remoteEntry.ssr.js',
     });
   });
 });
