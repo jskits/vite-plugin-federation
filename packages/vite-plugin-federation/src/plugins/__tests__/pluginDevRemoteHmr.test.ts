@@ -44,6 +44,7 @@ function createServer(overrides: Record<string, any> = {}) {
   const server = {
     config: {
       base: '/',
+      root: '/repo',
       webSocketToken: 'dev-token',
       server: {
         host: 'localhost',
@@ -69,6 +70,9 @@ function createServer(overrides: Record<string, any> = {}) {
     },
     ws: {
       send: vi.fn(),
+    },
+    moduleGraph: {
+      getModulesByFile: vi.fn(() => undefined),
     },
     httpServer: {
       once: vi.fn((event: string, handler: () => void) => {
@@ -97,10 +101,19 @@ describe('pluginDevRemoteHmr', () => {
     MockWebSocket.instances = [];
   });
 
-  it('serves remote metadata and broadcasts non-ignored file changes', () => {
+  it('serves remote metadata and classifies remote updates', () => {
+    const buttonModule = {
+      id: '/repo/src/Button.tsx',
+      importers: new Set(),
+    };
+    const buttonStyleModule = {
+      id: '/repo/src/Button.css',
+      importers: new Set([buttonModule]),
+    };
     const { server, middlewares, emit, close } = createServer({
       config: {
         base: 'https://remote.example/app/',
+        root: '/repo',
         webSocketToken: 'token-123',
         server: {
           host: '0.0.0.0',
@@ -112,6 +125,14 @@ describe('pluginDevRemoteHmr', () => {
             path: '/hmr',
           },
         },
+      },
+      moduleGraph: {
+        getModulesByFile: vi.fn((file: string) => {
+          if (file === '/repo/src/Button.css') {
+            return new Set([buttonStyleModule]);
+          }
+          return undefined;
+        }),
       },
     });
 
@@ -143,18 +164,52 @@ describe('pluginDevRemoteHmr', () => {
       wsUrl: 'wss://hmr.example:24678/app/hmr?token=token-123',
     });
 
-    emit('change', '/src/Button.tsx');
+    emit('change', '/repo/src/Button.tsx');
+    emit('change', '/repo/src/Button.css');
     emit('change', '/node_modules/react/index.js');
-    emit('add', '/src/other.tsx');
-    emit('unlink', '/src/__mf__virtual/chunk.js');
+    emit('add', '/repo/src/other.tsx');
+    emit('unlink', '/repo/src/__mf__virtual/chunk.js');
 
-    expect(server.ws.send).toHaveBeenCalledTimes(2);
+    expect(server.ws.send).toHaveBeenCalledTimes(3);
     expect(server.ws.send).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         type: 'custom',
         event: 'mf:remote-update',
-        data: expect.objectContaining({ remote: 'remote-app', file: '/src/Button.tsx' }),
+        data: expect.objectContaining({
+          action: 'full-reload',
+          expose: './Button',
+          kind: 'expose',
+          remote: 'remote-app',
+          file: '/repo/src/Button.tsx',
+        }),
+      })
+    );
+    expect(server.ws.send).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        type: 'custom',
+        event: 'mf:remote-update',
+        data: expect.objectContaining({
+          action: 'style-update',
+          expose: './Button',
+          kind: 'style',
+          remote: 'remote-app',
+          file: '/repo/src/Button.css',
+        }),
+      })
+    );
+    expect(server.ws.send).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        type: 'custom',
+        event: 'mf:remote-update',
+        data: expect.objectContaining({
+          action: 'full-reload',
+          kind: 'boundary',
+          remote: 'remote-app',
+          file: '/repo/src/other.tsx',
+        }),
       })
     );
 
@@ -214,7 +269,7 @@ describe('pluginDevRemoteHmr', () => {
       data: JSON.stringify({
         type: 'custom',
         event: 'mf:remote-update',
-        data: { file: '/src/Button.tsx' },
+        data: { action: 'full-reload', file: '/src/Button.tsx', kind: 'expose', remote: 'remoteApp', ts: 1 },
       }),
     });
 
@@ -222,6 +277,150 @@ describe('pluginDevRemoteHmr', () => {
 
     close();
     expect(socket.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards remote style updates without forcing a full reload', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        event: 'mf:remote-update',
+        wsUrl: 'ws://remote.example:4174/app?token=abc',
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWebSocket as any);
+
+    const { server } = createServer();
+
+    const plugin = pluginDevRemoteHmr({
+      name: 'host-app',
+      dev: { remoteHmr: true },
+      exposes: {},
+      remotes: {
+        remoteApp: {
+          entry: 'http://remote.example/assets/remoteEntry.js',
+        },
+      },
+      virtualModuleDir: '__mf__virtual',
+    } as any);
+
+    plugin.configureServer?.(server as any);
+
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+
+    MockWebSocket.instances[0].onmessage?.({
+      data: JSON.stringify({
+        type: 'custom',
+        event: 'mf:remote-update',
+        data: {
+          action: 'style-update',
+          expose: './Button',
+          file: '/repo/src/Button.css',
+          kind: 'style',
+          remote: 'remote-app',
+          ts: 123,
+        },
+      }),
+    });
+
+    expect(server.ws.send).toHaveBeenCalledWith({
+      type: 'custom',
+      event: 'vite-plugin-federation:remote-style-update',
+      data: expect.objectContaining({
+        action: 'style-update',
+        expose: './Button',
+        remote: 'remote-app',
+        remoteOrigin: 'http://remote.example',
+        ts: 123,
+      }),
+    });
+    expect(server.ws.send).not.toHaveBeenCalledWith({ type: 'full-reload' });
+  });
+
+  it('forwards remote type-only updates without forcing a full reload', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        event: 'mf:remote-update',
+        wsUrl: 'ws://remote.example:4174/app?token=abc',
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWebSocket as any);
+
+    const { server } = createServer();
+
+    const plugin = pluginDevRemoteHmr({
+      name: 'host-app',
+      dev: { remoteHmr: true },
+      exposes: {},
+      remotes: {
+        remoteApp: {
+          entry: 'http://remote.example/assets/remoteEntry.js',
+        },
+      },
+      virtualModuleDir: '__mf__virtual',
+    } as any);
+
+    plugin.configureServer?.(server as any);
+
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+
+    MockWebSocket.instances[0].onmessage?.({
+      data: JSON.stringify({
+        type: 'custom',
+        event: 'mf:remote-update',
+        data: {
+          action: 'types-update',
+          file: '/repo/src/types.d.ts',
+          kind: 'types',
+          remote: 'remote-app',
+          ts: 456,
+        },
+      }),
+    });
+
+    expect(server.ws.send).toHaveBeenCalledWith({
+      type: 'custom',
+      event: 'vite-plugin-federation:remote-types-update',
+      data: expect.objectContaining({
+        action: 'types-update',
+        remote: 'remote-app',
+        remoteOrigin: 'http://remote.example',
+        ts: 456,
+      }),
+    });
+    expect(server.ws.send).not.toHaveBeenCalledWith({ type: 'full-reload' });
+  });
+
+  it('injects a host-side client handler for remote HMR updates', () => {
+    const plugin = pluginDevRemoteHmr({
+      name: 'host-app',
+      dev: { remoteHmr: true },
+      exposes: {},
+      remotes: {
+        remoteApp: {
+          entry: 'http://remote.example/assets/remoteEntry.js',
+        },
+      },
+      virtualModuleDir: '__mf__virtual',
+    } as any);
+
+    const tags = plugin.transformIndexHtml?.();
+
+    expect(tags).toHaveLength(1);
+    expect(tags?.[0]).toMatchObject({
+      tag: 'script',
+      injectTo: 'head',
+      attrs: {
+        type: 'module',
+      },
+    });
+    expect(tags?.[0].children).toContain('vite-plugin-federation:remote-style-update');
+    expect(tags?.[0].children).toContain('vite-plugin-federation:remote-types-update');
+    expect(tags?.[0].children).toContain('window.location.reload()');
   });
 
   it('triggers full reload for host local file changes', async () => {

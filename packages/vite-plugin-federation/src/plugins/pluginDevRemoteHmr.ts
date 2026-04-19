@@ -1,11 +1,39 @@
+import path from 'pathe';
 import type { Plugin, ViteDevServer } from 'vite';
 import { mfWarn } from '../utils/logger';
 import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 
 const REMOTE_HMR_ENDPOINT = '__mf_hmr';
 const REMOTE_HMR_EVENT = 'mf:remote-update';
+const HOST_STYLE_UPDATE_EVENT = 'vite-plugin-federation:remote-style-update';
+const HOST_TYPES_UPDATE_EVENT = 'vite-plugin-federation:remote-types-update';
+const HOST_REMOTE_UPDATE_EVENT = 'vite-plugin-federation:remote-update';
 const REMOTE_HMR_CONNECT_RETRY_DELAY_MS = 1000;
 const REMOTE_HMR_CONNECT_MAX_RETRIES = 10;
+const STYLE_FILE_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/i;
+const TYPES_FILE_RE = /\.d\.[cm]?ts$/i;
+
+type RemoteUpdateAction = 'full-reload' | 'style-update' | 'types-update';
+
+type RemoteUpdatePayload = {
+  action: RemoteUpdateAction;
+  expose?: string;
+  file: string;
+  kind: 'boundary' | 'expose' | 'style' | 'types';
+  remote: string;
+  ts: number;
+};
+
+type RemoteUpdateMessage = {
+  data?: RemoteUpdatePayload;
+  event?: string;
+  type?: string;
+};
+
+type ModuleGraphNode = {
+  id?: string | null;
+  importers?: Set<ModuleGraphNode>;
+};
 
 function getBasePath(base: string) {
   if (!base) return '/';
@@ -99,7 +127,7 @@ function parseRemoteHmrMessage(rawData: unknown) {
   try {
     const parsed = JSON.parse(rawData);
     if (parsed?.type !== 'custom' || typeof parsed?.event !== 'string') return null;
-    return parsed;
+    return parsed as RemoteUpdateMessage;
   } catch {
     return null;
   }
@@ -121,10 +149,181 @@ function isRemoteHmrEnabled(dev: NormalizedModuleFederationOptions['dev']) {
   return typeof dev === 'object' && dev !== null && dev.remoteHmr === true;
 }
 
+function normalizeFilePath(value: string) {
+  return value.replace(/\\/g, '/').replace(/[?#].*$/, '');
+}
+
+function getExposeImportMap(server: ViteDevServer, options: NormalizedModuleFederationOptions) {
+  const root = server.config.root || process.cwd();
+
+  return new Map(
+    Object.entries(options.exposes)
+      .filter(([, expose]) => typeof expose.import === 'string')
+      .map(([exposeName, expose]) => [
+        normalizeFilePath(path.resolve(root, expose.import)),
+        exposeName,
+      ])
+  );
+}
+
+function findExposeNameForFile(
+  server: ViteDevServer,
+  options: NormalizedModuleFederationOptions,
+  file: string
+) {
+  const exposeImportMap = getExposeImportMap(server, options);
+  const normalizedFile = normalizeFilePath(file);
+
+  if (exposeImportMap.has(normalizedFile)) {
+    return exposeImportMap.get(normalizedFile);
+  }
+
+  const getModulesByFile = (server.moduleGraph as { getModulesByFile?: (file: string) => Set<ModuleGraphNode> | undefined } | undefined)?.getModulesByFile;
+  if (typeof getModulesByFile !== 'function') return;
+
+  const visited = new Set<ModuleGraphNode>();
+  const queue = [
+    ...(getModulesByFile.call(server.moduleGraph, normalizedFile) || []),
+    ...(getModulesByFile.call(server.moduleGraph, file) || []),
+  ];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+
+    const currentId = typeof current.id === 'string' ? normalizeFilePath(current.id) : '';
+    const matchedExpose = exposeImportMap.get(currentId);
+    if (matchedExpose) {
+      return matchedExpose;
+    }
+
+    current.importers?.forEach((importer) => {
+      if (!visited.has(importer)) {
+        queue.push(importer);
+      }
+    });
+  }
+}
+
+function classifyRemoteUpdate(
+  server: ViteDevServer,
+  options: NormalizedModuleFederationOptions,
+  file: string
+): RemoteUpdatePayload {
+  const normalizedFile = normalizeFilePath(file);
+  const exposeName = findExposeNameForFile(server, options, normalizedFile);
+
+  if (TYPES_FILE_RE.test(normalizedFile)) {
+    return {
+      action: 'types-update',
+      file: normalizedFile,
+      kind: 'types',
+      remote: options.name,
+      ts: Date.now(),
+    };
+  }
+
+  if (STYLE_FILE_RE.test(normalizedFile) && exposeName) {
+    return {
+      action: 'style-update',
+      expose: exposeName,
+      file: normalizedFile,
+      kind: 'style',
+      remote: options.name,
+      ts: Date.now(),
+    };
+  }
+
+  if (exposeName) {
+    return {
+      action: 'full-reload',
+      expose: exposeName,
+      file: normalizedFile,
+      kind: 'expose',
+      remote: options.name,
+      ts: Date.now(),
+    };
+  }
+
+  return {
+    action: 'full-reload',
+    file: normalizedFile,
+    kind: 'boundary',
+    remote: options.name,
+    ts: Date.now(),
+  };
+}
+
+function getRemoteOrigin(remoteEntry: string, server: ViteDevServer) {
+  try {
+    return new URL(remoteEntry, getLocalFallbackOrigin(server)).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getHostRemoteHmrClientCode() {
+  return `if (import.meta.hot) {
+  const dispatchRemoteEvent = (eventName, payload) => {
+    if (typeof window === "undefined" || !window.dispatchEvent || typeof CustomEvent !== "function") return;
+    window.dispatchEvent(new CustomEvent(eventName, { detail: payload }));
+  };
+  const refreshRemoteStylesheets = (payload) => {
+    if (typeof document === "undefined" || typeof window === "undefined") return false;
+    const timestamp = String(payload?.ts || Date.now());
+    const remoteOrigin = payload?.remoteOrigin;
+    const links = Array.from(document.querySelectorAll('link[rel="stylesheet"][href]'));
+    let refreshedCount = 0;
+    for (const link of links) {
+      const href = link.getAttribute('href');
+      if (!href) continue;
+      try {
+        const currentUrl = new URL(href, window.location.href);
+        if (remoteOrigin && currentUrl.origin !== remoteOrigin) continue;
+        currentUrl.searchParams.set('t', timestamp);
+        const nextLink = link.cloneNode();
+        nextLink.href = currentUrl.toString();
+        nextLink.onload = () => link.remove();
+        nextLink.onerror = () => link.remove();
+        link.after(nextLink);
+        refreshedCount += 1;
+      } catch {}
+    }
+    return refreshedCount > 0;
+  };
+  import.meta.hot.on("${HOST_STYLE_UPDATE_EVENT}", (payload) => {
+    dispatchRemoteEvent("${HOST_REMOTE_UPDATE_EVENT}", payload);
+    dispatchRemoteEvent("${HOST_STYLE_UPDATE_EVENT}", payload);
+    if (!refreshRemoteStylesheets(payload)) {
+      window.location.reload();
+    }
+  });
+  import.meta.hot.on("${HOST_TYPES_UPDATE_EVENT}", (payload) => {
+    dispatchRemoteEvent("${HOST_REMOTE_UPDATE_EVENT}", payload);
+    dispatchRemoteEvent("${HOST_TYPES_UPDATE_EVENT}", payload);
+  });
+}`;
+}
+
 export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOptions): Plugin {
   return {
     name: 'module-federation-dev-remote-hmr',
     apply: 'serve',
+    transformIndexHtml() {
+      if (!isRemoteHmrEnabled(options.dev) || Object.keys(options.remotes).length === 0) return;
+
+      return [
+        {
+          tag: 'script',
+          injectTo: 'head',
+          attrs: {
+            type: 'module',
+          },
+          children: getHostRemoteHmrClientCode(),
+        },
+      ];
+    },
     configureServer(server) {
       if (!isRemoteHmrEnabled(options.dev)) return;
 
@@ -158,11 +357,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
           server.ws.send({
             type: 'custom',
             event: REMOTE_HMR_EVENT,
-            data: {
-              remote: options.name,
-              file,
-              ts: Date.now(),
-            },
+            data: classifyRemoteUpdate(server, options, file),
           });
         };
 
@@ -246,6 +441,44 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
             ws.onmessage = (rawEvent: { data: unknown }) => {
               const message = parseRemoteHmrMessage(rawEvent.data);
               if (!message || message.event !== REMOTE_HMR_EVENT) return;
+              const payload = message.data;
+              if (!payload) {
+                server.ws.send({ type: 'full-reload' });
+                return;
+              }
+
+              if (payload.action === 'types-update') {
+                server.ws.send({
+                  type: 'custom',
+                  event: HOST_TYPES_UPDATE_EVENT,
+                  data: {
+                    ...payload,
+                    remote: payload.remote || remoteName,
+                    remoteOrigin: getRemoteOrigin(remote.entry, server),
+                  },
+                });
+                return;
+              }
+
+              if (payload.action === 'style-update') {
+                const remoteOrigin = getRemoteOrigin(remote.entry, server);
+                if (!remoteOrigin) {
+                  server.ws.send({ type: 'full-reload' });
+                  return;
+                }
+
+                server.ws.send({
+                  type: 'custom',
+                  event: HOST_STYLE_UPDATE_EVENT,
+                  data: {
+                    ...payload,
+                    remote: payload.remote || remoteName,
+                    remoteOrigin,
+                  },
+                });
+                return;
+              }
+
               server.ws.send({ type: 'full-reload' });
             };
             ws.onopen = () => clearReconnectTimer(remoteName);
