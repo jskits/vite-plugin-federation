@@ -104,6 +104,8 @@ describe('pluginDevtools', () => {
     expect(tags[0].tag).toBe('script');
     expect(tags[0].children).toContain('__VITE_PLUGIN_FEDERATION_DEVTOOLS__');
     expect(tags[0].children).toContain('vite-plugin-federation:devtools-ready');
+    expect(tags[0].children).toContain('__vite_plugin_federation_devtools_overlay');
+    expect(tags[0].children).toContain('vite-plugin-federation:remote-update');
     expect(tags[0].children).toContain('"manifestUrl":"/app/federation/manifest.json"');
   });
 
