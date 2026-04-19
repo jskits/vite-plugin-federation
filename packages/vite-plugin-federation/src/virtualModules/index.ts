@@ -5,10 +5,13 @@ export {
   addUsedShares,
   generateLocalSharedImportMap,
   generateRemoteEntry,
+  generateSsrRemoteEntry,
   getHostAutoInitImportId,
   getHostAutoInitPath,
   getLocalSharedImportMapPath,
   getRemoteEntryId,
+  getSsrRemoteEntryFileName,
+  getSsrRemoteEntryId,
   getUsedShares,
   writeLocalSharedImportMap,
 } from './virtualRemoteEntry';

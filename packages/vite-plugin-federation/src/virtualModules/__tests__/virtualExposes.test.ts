@@ -65,6 +65,23 @@ describe('virtualExposes', () => {
     expect(cssBundleCode).toContain(`const cssAssetMap = "${getExposesCssMapPlaceholder()}";`);
   });
 
+  it('can emit eager static expose imports for SSR builds', () => {
+    const code = generateExposes(
+      getDefaultMockOptions({
+        exposes: {
+          './Button': { import: './src/Button.ts' } as any,
+        },
+      }),
+      {
+        eagerImports: true,
+      }
+    );
+
+    expect(code).toContain('import * as __mf_expose_0 from "./src/Button.ts";');
+    expect(code).toContain('const importModule = await Promise.resolve(__mf_expose_0)');
+    expect(code).not.toContain('() => import("./src/Button.ts")');
+  });
+
   it('injects css once and serializes module imports across concurrent expose loads', async () => {
     const code = generateExposes(
       getDefaultMockOptions({

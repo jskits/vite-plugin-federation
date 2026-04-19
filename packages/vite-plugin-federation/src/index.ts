@@ -45,6 +45,8 @@ import {
   getHostAutoInitPath,
   getLocalSharedImportMapPath,
   getRemoteEntryId,
+  getSsrRemoteEntryFileName,
+  getSsrRemoteEntryId,
   initVirtualModules,
   LOAD_REMOTE_TAG,
   LOAD_SHARE_TAG,
@@ -254,6 +256,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
   if (!name) throw createModuleFederationError('MFV-001', 'name is required');
 
   const remoteEntryId = getRemoteEntryId(options);
+  const ssrRemoteEntryId = getSsrRemoteEntryId(options);
   const virtualExposesId = getVirtualExposesId(options);
 
   let command: string;
@@ -322,6 +325,13 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
       entryPath: remoteEntryId,
       fileName: filename,
     }),
+    ...(Object.keys(options.exposes).length > 0
+      ? addEntry({
+          entryName: 'ssrRemoteEntry',
+          entryPath: ssrRemoteEntryId,
+          fileName: getSsrRemoteEntryFileName(filename),
+        })
+      : []),
     ...addEntry({
       entryName: 'hostInit',
       entryPath: () => getHostAutoInitPath(),
@@ -331,7 +341,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
       entryName: 'virtualExposes',
       entryPath: virtualExposesId,
     }),
-    pluginProxyRemoteEntry({ options, remoteEntryId, virtualExposesId }),
+    pluginProxyRemoteEntry({ options, remoteEntryId, ssrRemoteEntryId, virtualExposesId }),
     pluginProxyRemotes(options),
     pluginOriginjsCompat(options),
     pluginRemoteNamedExports(options),
@@ -340,6 +350,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
         return (
           id.includes(getHostAutoInitImportId()) ||
           id.includes(remoteEntryId) ||
+          id.includes(ssrRemoteEntryId) ||
           id.includes(virtualExposesId) ||
           id.includes(getLocalSharedImportMapPath())
         );
@@ -1005,6 +1016,31 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
                     /new URL\("\.\.\/"\+(\w+),import\.meta\.url\)\.href/g,
                     `new URL(${replacementExpr},import.meta.url).href`
                   );
+
+                  // Vite's preload helper assumes a browser DOM and crashes when a
+                  // remote expose is evaluated during Node SSR. Short-circuit the
+                  // helper to the import callback when document/window are absent.
+                  if (
+                    chunk.code.includes('document.getElementsByTagName') &&
+                    !chunk.code.includes('typeof document>"u"||typeof window>"u"')
+                  ) {
+                    chunk.code = chunk.code.replace(
+                      /=function\((\w+),(\w+),(\w+)\)\{let (\w+)=Promise\.resolve\(\);/,
+                      '=function($1,$2,$3){if(typeof document>"u"||typeof window>"u")return $1();let $4=Promise.resolve();'
+                    );
+                    chunk.code = chunk.code.replace(
+                      /=function\((\w+),(\w+)\)\{let (\w+)=Promise\.resolve\(\);/,
+                      '=function($1,$2){if(typeof document>"u"||typeof window>"u")return $1();let $3=Promise.resolve();'
+                    );
+                    chunk.code = chunk.code.replace(
+                      /=\((\w+),(\w+),(\w+)\)=>\{let (\w+)=Promise\.resolve\(\);/,
+                      '=($1,$2,$3)=>{if(typeof document>"u"||typeof window>"u")return $1();let $4=Promise.resolve();'
+                    );
+                    chunk.code = chunk.code.replace(
+                      /=\((\w+),(\w+)\)=>\{let (\w+)=Promise\.resolve\(\);/,
+                      '=($1,$2)=>{if(typeof document>"u"||typeof window>"u")return $1();let $3=Promise.resolve();'
+                    );
+                  }
                 }
               },
             } satisfies Plugin,

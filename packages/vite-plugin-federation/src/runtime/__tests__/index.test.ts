@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   createInstanceMock,
   getInstanceMock,
+  initMock,
   loadRemoteMock,
   preloadRemoteMock,
   registerPluginsMock,
@@ -11,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
   createInstanceMock: vi.fn((options) => ({ options })),
   getInstanceMock: vi.fn(() => ({ name: 'host', options: { name: 'host' } })),
+  initMock: vi.fn((options) => ({ options })),
   loadRemoteMock: vi.fn(),
   preloadRemoteMock: vi.fn(),
   registerPluginsMock: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock('@module-federation/runtime', () => ({
   getInstance: getInstanceMock,
   getRemoteEntry: vi.fn(),
   getRemoteInfo: vi.fn(),
+  init: initMock,
   loadRemote: loadRemoteMock,
   loadScript: vi.fn(),
   loadScriptNode: vi.fn(),
@@ -57,6 +60,7 @@ describe('runtime api', () => {
     clearFederationRuntimeCaches();
     createInstanceMock.mockClear();
     getInstanceMock.mockClear();
+    initMock.mockClear();
     loadRemoteMock.mockReset();
     preloadRemoteMock.mockReset();
     registerPluginsMock.mockReset();
@@ -109,7 +113,7 @@ describe('runtime api', () => {
     const debugInfo = getFederationDebugInfo();
 
     expect(preloadRemoteMock).toHaveBeenCalled();
-    expect(createInstanceMock).toHaveBeenCalled();
+    expect(initMock).toHaveBeenCalled();
     expect(debugInfo.instance).toMatchObject({
       name: 'host',
     });
@@ -125,7 +129,7 @@ describe('runtime api', () => {
       inBrowser: true,
     });
 
-    expect(createInstanceMock).toHaveBeenCalledWith(
+    expect(initMock).toHaveBeenCalledWith(
       expect.objectContaining({
         inBrowser: false,
         name: 'server-host',
@@ -209,6 +213,38 @@ describe('runtime api', () => {
         target: 'node',
       }),
     ]);
+  });
+
+  it('resolves relative manifest public paths against the manifest url', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          globalName: 'remoteApp',
+          publicPath: '/',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: 'assets',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await registerManifestRemote('remoteApp', 'http://localhost:4174/nested/mf-manifest.json');
+
+    expect(registerRemotesMock).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          entry: 'http://localhost:4174/assets/remoteEntry.js',
+        }),
+      ],
+      { force: undefined }
+    );
   });
 
   it('collapses concurrent manifest registrations', async () => {

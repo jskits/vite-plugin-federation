@@ -34,13 +34,22 @@ export function resolveProxyAlias(
   };
 }
 
-export function findRemoteEntryFile(filename: string, bundle: OutputBundleLike) {
+export function findEntryFile(
+  filename: string,
+  bundle: OutputBundleLike,
+  entryName = 'remoteEntry'
+) {
   for (const [_, fileData] of Object.entries(bundle)) {
     if (
+      fileData.fileName === filename ||
       filename.replace(/[\[\]]/g, '_').replace(/\.[^/.]+$/, '') === fileData.name ||
-      fileData.name === 'remoteEntry'
+      fileData.name === entryName
     ) {
       return fileData.fileName; // We can return early since we only need to find remoteEntry once
     }
   }
+}
+
+export function findRemoteEntryFile(filename: string, bundle: OutputBundleLike) {
+  return findEntryFile(filename, bundle, 'remoteEntry');
 }

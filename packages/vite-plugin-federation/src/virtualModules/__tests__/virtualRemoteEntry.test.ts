@@ -294,4 +294,26 @@ describe('virtualRemoteEntry', () => {
     expect(code).not.toContain('import exposesMap from');
     expect(code).not.toContain('import {usedShared, usedRemotes} from');
   });
+
+  it('generates a dedicated SSR remote entry with a static exposes map import', async () => {
+    const mod = await import('../virtualRemoteEntry');
+
+    const code = mod.generateSsrRemoteEntry(
+      {
+        internalName: '__mfe_internal__host',
+        name: 'host',
+        filename: 'remoteEntry.js',
+        remotes: {},
+        runtimePlugins: [],
+        shareScope: 'default',
+        shareStrategy: 'version-first',
+      } as any,
+      'virtual:exposes'
+    );
+
+    expect(code).toContain('import exposesMap from "virtual:exposes";');
+    expect(code).toContain('const {usedShared, usedRemotes} = await getLocalSharedImportMap()');
+    expect(code).not.toContain('exposesMapPromise ??=');
+    expect(code).not.toContain('const exposesMap = await getExposesMap()');
+  });
 });

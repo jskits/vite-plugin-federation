@@ -735,6 +735,27 @@ describe('module-federation-fix-preload', () => {
 
     expect(bundle['preload-helper-abc.js'].code).toContain('new URL(e,import.meta.url).href');
   });
+
+  it('short-circuits preload helper on the server', () => {
+    const plugin = getFixPreloadPlugin();
+    const bundle = {
+      'preload-helper-abc.js': {
+        type: 'chunk',
+        fileName: 'preload-helper-abc.js',
+        code: [
+          'var e="modulepreload",t=function(e){return"/"+e},n={},r=function(r,i,a){let o=Promise.resolve();',
+          'if(i&&i.length>0){let r=document.getElementsByTagName("link");document.querySelector("meta[property=csp-nonce]");}',
+          'return o.then(()=>r())};',
+        ].join(''),
+      },
+    };
+
+    plugin.generateBundle?.call({} as any, {} as any, bundle as any);
+
+    expect(bundle['preload-helper-abc.js'].code).toContain(
+      'if(typeof document>"u"||typeof window>"u")return r();'
+    );
+  });
 });
 
 describe('module-federation-dev-await-shared-init', () => {

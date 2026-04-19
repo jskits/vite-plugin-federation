@@ -14,6 +14,7 @@ import { resolvePublicPath } from '../utils/publicPath';
 import {
   generateExposes,
   generateRemoteEntry,
+  generateSsrRemoteEntry,
   getExposesCssMapPlaceholder,
   getHostAutoInitPath,
 } from '../virtualModules';
@@ -24,15 +25,19 @@ const filter: (id: string) => boolean = createFilter();
 interface ProxyRemoteEntryParams {
   options: NormalizedModuleFederationOptions;
   remoteEntryId: string;
+  ssrRemoteEntryId: string;
   virtualExposesId: string;
 }
 
 export default function ({
   options,
   remoteEntryId,
+  ssrRemoteEntryId,
   virtualExposesId,
 }: ProxyRemoteEntryParams): Plugin {
   let viteConfig: any, _command: string, root: string;
+  const shouldUseEagerExposeImports = () => Boolean(viteConfig?.build?.ssr);
+
   return {
     name: 'proxyRemoteEntry',
     enforce: 'post',
@@ -64,6 +69,9 @@ export default function ({
       if (id === remoteEntryId) {
         return remoteEntryId;
       }
+      if (id === ssrRemoteEntryId) {
+        return ssrRemoteEntryId;
+      }
       if (id === virtualExposesId) {
         return virtualExposesId;
       }
@@ -76,7 +84,7 @@ export default function ({
       // managers (pnpm) because it is a transitive dependency.  Re-resolve from
       // this package's location so Vite uses the correct ESM entry point.
       if (
-        importer === remoteEntryId &&
+        (importer === remoteEntryId || importer === ssrRemoteEntryId) &&
         !id.startsWith('.') &&
         !id.startsWith('/') &&
         !id.startsWith('\0') &&
@@ -92,8 +100,13 @@ export default function ({
       if (id === remoteEntryId) {
         return parsePromise.then((_) => generateRemoteEntry(options, virtualExposesId, _command));
       }
+      if (id === ssrRemoteEntryId) {
+        return parsePromise.then((_) => generateSsrRemoteEntry(options, virtualExposesId));
+      }
       if (id === virtualExposesId) {
-        return generateExposes(options);
+        return generateExposes(options, {
+          eagerImports: shouldUseEagerExposeImports(),
+        });
       }
       if (_command === 'serve' && id.includes(getHostAutoInitPath())) {
         return id;
@@ -105,8 +118,13 @@ export default function ({
         if (id.includes(remoteEntryId)) {
           return parsePromise.then((_) => generateRemoteEntry(options, virtualExposesId, _command));
         }
+        if (id.includes(ssrRemoteEntryId)) {
+          return parsePromise.then((_) => generateSsrRemoteEntry(options, virtualExposesId));
+        }
         if (id === virtualExposesId) {
-          return generateExposes(options);
+          return generateExposes(options, {
+            eagerImports: shouldUseEagerExposeImports(),
+          });
         }
         if (id.includes(getHostAutoInitPath())) {
           if (_command === 'serve') {

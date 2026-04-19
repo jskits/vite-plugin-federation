@@ -8,12 +8,14 @@ const {
   getUsedShares,
   getNormalizeShareItem,
   getPreBuildLibImportId,
+  getSsrRemoteEntryFileName,
 } = vi.hoisted(() => ({
   getNormalizeModuleFederationOptions: vi.fn(),
   getUsedRemotesMap: vi.fn(),
   getUsedShares: vi.fn(),
   getNormalizeShareItem: vi.fn(),
   getPreBuildLibImportId: vi.fn((shareKey: string) => shareKey),
+  getSsrRemoteEntryFileName: vi.fn((filename: string) => filename.replace('.js', '.ssr.js')),
 }));
 
 vi.mock('../../utils/normalizeModuleFederationOptions', () => ({
@@ -25,12 +27,22 @@ vi.mock('../../virtualModules', () => ({
   getUsedRemotesMap,
   getUsedShares,
   getPreBuildLibImportId,
+  getSsrRemoteEntryFileName,
 }));
 
 const makeBundle = () => ({
   'remoteEntry.js': {
     type: 'chunk',
     fileName: 'remoteEntry.js',
+    code: 'const a = 1;',
+    modules: {
+      '/src/exposed.js': {},
+    },
+  },
+  'remoteEntry.ssr.js': {
+    type: 'chunk',
+    name: 'ssrRemoteEntry',
+    fileName: 'remoteEntry.ssr.js',
     code: 'const a = 1;',
     modules: {
       '/src/exposed.js': {},
@@ -118,6 +130,11 @@ describe('pluginMFManifest', () => {
     expect(stats).toHaveProperty('buildOutput');
     expect(debug).toHaveProperty('snapshot');
     expect(debug.metaData.pluginName).toBe('vite-plugin-federation');
+    expect(manifest.metaData.ssrRemoteEntry).toEqual({
+      name: 'remoteEntry.ssr.js',
+      path: '',
+      type: 'module',
+    });
     expect(manifest.metaData.types).toEqual({
       path: '',
       name: '@mf-types.zip',

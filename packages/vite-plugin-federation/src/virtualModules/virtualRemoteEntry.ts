@@ -1,3 +1,4 @@
+import * as path from 'pathe';
 import {
   getLocalSharedImportMapPath_temp,
   writeLocalSharedImportMap_temp,
@@ -149,12 +150,26 @@ export function generateLocalSharedImportMap() {
 }
 
 const REMOTE_ENTRY_ID = 'virtual:mf-REMOTE_ENTRY_ID';
+const SSR_REMOTE_ENTRY_ID = 'virtual:mf-SSR_REMOTE_ENTRY_ID';
 
 export function getRemoteEntryId(
   options: Pick<NormalizedModuleFederationOptions, 'internalName' | 'filename'>
 ) {
   const scopedKey = `${options.internalName}__${options.filename}`.replace(/[^a-zA-Z0-9_-]/g, '_');
   return `${REMOTE_ENTRY_ID}:${scopedKey}`;
+}
+
+export function getSsrRemoteEntryId(
+  options: Pick<NormalizedModuleFederationOptions, 'internalName' | 'filename'>
+) {
+  const scopedKey = `${options.internalName}__${options.filename}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `${SSR_REMOTE_ENTRY_ID}:${scopedKey}`;
+}
+
+export function getSsrRemoteEntryFileName(filename: string) {
+  const ext = path.extname(filename) || '.js';
+  const base = ext ? filename.slice(0, -ext.length) : filename;
+  return `${base}.ssr${ext}`;
 }
 export function generateRemoteEntry(
   options: NormalizedModuleFederationOptions,
@@ -236,6 +251,79 @@ export function generateRemoteEntry(
 
   async function getExposes(moduleName) {
     const exposesMap = await getExposesMap()
+    if (!(moduleName in exposesMap)) throw new Error(\`[Module Federation] Module \${moduleName} does not exist in container.\`)
+    return (exposesMap[moduleName])().then(res => () => res)
+  }
+  export {
+      init,
+      getExposes as get
+  }
+  `;
+}
+
+export function generateSsrRemoteEntry(
+  options: NormalizedModuleFederationOptions,
+  virtualExposesId = getVirtualExposesId(options)
+): string {
+  const pluginImportNames = options.runtimePlugins.map((p, i) => {
+    if (typeof p === 'string') {
+      return [`$runtimePlugin_${i}`, `import $runtimePlugin_${i} from "${p}";`, `undefined`];
+    } else {
+      return [
+        `$runtimePlugin_${i}`,
+        `import $runtimePlugin_${i} from "${p[0]}";`,
+        serializeRuntimeOptions(p[1]),
+      ];
+    }
+  });
+
+  return `
+  if (typeof __VUE_HMR_RUNTIME__ === 'undefined') {
+    globalThis.__VUE_HMR_RUNTIME__ = { createRecord() {}, rerender() {}, reload() {} };
+  }
+  import {init as runtimeInit, loadRemote} from "@module-federation/runtime";
+  import exposesMap from "${virtualExposesId}";
+  ${pluginImportNames.map((item) => item[1]).join('\n')}
+  ${getRuntimeInitResolveBootstrapCode()}
+  const initTokens = {}
+  const shareScopeName = ${JSON.stringify(options.shareScope)}
+  const mfName = ${JSON.stringify(options.internalName)}
+  let localSharedImportMapPromise
+
+  async function getLocalSharedImportMap() {
+    localSharedImportMapPromise ??= import("${getLocalSharedImportMapPath()}")
+    return localSharedImportMapPromise
+  }
+
+  async function init(shared = {}, initScope = []) {
+    const {usedShared, usedRemotes} = await getLocalSharedImportMap()
+    const initRes = runtimeInit({
+      name: mfName,
+      remotes: usedRemotes,
+      shared: usedShared,
+      plugins: [${pluginImportNames.map((item) => `${item[0]}(${item[2]})`).join(', ')}],
+      ${options.shareStrategy ? `shareStrategy: '${options.shareStrategy}'` : ''}
+    });
+    var initToken = initTokens[shareScopeName];
+    if (!initToken)
+      initToken = initTokens[shareScopeName] = { from: mfName };
+    if (initScope.indexOf(initToken) >= 0) return;
+    initScope.push(initToken);
+    initRes.initShareScopeMap('${options.shareScope}', shared);
+    initResolve(initRes)
+    try {
+      await Promise.all(await initRes.initializeSharing('${options.shareScope}', {
+        strategy: '${options.shareStrategy}',
+        from: "build",
+        initScope
+      }));
+    } catch (e) {
+      console.error('[Module Federation]', e)
+    }
+    return initRes
+  }
+
+  async function getExposes(moduleName) {
     if (!(moduleName in exposesMap)) throw new Error(\`[Module Federation] Module \${moduleName} does not exist in container.\`)
     return (exposesMap[moduleName])().then(res => () => res)
   }

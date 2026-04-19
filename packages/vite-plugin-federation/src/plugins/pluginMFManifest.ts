@@ -7,7 +7,8 @@ import {
 } from '../utils/normalizeModuleFederationOptions';
 import { getUsedRemotesMap, getUsedShares } from '../virtualModules';
 
-import { findRemoteEntryFile } from '../utils/bundleHelpers';
+import { findEntryFile, findRemoteEntryFile } from '../utils/bundleHelpers';
+import { getSsrRemoteEntryFileName } from '../virtualModules';
 import {
   buildFileToShareKeyMap,
   collectCssAssets,
@@ -61,6 +62,7 @@ const Manifest = (): Plugin[] => {
 
   let root: string;
   let remoteEntryFile: string;
+  let ssrRemoteEntryFile: string;
   let publicPath: string;
   let _command: string;
   let _originalConfigBase: string | undefined;
@@ -197,10 +199,18 @@ const Manifest = (): Plugin[] => {
         let filesMap: PreloadMap = {};
 
         const foundRemoteEntryFile = findRemoteEntryFile(mfOptions.filename, bundle);
+        const foundSsrRemoteEntryFile = findEntryFile(
+          getSsrRemoteEntryFileName(mfOptions.filename),
+          bundle,
+          'ssrRemoteEntry'
+        );
 
         // First pass: Find remoteEntry file
         if (foundRemoteEntryFile) {
           remoteEntryFile = foundRemoteEntryFile;
+        }
+        if (foundSsrRemoteEntryFile) {
+          ssrRemoteEntryFile = foundSsrRemoteEntryFile;
         }
 
         // Second pass: Collect all CSS assets
@@ -292,6 +302,11 @@ const Manifest = (): Plugin[] => {
       path: '',
       type: 'module',
     };
+    const ssrRemoteEntry = {
+      name: ssrRemoteEntryFile || remoteEntryFile,
+      path: '',
+      type: 'module',
+    };
 
     const varRemoteEntry = varFilename
       ? {
@@ -377,7 +392,7 @@ const Manifest = (): Plugin[] => {
           buildName: name,
         },
         remoteEntry,
-        ssrRemoteEntry: remoteEntry,
+        ssrRemoteEntry,
         varRemoteEntry,
         types: getTypesMetadata(options),
         globalName: name,

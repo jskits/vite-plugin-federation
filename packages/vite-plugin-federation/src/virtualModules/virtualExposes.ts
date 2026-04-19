@@ -13,9 +13,25 @@ export function getVirtualExposesId(
   return `virtual:mf-exposes:${scopedKey}`;
 }
 
-export function generateExposes(options: NormalizedModuleFederationOptions) {
+export function generateExposes(
+  options: NormalizedModuleFederationOptions,
+  buildOptions: {
+    eagerImports?: boolean;
+  } = {}
+) {
   const cssBucketKeyPrefix = `css__${options.name}__`;
+  const eagerImports = buildOptions.eagerImports === true;
+  const exposeEntries = Object.entries(options.exposes);
+  const staticImports = eagerImports
+    ? exposeEntries
+        .map(
+          ([, expose], index) =>
+            `import * as __mf_expose_${index} from ${JSON.stringify(expose.import)};`
+        )
+        .join('\n')
+    : '';
   return `
+    ${staticImports}
     const cssAssetMap = ${JSON.stringify(options.bundleAllCSS ? EXPOSES_CSS_MAP_PLACEHOLDER : {})};
     const injectedCssHrefs = new Set();
     let exposeLoadQueue = Promise.resolve();
@@ -78,15 +94,18 @@ export function generateExposes(options: NormalizedModuleFederationOptions) {
     }
 
     export default {
-    ${Object.keys(options.exposes)
-      .map((key) => {
+    ${exposeEntries
+      .map(([key], index) => {
         const injectMode = options.exposes[key].css?.inject || 'head';
+        const importStatement = eagerImports
+          ? `Promise.resolve(__mf_expose_${index})`
+          : `importExposedModule(
+            () => import(${JSON.stringify(options.exposes[key].import)})
+          )`;
         return `
         ${JSON.stringify(key)}: async () => {
           await handleCssAssets(${JSON.stringify(key)}, ${JSON.stringify(injectMode)})
-          const importModule = await importExposedModule(
-            () => import(${JSON.stringify(options.exposes[key].import)})
-          )
+          const importModule = await ${importStatement}
           const exportModule = {}
           Object.assign(exportModule, importModule)
           Object.defineProperty(exportModule, "__esModule", {

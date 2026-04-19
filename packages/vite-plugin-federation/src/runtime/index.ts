@@ -1,8 +1,8 @@
 import {
-  createInstance as createRuntimeInstance,
   getInstance as getRuntimeInstance,
   getRemoteEntry,
   getRemoteInfo,
+  init as initRuntimeInstance,
   loadRemote as loadRuntimeRemote,
   loadScript,
   loadScriptNode,
@@ -169,13 +169,13 @@ export function getInstance() {
 }
 
 export function createFederationInstance(options: UserOptions) {
-  const instance = createRuntimeInstance(options);
+  const instance = initRuntimeInstance(options);
   publishRuntimeDebugUpdate('create-instance');
   return instance;
 }
 
 export function createServerFederationInstance(options: UserOptions) {
-  const instance = createRuntimeInstance({
+  const instance = initRuntimeInstance({
     ...options,
     inBrowser: false,
   } as UserOptions);
@@ -290,7 +290,7 @@ function resolveManifestAssetUrl(
     return entryPath;
   }
   if (publicPath && publicPath !== 'auto') {
-    return new URL(entryPath, publicPath).toString();
+    return new URL(entryPath, new URL(publicPath, manifestUrl)).toString();
   }
   return new URL(entryPath, manifestUrl).toString();
 }
