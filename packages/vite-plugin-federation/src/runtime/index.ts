@@ -136,6 +136,7 @@ type RuntimeDebugEventName =
   | 'register-remotes'
   | 'register-shared'
   | 'load-remote'
+  | 'refresh-remote'
   | 'load-error'
   | 'manifest-fetched'
   | 'manifest-registered'
@@ -353,6 +354,22 @@ function snapshotInstance(instance: ModuleFederation | null) {
   };
 }
 
+function syncRegisteredRemoteDebugState() {
+  const debugState = getRuntimeDebugState();
+  const runtimeInstance = getRuntimeInstance() as ModuleFederation & {
+    options?: {
+      remotes?: Array<Record<string, unknown>>;
+    };
+  } | null;
+
+  const remotes = runtimeInstance?.options?.remotes;
+  if (!Array.isArray(remotes)) {
+    return;
+  }
+
+  debugState.registeredRemotes = remotes.map((remote) => ({ ...remote }));
+}
+
 export {
   getRemoteEntry,
   getRemoteInfo,
@@ -387,11 +404,8 @@ export function registerPlugins(...args: Parameters<ModuleFederation['registerPl
 }
 
 export function registerRemotes(...args: Parameters<ModuleFederation['registerRemotes']>) {
-  const [remotes] = args;
-  const debugState = getRuntimeDebugState();
-
-  debugState.registeredRemotes = (remotes || []).map((remote) => ({ ...remote }));
   const result = registerRuntimeRemotes(...args);
+  syncRegisteredRemoteDebugState();
   publishRuntimeDebugUpdate('register-remotes');
   return result;
 }
@@ -650,6 +664,92 @@ export async function registerManifestRemote(
 
   debugState.registrationRequests.set(requestKey, registerPromise);
   return registerPromise;
+}
+
+export interface RefreshRemoteOptions extends RegisterManifestRemoteOptions {
+  invalidateManifest?: boolean;
+  manifestUrl?: string;
+}
+
+function getRegisteredManifestRemote(
+  remoteAlias: string,
+  target: FederationRuntimeTarget
+) {
+  const debugState = getRuntimeDebugState();
+  return [...debugState.registeredManifestRemotes.entries()].find(([, remote]) => {
+    return remote.alias === remoteAlias && remote.target === target;
+  });
+}
+
+function getRegisteredRuntimeRemote(remoteAlias: string) {
+  const runtimeInstance = getRuntimeInstance() as ModuleFederation & {
+    options?: {
+      remotes?: Array<Record<string, unknown>>;
+    };
+  } | null;
+  const remotes = runtimeInstance?.options?.remotes;
+
+  if (!Array.isArray(remotes)) {
+    return undefined;
+  }
+
+  return remotes.find((remote) => {
+    return remote?.name === remoteAlias || remote?.alias === remoteAlias;
+  });
+}
+
+export async function refreshRemote(
+  remoteIdOrAlias: string,
+  options: RefreshRemoteOptions = {}
+) {
+  const remoteAlias = remoteIdOrAlias.split('/')[0];
+  if (!remoteAlias) {
+    throw createModuleFederationError('MFV-004', `Invalid remote id "${remoteIdOrAlias}".`);
+  }
+
+  const target = getDefaultTarget(options.target);
+  const registeredManifestRemote = getRegisteredManifestRemote(remoteAlias, target);
+  const manifestUrl = options.manifestUrl || registeredManifestRemote?.[1].manifestUrl;
+
+  if (manifestUrl) {
+    const debugState = getRuntimeDebugState();
+    const requestKey =
+      registeredManifestRemote?.[0] || getManifestRequestKey(remoteAlias, manifestUrl, target);
+
+    if (options.invalidateManifest !== false) {
+      debugState.manifestCache.delete(manifestUrl);
+    }
+    debugState.manifestRequests.delete(manifestUrl);
+    debugState.registrationRequests.delete(requestKey);
+    debugState.registeredManifestRemotes.delete(requestKey);
+
+    const registration = await registerManifestRemote(remoteAlias, manifestUrl, {
+      ...options,
+      force: true,
+      remoteName: options.remoteName || registeredManifestRemote?.[1].name,
+      shareScope: options.shareScope || registeredManifestRemote?.[1].shareScope,
+      target,
+    });
+
+    syncRegisteredRemoteDebugState();
+    publishRuntimeDebugUpdate('refresh-remote');
+    return registration;
+  }
+
+  const runtimeRemote = getRegisteredRuntimeRemote(remoteAlias);
+  if (!runtimeRemote) {
+    throw createModuleFederationError(
+      'MFV-004',
+      `Remote "${remoteAlias}" is not registered in the current federation runtime instance.`
+    );
+  }
+
+  registerRuntimeRemotes([runtimeRemote as Parameters<ModuleFederation['registerRemotes']>[0][number]], {
+    force: true,
+  });
+  syncRegisteredRemoteDebugState();
+  publishRuntimeDebugUpdate('refresh-remote');
+  return runtimeRemote;
 }
 
 export async function registerManifestRemotes(

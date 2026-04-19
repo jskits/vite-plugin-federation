@@ -100,6 +100,7 @@ import {
   registerPlugins,
   registerRemotes,
   registerShared,
+  refreshRemote,
 } from '../index';
 import { clearModuleFederationDebugState } from '../../utils/logger';
 
@@ -123,6 +124,14 @@ describe('runtime api', () => {
   });
 
   it('tracks registered remotes and shared keys in debug info', () => {
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        remotes: [{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js' }],
+      },
+    });
+
     registerRemotes([{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js' }] as any);
     registerShared({
       react: [{ version: '19.0.0' }],
@@ -138,6 +147,23 @@ describe('runtime api', () => {
       name: 'remoteApp',
     });
     expect(debugInfo.runtime.registeredSharedKeys).toEqual(['react']);
+  });
+
+  it('refreshes registered runtime remotes with force enabled', async () => {
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        remotes: [{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js', type: 'module' }],
+      },
+    });
+
+    await refreshRemote('remoteApp/Button');
+
+    expect(registerRemotesMock).toHaveBeenCalledWith(
+      [{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js', type: 'module' }],
+      { force: true }
+    );
   });
 
   it('tracks remote load failures for debug inspection', async () => {
@@ -382,6 +408,60 @@ describe('runtime api', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(registerRemotesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes registered manifest remotes and invalidates the manifest cache', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'catalog',
+          metaData: {
+            globalName: 'catalog',
+            remoteEntry: {
+              name: 'remoteEntry.js',
+              path: '',
+              type: 'module',
+            },
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'catalog',
+          metaData: {
+            globalName: 'catalog',
+            remoteEntry: {
+              name: 'remoteEntry.js',
+              path: '',
+              type: 'module',
+            },
+          },
+        }),
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await registerManifestRemote('catalog', 'http://remote.example/mf-manifest.json');
+    await refreshRemote('catalog/Button', {
+      invalidateManifest: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(registerRemotesMock).toHaveBeenNthCalledWith(
+      2,
+      [
+        expect.objectContaining({
+          entry: 'http://remote.example/remoteEntry.js',
+          name: 'catalog',
+        }),
+      ],
+      { force: true }
+    );
   });
 
   it('loads remotes after manifest registration', async () => {
