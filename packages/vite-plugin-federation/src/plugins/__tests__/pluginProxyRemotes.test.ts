@@ -34,7 +34,7 @@ describe('pluginProxyRemotes', () => {
     });
   });
 
-  function getSchedulerAlias() {
+  function createSchedulerPlugin(configOverrides: Record<string, unknown> = {}) {
     const plugin = pluginProxyRemotes({
       remotes: {
         scheduler: {
@@ -46,36 +46,21 @@ describe('pluginProxyRemotes', () => {
       resolve: {
         alias: [],
       },
+      ...configOverrides,
     } as any;
 
     (plugin as any).config.call({} as any, config, { command: 'serve' });
-    return config.resolve.alias[0];
+    return { config, plugin };
   }
 
-  it('still matches bare remote ids', () => {
-    const alias = getSchedulerAlias();
+  it('does not register deprecated alias custom resolvers', () => {
+    const { config } = createSchedulerPlugin();
 
-    expect(alias.find.test('scheduler')).toBe(true);
-    expect(alias.find.test('scheduler/SchedulePanel')).toBe(true);
+    expect(config.resolve.alias).toEqual([]);
   });
 
   it('still proxies bare remote ids from app importers via resolveId', () => {
-    const plugin = pluginProxyRemotes({
-      remotes: {
-        scheduler: {
-          name: 'scheduler',
-        },
-      },
-    } as any);
-    const config = {
-      resolve: {
-        alias: [],
-      },
-    } as any;
-
-    (plugin as any).config.call({ meta: { rolldownVersion: '1.0.0' } } as any, config, {
-      command: 'serve',
-    });
+    const { plugin } = createSchedulerPlugin();
     const result = (plugin as any).resolveId.call(
       { meta: { rolldownVersion: '1.0.0' } } as any,
       'scheduler',
@@ -88,9 +73,12 @@ describe('pluginProxyRemotes', () => {
   });
 
   it('still proxies bare remote ids from node_modules importers when no package collides', () => {
-    const alias = getSchedulerAlias();
-
-    const result = alias.customResolver('scheduler', '/repo/node_modules/.vite/deps/react-dom.js');
+    const { plugin } = createSchedulerPlugin();
+    const result = (plugin as any).resolveId.call(
+      { meta: { rolldownVersion: '1.0.0' } } as any,
+      'scheduler',
+      '/repo/node_modules/.vite/deps/react-dom.js'
+    );
 
     expect(result).toBe(remoteModulePath);
     expect(getRemoteVirtualModuleMock).toHaveBeenCalledWith('scheduler', 'serve', true);
@@ -99,25 +87,12 @@ describe('pluginProxyRemotes', () => {
 
   it('resolves colliding installed packages for bare ids in node_modules importers', () => {
     getInstalledPackageEntryMock.mockReturnValue('/repo/node_modules/.pnpm/scheduler/index.js');
-    const plugin = pluginProxyRemotes({
-      remotes: {
-        scheduler: {
-          name: 'scheduler',
-        },
-      },
-    } as any);
-    const config = {
-      root: '/repo',
-      resolve: {
-        alias: [],
-      },
-    } as any;
-
-    (plugin as any).config.call({ meta: { rolldownVersion: '1.0.0' } } as any, config, {
-      command: 'serve',
-    });
-    const alias = config.resolve.alias[0];
-    const result = alias.customResolver('scheduler', '/repo/node_modules/.vite/deps/react-dom.js');
+    const { plugin } = createSchedulerPlugin({ root: '/repo' });
+    const result = (plugin as any).resolveId.call(
+      { meta: { rolldownVersion: '1.0.0' } } as any,
+      'scheduler',
+      '/repo/node_modules/.vite/deps/react-dom.js'
+    );
 
     expect(result).toBe('/repo/node_modules/.pnpm/scheduler/index.js');
     expect(getRemoteVirtualModuleMock).not.toHaveBeenCalled();
@@ -125,9 +100,9 @@ describe('pluginProxyRemotes', () => {
   });
 
   it('still proxies remote subpaths from node_modules importers', () => {
-    const alias = getSchedulerAlias();
-
-    const result = alias.customResolver(
+    const { plugin } = createSchedulerPlugin();
+    const result = (plugin as any).resolveId.call(
+      { meta: { rolldownVersion: '1.0.0' } } as any,
       'scheduler/SchedulePanel',
       '/repo/node_modules/some-package/index.js'
     );

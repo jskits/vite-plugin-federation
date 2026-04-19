@@ -33,21 +33,10 @@ export default function (options: NormalizedModuleFederationOptions): Plugin {
 
   return {
     name: 'proxyRemotes',
+    enforce: 'pre',
     config(config, { command: _command }) {
       command = _command;
       root = config.root || process.cwd();
-      if (_command === 'build') return;
-      const isRolldown = getIsRolldown(this);
-      Object.keys(remotes).forEach((key) => {
-        const remote = remotes[key];
-        (config.resolve as any).alias.push({
-          find: new RegExp(`^(${remote.name}(\/.*|$))`),
-          replacement: '$1',
-          customResolver(source: string, importer?: string) {
-            return resolveRemoteId(source, importer, remote.name, isRolldown);
-          },
-        });
-      });
     },
     resolveId(source, importer) {
       if (!filter(source)) return;

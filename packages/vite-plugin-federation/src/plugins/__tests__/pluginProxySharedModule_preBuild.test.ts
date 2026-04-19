@@ -124,46 +124,65 @@ describe('pluginProxySharedModule_preBuild', () => {
     preBuildShareItemMap.clear();
   });
 
+  function createServeProxyPlugin(shared: NormalizedShared) {
+    const plugins = proxySharedModule({ shared });
+    const proxyPlugin = plugins[1];
+    const config = {
+      resolve: {
+        alias: [] as any[],
+      },
+    };
+
+    proxyPlugin.config?.call(
+      {
+        meta: {},
+        resolve: async (id: string) => ({ id: `/resolved/${id}` }),
+      },
+      config as any,
+      {
+        command: 'serve',
+        mode: 'development',
+      }
+    );
+
+    return { config, proxyPlugin };
+  }
+
   for (const testCase of [
     {
       name: 'does not proxy react through loadShare in serve mode when vinext is enabled',
       source: 'react',
       hasVinext: true,
       hasAstro: false,
-      aliasExpected: false,
-      shouldProxy: false,
+      expected: undefined,
     },
     {
       name: 'does not proxy react through loadShare in serve mode when astro is enabled',
       source: 'react',
       hasVinext: false,
       hasAstro: true,
-      aliasExpected: false,
-      shouldProxy: false,
+      expected: undefined,
     },
     {
       name: 'proxies react through loadShare in serve mode when vinext is disabled',
       source: 'react',
       hasVinext: false,
       hasAstro: false,
-      aliasExpected: true,
-      shouldProxy: true,
+      expected: { id: expect.stringContaining('/resolved/') },
     },
     {
       name: 'proxies non-react shared modules through loadShare in serve mode when vinext is enabled',
       source: 'vue',
       hasVinext: true,
       hasAstro: false,
-      aliasExpected: true,
-      shouldProxy: true,
+      expected: { id: expect.stringContaining('/resolved/') },
     },
     {
       name: 'proxies non-react shared modules through loadShare in serve mode when vinext is disabled',
       source: 'vue',
       hasVinext: false,
       hasAstro: false,
-      aliasExpected: true,
-      shouldProxy: true,
+      expected: { id: expect.stringContaining('/resolved/') },
     },
   ]) {
     it(testCase.name, async () => {
@@ -173,50 +192,22 @@ describe('pluginProxySharedModule_preBuild', () => {
         return false;
       });
 
-      const plugins = proxySharedModule({ shared: makeShared() });
-      const proxyPlugin = plugins[1];
-      const config = {
-        resolve: {
-          alias: [] as Array<{
-            find: RegExp;
-            customResolver?: (source: string, importer: string) => unknown;
-          }>,
-        },
-      };
-
-      proxyPlugin.config?.call(
+      const { config, proxyPlugin } = createServeProxyPlugin(makeShared());
+      const resolution = await proxyPlugin.resolveId?.call(
         {
           meta: {},
-          resolve: async (id: string) => ({ id: `/resolved/${id}` }),
-        },
-        config as any,
-        {
-          command: 'serve',
-          mode: 'development',
-        }
-      );
-
-      const alias = config.resolve.alias.find((entry) => entry.find.test(testCase.source));
-      if (!testCase.aliasExpected) {
-        expect(alias).toBeUndefined();
-        return;
-      }
-
-      expect(alias).toBeDefined();
-
-      if (testCase.shouldProxy) {
-        expect(alias?.customResolver).toBeTypeOf('function');
-        return;
-      }
-
-      const resolution = await alias?.customResolver?.call(
-        {
           resolve: async (id: string) => ({ id: `/resolved/${id}` }),
         },
         testCase.source,
         '/src/main.ts'
       );
-      expect(resolution).toBeUndefined();
+
+      expect(config.resolve.alias).toEqual([]);
+      if (typeof testCase.expected === 'undefined') {
+        expect(resolution).toBeUndefined();
+      } else {
+        expect(resolution).toEqual(testCase.expected);
+      }
     });
   }
 
@@ -488,28 +479,7 @@ describe('pluginProxySharedModule_preBuild', () => {
   it('uses auto-detected workspace sources in serve prebuild resolution without null deref', async () => {
     hasPackageDependencyMock.mockReturnValue(false);
 
-    const plugins = proxySharedModule({ shared: makeShared() });
-    const proxyPlugin = plugins[1];
-    const config = {
-      resolve: {
-        alias: [] as Array<{
-          find: RegExp;
-          customResolver?: (source: string, importer: string) => unknown;
-        }>,
-      },
-    };
-
-    proxyPlugin.config?.call(
-      {
-        meta: {},
-        resolve: async (id: string) => ({ id: `/resolved/${id}` }),
-      },
-      config as any,
-      {
-        command: 'serve',
-        mode: 'development',
-      }
-    );
+    const { config, proxyPlugin } = createServeProxyPlugin(makeShared());
     proxyPlugin.configResolved?.({
       cacheDir: '/vite/deps',
       experimental: { rolldownDev: false },
@@ -517,19 +487,16 @@ describe('pluginProxySharedModule_preBuild', () => {
 
     preBuildShareItemMap.set('transitive-no-override', makeShared()['transitive-no-override']);
 
-    const alias = config.resolve.alias.find(
-      (entry) => entry.customResolver && entry.find.test('x__prebuild__x')
-    );
-    expect(alias?.customResolver).toBeTypeOf('function');
-
-    const resolution = await alias?.customResolver?.call(
+    const resolution = await proxyPlugin.resolveId?.call(
       {
+        meta: {},
         resolve: async (id: string) => ({ id: `/resolved/${id}` }),
       },
       'transitive-no-override__prebuild__',
       '/src/main.ts'
     );
 
+    expect(config.resolve.alias).toEqual([]);
     expect(resolution).toEqual({
       id: '/resolved//resolved//workspace/packages/transitive-no-override/dist/index.js',
     });
