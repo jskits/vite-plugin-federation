@@ -28,6 +28,7 @@ const NODE_TARGET_QUERY_VALUE = 'node';
 const STYLE_REQUEST_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/i;
 const NODE_RUNTIME_ENTRY_LOADER_PLUGIN_NAME = 'vite-plugin-federation:node-entry-loader';
 const ABSOLUTE_URL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:/;
+const NODE_VM_IMPORT_GLOBAL_KEY = '__VITE_PLUGIN_FEDERATION_IMPORT_NODE_VM__';
 
 export type FederationRuntimeTarget = 'web' | 'node';
 
@@ -110,6 +111,25 @@ interface FederationRuntimePluginLike {
 
 type FederationRuntimePlugins = NonNullable<UserOptions['plugins']>;
 const nodeRuntimeModuleCache = new Map<string, Promise<any>>();
+type NodeVmModule = typeof import('node:vm');
+
+async function importNodeVmModule(): Promise<NodeVmModule> {
+  const globalImportHook = (
+    globalThis as typeof globalThis & {
+      [NODE_VM_IMPORT_GLOBAL_KEY]?: () => Promise<NodeVmModule>;
+    }
+  )[NODE_VM_IMPORT_GLOBAL_KEY];
+
+  if (globalImportHook) {
+    return globalImportHook();
+  }
+
+  const dynamicImport = new Function(
+    'specifier',
+    'return import(specifier)'
+  ) as (specifier: string) => Promise<NodeVmModule>;
+  return dynamicImport('node:vm');
+}
 
 type RuntimeDebugEventName =
   | 'create-instance'
@@ -228,7 +248,7 @@ async function loadNodeRuntimeModule(url: string): Promise<any> {
       );
     }
 
-    const vm = await import('node:vm');
+    const vm = await importNodeVmModule();
     const code = normalizeNodeTargetModuleCode(await response.text(), url);
     const module = new vm.SourceTextModule(code, {
       identifier: url,

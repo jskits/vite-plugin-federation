@@ -87,10 +87,6 @@ vi.mock('@module-federation/runtime', () => ({
   registerShared: registerSharedMock,
 }));
 
-vi.mock('node:vm', () => ({
-  SourceTextModule: SourceTextModuleMock,
-}));
-
 import {
   clearFederationRuntimeCaches,
   createFederationInstance,
@@ -120,6 +116,9 @@ describe('runtime api', () => {
     registerRemotesMock.mockReset();
     registerSharedMock.mockReset();
     vi.unstubAllGlobals();
+    vi.stubGlobal('__VITE_PLUGIN_FEDERATION_IMPORT_NODE_VM__', async () => ({
+      SourceTextModule: SourceTextModuleMock,
+    }));
     delete (globalThis as any).__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
   });
 
