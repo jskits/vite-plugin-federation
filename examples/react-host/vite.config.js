@@ -14,6 +14,10 @@ export default defineConfig({
     federation({
       name: 'reactHost',
       dts: false,
+      dev: {
+        remoteHmr: true,
+      },
+      shareStrategy: 'loaded-first',
       remotes: {
         reactRemote: 'http://localhost:4174/mf-manifest.json',
       },

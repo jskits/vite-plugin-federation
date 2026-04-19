@@ -20,6 +20,10 @@ export default defineConfig({
       filename: 'remoteEntry.js',
       manifest: true,
       dts: false,
+      dev: {
+        remoteHmr: true,
+      },
+      shareStrategy: 'loaded-first',
       exposes: {
         './Button': './src/Button.jsx',
         './Card': './src/Card.jsx',
