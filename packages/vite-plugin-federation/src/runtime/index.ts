@@ -29,6 +29,7 @@ const STYLE_REQUEST_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/i;
 const NODE_RUNTIME_ENTRY_LOADER_PLUGIN_NAME = 'vite-plugin-federation:node-entry-loader';
 const ABSOLUTE_URL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:/;
 const NODE_VM_IMPORT_GLOBAL_KEY = '__VITE_PLUGIN_FEDERATION_IMPORT_NODE_VM__';
+const MANIFEST_URL_RE = /(?:^|\/)(?:mf-)?manifest(?:\.[\w-]+)?\.json(?:$|[?#])/i;
 
 export type FederationRuntimeTarget = 'web' | 'node';
 
@@ -508,6 +509,20 @@ function resolveManifestAssetUrl(
   return new URL(entryPath, manifestUrl).toString();
 }
 
+function appendEntryRefreshTimestamp(
+  entryUrl: string,
+  target: FederationRuntimeTarget,
+  enabled: boolean | undefined
+) {
+  if (!enabled || target !== 'web') {
+    return entryUrl;
+  }
+
+  const refreshedUrl = new URL(entryUrl);
+  refreshedUrl.searchParams.set('t', String(Date.now()));
+  return refreshedUrl.toString();
+}
+
 function getManifestEntryForTarget(
   manifestUrl: string,
   manifest: FederationRemoteManifest,
@@ -636,7 +651,7 @@ export async function registerManifestRemote(
     );
     const registration = {
       alias: remoteAlias === remoteName ? undefined : remoteAlias,
-      entry: remoteEntryUrl,
+      entry: appendEntryRefreshTimestamp(remoteEntryUrl, target, options.force),
       entryGlobalName: manifest.metaData.globalName || remoteName,
       name: remoteName,
       shareScope,
@@ -698,6 +713,10 @@ function getRegisteredRuntimeRemote(remoteAlias: string) {
   });
 }
 
+function isManifestRemoteEntry(entry: unknown) {
+  return typeof entry === 'string' && MANIFEST_URL_RE.test(entry);
+}
+
 export async function refreshRemote(
   remoteIdOrAlias: string,
   options: RefreshRemoteOptions = {}
@@ -744,7 +763,44 @@ export async function refreshRemote(
     );
   }
 
-  registerRuntimeRemotes([runtimeRemote as Parameters<ModuleFederation['registerRemotes']>[0][number]], {
+  const runtimeRemoteRecord = runtimeRemote as unknown as Record<string, unknown>;
+  const runtimeRemoteEntry =
+    typeof runtimeRemoteRecord.entry === 'string' ? runtimeRemoteRecord.entry : undefined;
+
+  if (runtimeRemoteEntry && isManifestRemoteEntry(runtimeRemoteEntry)) {
+    const registration = await registerManifestRemote(remoteAlias, runtimeRemoteEntry, {
+      ...options,
+      force: true,
+      remoteName:
+        typeof runtimeRemoteRecord.name === 'string'
+          ? (runtimeRemoteRecord.name as string)
+          : options.remoteName,
+      shareScope:
+        typeof runtimeRemoteRecord.shareScope === 'string'
+          ? (runtimeRemoteRecord.shareScope as string)
+          : options.shareScope,
+      target,
+    });
+
+    syncRegisteredRemoteDebugState();
+    publishRuntimeDebugUpdate('refresh-remote');
+    return registration;
+  }
+
+  const refreshedRuntimeRemote = {
+    ...runtimeRemoteRecord,
+    ...(typeof runtimeRemoteRecord.entry === 'string'
+      ? {
+          entry: appendEntryRefreshTimestamp(
+            runtimeRemoteRecord.entry,
+            target,
+            true
+          ),
+        }
+      : {}),
+  } as Parameters<ModuleFederation['registerRemotes']>[0][number];
+
+  registerRuntimeRemotes([refreshedRuntimeRemote], {
     force: true,
   });
   syncRegisteredRemoteDebugState();

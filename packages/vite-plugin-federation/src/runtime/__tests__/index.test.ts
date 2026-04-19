@@ -158,10 +158,64 @@ describe('runtime api', () => {
       },
     });
 
-    await refreshRemote('remoteApp/Button');
+    await refreshRemote('remoteApp/Button', { target: 'web' });
 
     expect(registerRemotesMock).toHaveBeenCalledWith(
-      [{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js', type: 'module' }],
+      [
+        expect.objectContaining({
+          name: 'remoteApp',
+          entry: expect.stringMatching(/^http:\/\/localhost\/remoteEntry\.js\?t=\d+$/),
+          type: 'module',
+        }),
+      ],
+      { force: true }
+    );
+  });
+
+  it('refreshes manifest-style runtime remotes via manifest registration', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'reactRemote',
+        metaData: {
+          globalName: 'reactRemote',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        remotes: [
+          {
+            name: 'reactRemote',
+            entry: 'http://remote.example/mf-manifest.json',
+            type: 'var',
+            shareScope: 'default',
+          },
+        ],
+      },
+    });
+
+    await refreshRemote('reactRemote/Card', { target: 'web' });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://remote.example/mf-manifest.json', undefined);
+    expect(registerRemotesMock).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          entry: expect.stringMatching(/^http:\/\/remote\.example\/remoteEntry\.js\?t=\d+$/),
+          name: 'reactRemote',
+          type: 'module',
+        }),
+      ],
       { force: true }
     );
   });
@@ -446,9 +500,12 @@ describe('runtime api', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    await registerManifestRemote('catalog', 'http://remote.example/mf-manifest.json');
+    await registerManifestRemote('catalog', 'http://remote.example/mf-manifest.json', {
+      target: 'web',
+    });
     await refreshRemote('catalog/Button', {
       invalidateManifest: true,
+      target: 'web',
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -456,7 +513,7 @@ describe('runtime api', () => {
       2,
       [
         expect.objectContaining({
-          entry: 'http://remote.example/remoteEntry.js',
+          entry: expect.stringMatching(/^http:\/\/remote\.example\/remoteEntry\.js\?t=\d+$/),
           name: 'catalog',
         }),
       ],
