@@ -7,6 +7,7 @@ import addEntry from './plugins/pluginAddEntry';
 import { checkAliasConflicts } from './plugins/pluginCheckAliasConflicts';
 import { PluginDevProxyModuleTopLevelAwait } from './plugins/pluginDevProxyModuleTopLevelAwait';
 import pluginDevRemoteHmr from './plugins/pluginDevRemoteHmr';
+import pluginDevtools from './plugins/pluginDevtools';
 import pluginDts from './plugins/pluginDts';
 import pluginManifest from './plugins/pluginMFManifest';
 import pluginModuleParseEnd from './plugins/pluginModuleParseEnd';
@@ -315,6 +316,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
     normalizeOptimizeDepsPlugin,
     ...pluginDts(options),
     pluginDevRemoteHmr(options),
+    pluginDevtools(options),
     ...addEntry({
       entryName: 'remoteEntry',
       entryPath: remoteEntryId,

@@ -539,6 +539,7 @@ interface PluginDevOptions {
   disableHotTypesReload?: boolean;
   disableDynamicRemoteTypeHints?: boolean;
   remoteHmr?: boolean;
+  devtools?: boolean;
 }
 
 interface RemoteTypeUrl {

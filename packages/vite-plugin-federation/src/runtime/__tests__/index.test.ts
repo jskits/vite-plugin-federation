@@ -63,6 +63,7 @@ describe('runtime api', () => {
     registerRemotesMock.mockReset();
     registerSharedMock.mockReset();
     vi.unstubAllGlobals();
+    delete (globalThis as any).__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
   });
 
   it('tracks registered remotes and shared keys in debug info', () => {
@@ -266,5 +267,30 @@ describe('runtime api', () => {
     expect(registerRemotesMock).toHaveBeenCalledTimes(1);
     expect(loadRemoteMock).toHaveBeenCalledWith('remoteApp/Button', { from: 'runtime' });
     expect(result).toEqual({ default: 'button' });
+  });
+
+  it('publishes runtime debug snapshots to the devtools hook', () => {
+    const dispatchEvent = vi.fn();
+    class MockCustomEvent {
+      constructor(
+        public type: string,
+        public init?: { detail?: unknown }
+      ) {}
+    }
+
+    vi.stubGlobal('window', { dispatchEvent });
+    vi.stubGlobal('CustomEvent', MockCustomEvent as any);
+
+    registerRemotes([{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js' }] as any);
+
+    const devtoolsHook = (globalThis as any).__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
+    expect(devtoolsHook.runtime).toBeTruthy();
+    expect(devtoolsHook.events.at(-1)).toMatchObject({
+      event: 'register-remotes',
+    });
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+    expect(dispatchEvent.mock.calls[0][0]).toMatchObject({
+      type: 'vite-plugin-federation:debug',
+    });
   });
 });

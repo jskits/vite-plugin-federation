@@ -92,6 +92,16 @@ interface RuntimeDebugState {
   >;
 }
 
+type RuntimeDebugEventName =
+  | 'create-instance'
+  | 'register-remotes'
+  | 'register-shared'
+  | 'load-remote'
+  | 'load-error'
+  | 'manifest-fetched'
+  | 'manifest-registered'
+  | 'clear-caches';
+
 function getRuntimeDebugState(): RuntimeDebugState {
   const state = globalThis as typeof globalThis & {
     [MODULE_FEDERATION_RUNTIME_DEBUG_SYMBOL]?: RuntimeDebugState;
@@ -110,6 +120,22 @@ function getRuntimeDebugState(): RuntimeDebugState {
   };
 
   return state[MODULE_FEDERATION_RUNTIME_DEBUG_SYMBOL];
+}
+
+function getDevtoolsGlobal() {
+  const state = globalThis as typeof globalThis & {
+    __VITE_PLUGIN_FEDERATION_DEVTOOLS__?: {
+      apps?: Record<string, unknown>;
+      events?: Array<Record<string, unknown>>;
+      lastUpdatedAt?: string;
+      runtime?: unknown;
+    };
+  };
+
+  state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__ ||= {};
+  state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__.events ||= [];
+
+  return state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
 }
 
 function snapshotInstance(instance: ModuleFederation | null) {
@@ -143,14 +169,18 @@ export function getInstance() {
 }
 
 export function createFederationInstance(options: UserOptions) {
-  return createRuntimeInstance(options);
+  const instance = createRuntimeInstance(options);
+  publishRuntimeDebugUpdate('create-instance');
+  return instance;
 }
 
 export function createServerFederationInstance(options: UserOptions) {
-  return createRuntimeInstance({
+  const instance = createRuntimeInstance({
     ...options,
     inBrowser: false,
   } as UserOptions);
+  publishRuntimeDebugUpdate('create-instance');
+  return instance;
 }
 
 export function registerPlugins(...args: Parameters<ModuleFederation['registerPlugins']>) {
@@ -162,7 +192,9 @@ export function registerRemotes(...args: Parameters<ModuleFederation['registerRe
   const debugState = getRuntimeDebugState();
 
   debugState.registeredRemotes = (remotes || []).map((remote) => ({ ...remote }));
-  return registerRuntimeRemotes(...args);
+  const result = registerRuntimeRemotes(...args);
+  publishRuntimeDebugUpdate('register-remotes');
+  return result;
 }
 
 export function registerShared(...args: Parameters<ModuleFederation['registerShared']>) {
@@ -170,7 +202,9 @@ export function registerShared(...args: Parameters<ModuleFederation['registerSha
   const debugState = getRuntimeDebugState();
 
   debugState.registeredSharedKeys = shared ? Object.keys(shared) : [];
-  return registerRuntimeShared(...args);
+  const result = registerRuntimeShared(...args);
+  publishRuntimeDebugUpdate('register-shared');
+  return result;
 }
 
 export async function loadRemote<T>(...args: Parameters<ModuleFederation['loadRemote']>) {
@@ -183,6 +217,7 @@ export async function loadRemote<T>(...args: Parameters<ModuleFederation['loadRe
       remoteId,
       timestamp: new Date().toISOString(),
     };
+    publishRuntimeDebugUpdate('load-remote');
     return result;
   } catch (error) {
     debugState.lastLoadError = {
@@ -191,6 +226,7 @@ export async function loadRemote<T>(...args: Parameters<ModuleFederation['loadRe
       remoteId,
       timestamp: new Date().toISOString(),
     };
+    publishRuntimeDebugUpdate('load-error');
     throw error;
   }
 }
@@ -340,6 +376,7 @@ export async function fetchFederationManifest(
       const manifest = (await response.json()) as FederationRemoteManifest;
       validateManifest(manifestUrl, manifest);
       debugState.manifestCache.set(manifestUrl, manifest);
+      publishRuntimeDebugUpdate('manifest-fetched');
       return manifest;
     } catch (error) {
       debugState.lastLoadError = {
@@ -405,6 +442,7 @@ export async function registerManifestRemote(
       target,
       type: registration.type,
     });
+    publishRuntimeDebugUpdate('manifest-registered');
 
     return registration;
   })().finally(() => {
@@ -475,6 +513,7 @@ export function clearFederationRuntimeCaches() {
   debugState.manifestRequests.clear();
   debugState.registrationRequests.clear();
   debugState.registeredManifestRemotes.clear();
+  publishRuntimeDebugUpdate('clear-caches');
 }
 
 export function getFederationDebugInfo() {
@@ -497,4 +536,32 @@ export function getFederationDebugInfo() {
       registeredSharedKeys: [...debugState.registeredSharedKeys],
     },
   };
+}
+
+function publishRuntimeDebugUpdate(event: RuntimeDebugEventName) {
+  const payload = {
+    event,
+    snapshot: getFederationDebugInfo(),
+    timestamp: new Date().toISOString(),
+  };
+
+  const devtoolsGlobal = getDevtoolsGlobal();
+  devtoolsGlobal.runtime = payload.snapshot;
+  devtoolsGlobal.events ||= [];
+  devtoolsGlobal.events.push(payload);
+  if (devtoolsGlobal.events.length > 20) {
+    devtoolsGlobal.events.shift();
+  }
+  devtoolsGlobal.lastUpdatedAt = payload.timestamp;
+
+  const browserWindow = (globalThis as { window?: { dispatchEvent?: (event: unknown) => void } })
+    .window;
+  const CustomEventCtor = (globalThis as { CustomEvent?: new (type: string, init?: { detail?: unknown }) => unknown }).CustomEvent;
+  if (browserWindow?.dispatchEvent && typeof CustomEventCtor === 'function') {
+    browserWindow.dispatchEvent(
+      new CustomEventCtor('vite-plugin-federation:debug', {
+        detail: payload,
+      })
+    );
+  }
 }
