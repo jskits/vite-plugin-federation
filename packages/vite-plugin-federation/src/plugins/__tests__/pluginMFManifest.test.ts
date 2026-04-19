@@ -7,7 +7,7 @@ const {
   getUsedRemotesMap,
   getUsedShares,
   getNormalizeShareItem,
-  getConcreteSharedImportSource,
+  inspectSharedImportSource,
   getInstalledPackageEntry,
   getPreBuildLibImportId,
   getSsrRemoteEntryFileName,
@@ -16,7 +16,12 @@ const {
   getUsedRemotesMap: vi.fn(),
   getUsedShares: vi.fn(),
   getNormalizeShareItem: vi.fn(),
-  getConcreteSharedImportSource: vi.fn(() => undefined),
+  inspectSharedImportSource: vi.fn(() => ({
+    concreteImportSource: null,
+    resolutionRoot: null,
+    resolvedPackageEntry: null,
+    resolutionSource: 'not-found',
+  })),
   getInstalledPackageEntry: vi.fn(() => undefined),
   getPreBuildLibImportId: vi.fn((shareKey: string) => shareKey),
   getSsrRemoteEntryFileName: vi.fn((filename: string) => filename.replace('.js', '.ssr.js')),
@@ -28,7 +33,7 @@ vi.mock('../../utils/normalizeModuleFederationOptions', () => ({
 }));
 
 vi.mock('../../virtualModules', () => ({
-  getConcreteSharedImportSource,
+  inspectSharedImportSource,
   getUsedRemotesMap,
   getUsedShares,
   getPreBuildLibImportId,
@@ -426,9 +431,32 @@ describe('pluginMFManifest', () => {
   });
 
   it('emits share and remote diagnostics in stats/debug artifacts', async () => {
-    getConcreteSharedImportSource.mockImplementation((shareKey: string) =>
-      shareKey === 'react' ? '/workspace/packages/react/index.js' : undefined
-    );
+    inspectSharedImportSource.mockImplementation((shareKey: string) => {
+      if (shareKey === 'react') {
+        return {
+          concreteImportSource: '/workspace/packages/react/index.js',
+          resolutionRoot: '/workspace/packages/react',
+          resolvedPackageEntry: '/workspace/packages/react/index.js',
+          resolutionSource: 'configured-import',
+        };
+      }
+
+      if (shareKey === 'lit/') {
+        return {
+          concreteImportSource: null,
+          resolutionRoot: '/repo',
+          resolvedPackageEntry: '/repo/node_modules/lit/index.js',
+          resolutionSource: 'project-root',
+        };
+      }
+
+      return {
+        concreteImportSource: null,
+        resolutionRoot: null,
+        resolvedPackageEntry: null,
+        resolutionSource: 'not-found',
+      };
+    });
     getInstalledPackageEntry.mockImplementation((pkg: string) =>
       pkg === 'scheduler' ? '/repo/node_modules/.pnpm/scheduler/index.js' : undefined
     );
@@ -475,12 +503,14 @@ describe('pluginMFManifest', () => {
         key: 'react',
         fallbackMode: 'concrete-import',
         matchType: 'exact',
+        resolutionSource: 'configured-import',
         used: true,
       }),
       expect.objectContaining({
         key: 'lit/',
-        fallbackMode: 'prebuild',
+        fallbackMode: 'package-root',
         matchType: 'prefix',
+        resolutionSource: 'project-root',
         used: true,
       }),
       expect.objectContaining({

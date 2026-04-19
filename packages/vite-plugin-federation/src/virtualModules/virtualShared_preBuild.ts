@@ -276,26 +276,75 @@ function tryResolveImportFromPackageRoot(pkg: string, root: string): string | un
   }
 }
 
-export function getConcreteSharedImportSource(
+export type SharedImportSourceInspection = {
+  concreteImportSource: string | null;
+  resolutionRoot: string | null;
+  resolvedPackageEntry: string | null;
+  resolutionSource: 'configured-import' | 'project-root' | 'workspace-ancestor' | 'not-found';
+};
+
+export function inspectSharedImportSource(
   pkg: string,
   shareItem?: ShareItem
-): string | undefined {
+): SharedImportSourceInspection {
   const configuredImport = shareItem?.shareConfig.import;
-  if (typeof configuredImport === 'string') return configuredImport;
+  if (typeof configuredImport === 'string') {
+    return {
+      concreteImportSource: configuredImport,
+      resolutionRoot: null,
+      resolvedPackageEntry: configuredImport,
+      resolutionSource: 'configured-import',
+    };
+  }
 
   const projectRoot = getPackageDetectionCwd();
-  if (tryResolveImportFromPackageRoot(pkg, projectRoot)) {
-    return undefined;
+  const projectRootResolved = tryResolveImportFromPackageRoot(pkg, projectRoot);
+  if (projectRootResolved) {
+    return {
+      concreteImportSource: null,
+      resolutionRoot: projectRoot,
+      resolvedPackageEntry: projectRootResolved,
+      resolutionSource: 'project-root',
+    };
   }
 
   let currentDir = path.dirname(projectRoot);
   while (currentDir !== path.dirname(currentDir)) {
     const resolved = tryResolveImportFromPackageRoot(pkg, currentDir);
-    if (resolved) return resolved;
+    if (resolved) {
+      return {
+        concreteImportSource: resolved,
+        resolutionRoot: currentDir,
+        resolvedPackageEntry: resolved,
+        resolutionSource: 'workspace-ancestor',
+      };
+    }
     currentDir = path.dirname(currentDir);
   }
 
-  return tryResolveImportFromPackageRoot(pkg, currentDir);
+  const finalResolved = tryResolveImportFromPackageRoot(pkg, currentDir);
+  if (finalResolved) {
+    return {
+      concreteImportSource: finalResolved,
+      resolutionRoot: currentDir,
+      resolvedPackageEntry: finalResolved,
+      resolutionSource: 'workspace-ancestor',
+    };
+  }
+
+  return {
+    concreteImportSource: null,
+    resolutionRoot: null,
+    resolvedPackageEntry: null,
+    resolutionSource: 'not-found',
+  };
+}
+
+export function getConcreteSharedImportSource(
+  pkg: string,
+  shareItem?: ShareItem
+): string | undefined {
+  return inspectSharedImportSource(pkg, shareItem).concreteImportSource || undefined;
 }
 
 // *** __prebuild__

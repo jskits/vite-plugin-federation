@@ -6,7 +6,11 @@ import {
   getNormalizeShareItem,
 } from '../utils/normalizeModuleFederationOptions';
 import { getInstalledPackageEntry } from '../utils/packageUtils';
-import { getConcreteSharedImportSource, getUsedRemotesMap, getUsedShares } from '../virtualModules';
+import {
+  getUsedRemotesMap,
+  getUsedShares,
+  inspectSharedImportSource,
+} from '../virtualModules';
 
 import { findEntryFile, findRemoteEntryFile } from '../utils/bundleHelpers';
 import { getSsrRemoteEntryFileName } from '../virtualModules';
@@ -543,7 +547,8 @@ const Manifest = (): Plugin[] => {
       }),
       sharedResolution: Object.entries(options.shared).map(([shareKey]) => {
         const shareItem = getNormalizeShareItem(shareKey);
-        const concreteImportSource = getConcreteSharedImportSource(shareKey, shareItem);
+        const sharedImportInspection = inspectSharedImportSource(shareKey, shareItem);
+        const concreteImportSource = sharedImportInspection.concreteImportSource;
         const isPrefixMatch = shareKey.endsWith('/');
 
         return {
@@ -555,11 +560,16 @@ const Manifest = (): Plugin[] => {
               ? 'host-only'
               : concreteImportSource
                 ? 'concrete-import'
+                : sharedImportInspection.resolutionSource === 'project-root'
+                  ? 'package-root'
                 : 'prebuild',
           importDisabled: shareItem.shareConfig.import === false,
           key: shareKey,
           matchType: isPrefixMatch ? 'prefix' : 'exact',
           requiredVersion: shareItem.shareConfig.requiredVersion,
+          resolutionRoot: sharedImportInspection.resolutionRoot,
+          resolutionSource: sharedImportInspection.resolutionSource,
+          resolvedPackageEntry: sharedImportInspection.resolvedPackageEntry,
           singleton: shareItem.shareConfig.singleton,
           strictVersion: shareItem.shareConfig.strictVersion || false,
           used:

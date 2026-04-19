@@ -25,6 +25,7 @@ export {
 
 export {
   getConcreteSharedImportSource,
+  inspectSharedImportSource,
   getLoadShareModulePath,
   getPreBuildLibImportId,
   getPreBuildShareItem,
