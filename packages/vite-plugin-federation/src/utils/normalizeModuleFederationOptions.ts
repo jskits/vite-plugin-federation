@@ -27,8 +27,10 @@ import * as path from 'pathe';
 import { createModuleFederationError, mfError, mfWarn } from './logger';
 import { getInstalledPackageJson, removePathFromNpmPackage } from './packageUtils';
 
+export type ExposeCssInjectMode = 'head' | 'manual' | 'none';
+
 export interface ExposeCssOptions {
-  inject?: boolean;
+  inject?: boolean | ExposeCssInjectMode;
 }
 
 export interface ExposesItem {
@@ -83,7 +85,9 @@ function normalizeExposesItem(
   }
   if (typeof item === 'object') {
     importPath = item.import;
-    const injectCss = item.dontAppendStylesToHead ? false : item.css?.inject;
+    const injectCss = normalizeExposeCssInject(
+      item.dontAppendStylesToHead ? 'manual' : item.css?.inject
+    );
     css =
       injectCss === undefined
         ? item.css
@@ -100,6 +104,22 @@ function normalizeExposesItem(
     : {
         import: importPath,
       };
+}
+
+function normalizeExposeCssInject(
+  inject: ExposeCssOptions['inject'] | undefined
+): ExposeCssInjectMode | undefined {
+  if (inject === undefined) return undefined;
+  if (inject === true) return 'head';
+  if (inject === false) return 'manual';
+  if (inject === 'head' || inject === 'manual' || inject === 'none') {
+    return inject;
+  }
+
+  throw createModuleFederationError(
+    'MFV-001',
+    `Invalid expose css.inject value "${String(inject)}". Expected "head", "manual", or "none".`
+  );
 }
 
 function normalizeExposes(

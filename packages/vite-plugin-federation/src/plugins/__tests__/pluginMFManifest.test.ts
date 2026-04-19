@@ -48,7 +48,8 @@ async function runGenerateBundleWithManifest(
   runtime: {
     usedShares?: Set<string>;
     usedRemotes?: Map<string, Set<string>>;
-    exposePaths?: Record<string, { import: string }>;
+    exposePaths?: Record<string, { import: string; css?: { inject?: string | boolean } }>;
+    dts?: unknown;
   } = {},
   command: 'serve' | 'build' = 'build'
 ): Promise<Record<string, string>> {
@@ -61,6 +62,7 @@ async function runGenerateBundleWithManifest(
     exposes: runtime.exposePaths || {},
     remotes: {},
     shared: {},
+    dts: runtime.dts,
     bundleAllCSS: false,
     shareStrategy: 'version-first',
     implementation: 'module-federation-runtime',
@@ -116,6 +118,11 @@ describe('pluginMFManifest', () => {
     expect(stats).toHaveProperty('buildOutput');
     expect(debug).toHaveProperty('snapshot');
     expect(debug.metaData.pluginName).toBe('vite-plugin-federation');
+    expect(manifest.metaData.types).toEqual({
+      path: '',
+      name: '@mf-types.zip',
+      api: '@mf-types.d.ts',
+    });
     expect(
       stats.buildOutput.find((chunk: any) => chunk.fileName === 'remoteEntry.js')
     ).toBeTruthy();
@@ -242,5 +249,54 @@ describe('pluginMFManifest', () => {
 
     const manifest = JSON.parse(emitted['mf-manifest.json']);
     expect(manifest.metaData.publicPath).toBe('auto');
+  });
+
+  it('emits expose css mode and custom types artifact names in manifest', async () => {
+    const emitted = await runGenerateBundleWithManifest(
+      true,
+      {
+        exposePaths: {
+          './Button': {
+            import: './src/exposed.js',
+            css: { inject: 'manual' },
+          },
+        },
+        dts: {
+          generateTypes: {
+            typesFolder: '@custom-types',
+          },
+        },
+      }
+    );
+
+    const manifest = JSON.parse(emitted['mf-manifest.json']);
+
+    expect(manifest.metaData.types).toEqual({
+      path: '',
+      name: '@custom-types.zip',
+      api: '@custom-types.d.ts',
+    });
+    expect(manifest.exposes).toEqual([
+      expect.objectContaining({
+        name: 'Button',
+        css: {
+          mode: 'manual',
+        },
+      }),
+    ]);
+  });
+
+  it('clears manifest types metadata when dts is disabled', async () => {
+    const emitted = await runGenerateBundleWithManifest(true, {
+      dts: false,
+    });
+
+    const manifest = JSON.parse(emitted['mf-manifest.json']);
+
+    expect(manifest.metaData.types).toEqual({
+      path: '',
+      name: '',
+      api: '',
+    });
   });
 });

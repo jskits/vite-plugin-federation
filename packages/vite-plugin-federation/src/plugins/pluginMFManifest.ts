@@ -134,7 +134,7 @@ const Manifest = (): Plugin[] => {
                         type: 'var',
                       }
                     : undefined,
-                  types: { path: '', name: '' },
+                  types: getTypesMetadata(mfOptions),
                   globalName: name,
                   pluginVersion: '0.2.5',
                   publicPath,
@@ -348,6 +348,9 @@ const Manifest = (): Plugin[] => {
         return {
           id: `${name}:${formatKey}`,
           name: formatKey,
+          css: {
+            mode: getExposeCssMode(value),
+          },
           assets: {
             js: {
               async: assets.js.async,
@@ -376,10 +379,7 @@ const Manifest = (): Plugin[] => {
         remoteEntry,
         ssrRemoteEntry: remoteEntry,
         varRemoteEntry,
-        types: {
-          path: '',
-          name: '',
-        },
+        types: getTypesMetadata(options),
         globalName: name,
         pluginVersion: '0.2.5',
         ...(!!getPublicPath ? { getPublicPath } : { publicPath }),
@@ -472,6 +472,38 @@ function getDebugFileName(manifestFileName: string) {
   const fileName = 'mf-debug.json';
 
   return parsed.dir ? path.join(parsed.dir, fileName) : fileName;
+}
+
+function getExposeCssMode(expose: { css?: { inject?: string | boolean } }) {
+  return expose.css?.inject || 'head';
+}
+
+function getTypesMetadata(options: {
+  dts?: boolean | { generateTypes?: boolean | { typesFolder?: string } };
+}) {
+  if (options.dts === false) {
+    return {
+      path: '',
+      name: '',
+      api: '',
+    };
+  }
+
+  let typesFolder = '@mf-types';
+  if (
+    typeof options.dts === 'object' &&
+    options.dts &&
+    typeof options.dts.generateTypes === 'object' &&
+    options.dts.generateTypes?.typesFolder
+  ) {
+    typesFolder = options.dts.generateTypes.typesFolder;
+  }
+
+  return {
+    path: '',
+    name: `${typesFolder}.zip`,
+    api: `${typesFolder}.d.ts`,
+  };
 }
 
 export default Manifest;

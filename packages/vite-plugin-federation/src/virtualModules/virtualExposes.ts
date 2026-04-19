@@ -29,18 +29,22 @@ export function generateExposes(options: NormalizedModuleFederationOptions) {
       return currentLoad;
     }
 
-    async function handleCssAssets(exposeKey, injectCss) {
-      if (typeof document === "undefined") {
-        return;
-      }
-
+    async function handleCssAssets(exposeKey, injectMode) {
       // Replaced at build time with expose -> css asset paths.
       const cssAssets = cssAssetMap[exposeKey] || [];
 
       const hrefs = cssAssets.map((cssAsset) => new URL(cssAsset, import.meta.url).href);
 
-      if (!injectCss) {
+      if (injectMode === "none") {
+        return;
+      }
+
+      if (injectMode === "manual") {
         globalThis[${JSON.stringify(cssBucketKeyPrefix)} + exposeKey] = hrefs;
+        return;
+      }
+
+      if (typeof document === "undefined") {
         return;
       }
 
@@ -76,9 +80,10 @@ export function generateExposes(options: NormalizedModuleFederationOptions) {
     export default {
     ${Object.keys(options.exposes)
       .map((key) => {
+        const injectMode = options.exposes[key].css?.inject || 'head';
         return `
         ${JSON.stringify(key)}: async () => {
-          await handleCssAssets(${JSON.stringify(key)}, ${options.exposes[key].css?.inject !== false})
+          await handleCssAssets(${JSON.stringify(key)}, ${JSON.stringify(injectMode)})
           const importModule = await importExposedModule(
             () => import(${JSON.stringify(options.exposes[key].import)})
           )

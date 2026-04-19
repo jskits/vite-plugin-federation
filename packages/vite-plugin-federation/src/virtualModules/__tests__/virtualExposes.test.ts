@@ -188,14 +188,14 @@ describe('virtualExposes', () => {
     expect(dynamicImport).not.toHaveBeenCalled();
   });
 
-  it('records css hrefs on globalThis instead of injecting when css.inject=false', async () => {
+  it('records css hrefs on globalThis instead of injecting when css.inject=manual', async () => {
     const code = generateExposes(
       getDefaultMockOptions({
         name: 'remote-app',
         exposes: {
           './one': {
             import: './one.js',
-            css: { inject: false },
+            css: { inject: 'manual' },
           } as any,
         },
         bundleAllCSS: true as any,
@@ -229,5 +229,46 @@ describe('virtualExposes', () => {
     expect(document.head.appendChild).not.toHaveBeenCalled();
 
     delete globalThis['css__remote-app__./one'];
+  });
+
+  it('skips css processing entirely when css.inject=none', async () => {
+    const code = generateExposes(
+      getDefaultMockOptions({
+        name: 'remote-app',
+        exposes: {
+          './one': {
+            import: './one.js',
+            css: { inject: 'none' },
+          } as any,
+        },
+        bundleAllCSS: true as any,
+      })
+    ).replace(
+      `"${getExposesCssMapPlaceholder()}"`,
+      JSON.stringify({
+        './one': ['./style.css'],
+      })
+    );
+
+    const document = {
+      head: {
+        appendChild: vi.fn(),
+      },
+      querySelector: vi.fn(() => null),
+      createElement: vi.fn(),
+    };
+    const dynamicImport = vi.fn(async (id: string) => ({ default: id }));
+
+    const exposes = await toRunnableModule(code)(
+      document,
+      URL,
+      dynamicImport,
+      'file:///repo/remoteEntry.js'
+    );
+
+    await exposes['./one']();
+
+    expect(document.head.appendChild).not.toHaveBeenCalled();
+    expect(globalThis['css__remote-app__./one']).toBeUndefined();
   });
 });

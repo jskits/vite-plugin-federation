@@ -463,7 +463,7 @@ describe('normalizeModuleFederationOption', () => {
   });
 
   describe('compat expose css mapping', () => {
-    it('maps dontAppendStylesToHead to css.inject=false', () => {
+    it('maps dontAppendStylesToHead to css.inject=manual', () => {
       expect(
         normalizeModuleFederationOptions({
           ...minimalOptions,
@@ -478,7 +478,38 @@ describe('normalizeModuleFederationOption', () => {
         './Button': {
           import: './src/Button.tsx',
           css: {
-            inject: false,
+            inject: 'manual',
+          },
+        },
+      });
+    });
+
+    it('normalizes legacy boolean css.inject values', () => {
+      expect(
+        normalizeModuleFederationOptions({
+          ...minimalOptions,
+          exposes: {
+            './Head': {
+              import: './src/Head.tsx',
+              css: { inject: true },
+            },
+            './Manual': {
+              import: './src/Manual.tsx',
+              css: { inject: false },
+            },
+          },
+        }).exposes
+      ).toEqual({
+        './Head': {
+          import: './src/Head.tsx',
+          css: {
+            inject: 'head',
+          },
+        },
+        './Manual': {
+          import: './src/Manual.tsx',
+          css: {
+            inject: 'manual',
           },
         },
       });
