@@ -23,6 +23,11 @@ import {
 } from '../utils/logger';
 
 const MODULE_FEDERATION_RUNTIME_DEBUG_SYMBOL = Symbol.for('vite-plugin-federation.runtime.debug');
+const NODE_TARGET_QUERY_KEY = 'mf_target';
+const NODE_TARGET_QUERY_VALUE = 'node';
+const STYLE_REQUEST_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/i;
+const NODE_RUNTIME_ENTRY_LOADER_PLUGIN_NAME = 'vite-plugin-federation:node-entry-loader';
+const ABSOLUTE_URL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:/;
 
 export type FederationRuntimeTarget = 'web' | 'node';
 
@@ -92,6 +97,20 @@ interface RuntimeDebugState {
   >;
 }
 
+interface FederationRuntimePluginLike {
+  name: string;
+  loadEntry?: (args: {
+    remoteInfo?: {
+      entry?: string;
+      type?: string;
+    };
+    remoteEntryExports?: unknown;
+  }) => Promise<unknown> | unknown;
+}
+
+type FederationRuntimePlugins = NonNullable<UserOptions['plugins']>;
+const nodeRuntimeModuleCache = new Map<string, Promise<any>>();
+
 type RuntimeDebugEventName =
   | 'create-instance'
   | 'register-remotes'
@@ -120,6 +139,166 @@ function getRuntimeDebugState(): RuntimeDebugState {
   };
 
   return state[MODULE_FEDERATION_RUNTIME_DEBUG_SYMBOL];
+}
+
+function toNodeTargetUrl(origin: string, requestPath: string) {
+  const resolved = new URL(
+    !requestPath.startsWith('.') && !requestPath.startsWith('/') && !ABSOLUTE_URL_RE.test(requestPath)
+      ? `/@id/${requestPath}`
+      : requestPath,
+    origin
+  );
+  resolved.searchParams.set(NODE_TARGET_QUERY_KEY, NODE_TARGET_QUERY_VALUE);
+  return resolved.toString();
+}
+
+function normalizeNodeTargetModuleCode(code: string, requestUrl: string) {
+  if (STYLE_REQUEST_RE.test(new URL(requestUrl).pathname)) {
+    return 'export default {};';
+  }
+
+  const exportStatements: string[] = [];
+  let exportAliasIndex = 0;
+  let normalized = code.replace(
+    /^__vite_ssr_exportName__\("([^"]+)", \(\) => \{ try \{ return ([^ }]+) \} catch \{\} \}\);\s*$/gm,
+    (_match, exportName: string, localName: string) => {
+      exportStatements.push(
+        exportName === 'default'
+          ? `export default ${localName};`
+          : `export { ${localName} as ${exportName} };`
+      );
+      return '';
+    }
+  );
+
+  normalized = normalized
+    .replace(
+      /await\s+__vite_ssr_import__\("([^"]+)"(?:,\s*\{[^)]*\})?\)/g,
+      (_match, specifier: string) => `await import(${JSON.stringify(toNodeTargetUrl(requestUrl, specifier))})`
+    )
+    .replace(
+      /__vite_ssr_dynamic_import__\("([^"]+)"\)/g,
+      (_match, specifier: string) => `import(${JSON.stringify(toNodeTargetUrl(requestUrl, specifier))})`
+    )
+    .replace(/\b__vite_ssr_import_meta__\.url\b/g, 'import.meta.url')
+    .replace(/\b__vite_ssr_import_meta__\b/g, 'import.meta')
+    .replace(
+      /export\s*\{\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)\s+as\s+([A-Za-z_$][\w$]*)\s*\};?/g,
+      (_statement, localExpression: string, exportName: string) => {
+        const localAlias = `__mf_export_${exportAliasIndex++}__`;
+        return `const ${localAlias} = ${localExpression};\nexport { ${localAlias} as ${exportName} };`;
+      }
+    )
+    .replace(/(from\s+["'])(\/[^"']+)(["'])/g, (_match, before, target, after) => {
+      return `${before}${toNodeTargetUrl(requestUrl, target)}${after}`;
+    })
+    .replace(/(import\s+["'])(\/[^"']+)(["'])/g, (_match, before, target, after) => {
+      return `${before}${toNodeTargetUrl(requestUrl, target)}${after}`;
+    })
+    .replace(/(import\(\s*["'])(\/[^"']+)(["']\s*\))/g, (_match, before, target, after) => {
+      return `${before}${toNodeTargetUrl(requestUrl, target)}${after}`;
+    });
+
+  if (exportStatements.length > 0) {
+    normalized = `${normalized.trim()}\n${exportStatements.join('\n')}\n`;
+  }
+
+  return normalized;
+}
+
+async function loadNodeRuntimeModule(url: string): Promise<any> {
+  const cachedModule = nodeRuntimeModuleCache.get(url);
+  if (cachedModule) {
+    return cachedModule;
+  }
+
+  const modulePromise = (async () => {
+    if (!globalThis.fetch) {
+      throw createModuleFederationError(
+        'MFV-004',
+        'global fetch is unavailable. Provide a fetch implementation before loading node federation entries.'
+      );
+    }
+
+    const response = await globalThis.fetch(url);
+    if (!response.ok) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Failed to fetch node federation module "${url}" with status ${response.status}.`
+      );
+    }
+
+    const vm = await import('node:vm');
+    const code = normalizeNodeTargetModuleCode(await response.text(), url);
+    const module = new vm.SourceTextModule(code, {
+      identifier: url,
+      importModuleDynamically: async (specifier) => {
+        const importedModule = await loadNodeRuntimeModule(new URL(specifier, url).href);
+        await importedModule.evaluate();
+        return importedModule;
+      },
+    });
+
+    await module.link(async (specifier) => {
+      return loadNodeRuntimeModule(new URL(specifier, url).href);
+    });
+
+    return module;
+  })();
+
+  nodeRuntimeModuleCache.set(url, modulePromise);
+
+  try {
+    return await modulePromise;
+  } catch (error) {
+    nodeRuntimeModuleCache.delete(url);
+    throw error;
+  }
+}
+
+async function loadNodeRuntimeModuleNamespace(url: string) {
+  const module = await loadNodeRuntimeModule(url);
+  await module.evaluate();
+  return module.namespace;
+}
+
+function createNodeRuntimeEntryLoaderPlugin(): FederationRuntimePluginLike {
+  return {
+    name: NODE_RUNTIME_ENTRY_LOADER_PLUGIN_NAME,
+    async loadEntry({ remoteInfo, remoteEntryExports }) {
+      if (
+        typeof (globalThis as typeof globalThis & { window?: unknown }).window !== 'undefined' ||
+        remoteEntryExports
+      ) {
+        return remoteEntryExports;
+      }
+
+      if (!remoteInfo?.entry) {
+        return undefined;
+      }
+
+      if (remoteInfo.type && !['module', 'esm'].includes(remoteInfo.type)) {
+        return undefined;
+      }
+
+      return loadNodeRuntimeModuleNamespace(remoteInfo.entry);
+    },
+  };
+}
+
+function withNodeRuntimePlugins(options: UserOptions) {
+  const plugins = [...(options.plugins || [])];
+  if (
+    typeof (globalThis as typeof globalThis & { window?: unknown }).window === 'undefined' &&
+    !plugins.some((plugin) => plugin?.name === NODE_RUNTIME_ENTRY_LOADER_PLUGIN_NAME)
+  ) {
+    plugins.push(createNodeRuntimeEntryLoaderPlugin() as FederationRuntimePlugins[number]);
+  }
+
+  return {
+    ...options,
+    plugins,
+  };
 }
 
 function getDevtoolsGlobal() {
@@ -169,14 +348,14 @@ export function getInstance() {
 }
 
 export function createFederationInstance(options: UserOptions) {
-  const instance = initRuntimeInstance(options);
+  const instance = initRuntimeInstance(withNodeRuntimePlugins(options));
   publishRuntimeDebugUpdate('create-instance');
   return instance;
 }
 
 export function createServerFederationInstance(options: UserOptions) {
   const instance = initRuntimeInstance({
-    ...options,
+    ...withNodeRuntimePlugins(options),
     inBrowser: false,
   } as UserOptions);
   publishRuntimeDebugUpdate('create-instance');
@@ -504,6 +683,7 @@ export async function loadRemoteFromManifest<T>(
 
 export function clearFederationRuntimeCaches() {
   const debugState = getRuntimeDebugState();
+  nodeRuntimeModuleCache.clear();
   debugState.lastLoadError = null;
   debugState.lastLoadRemote = null;
   debugState.lastPreloadRemote = null;

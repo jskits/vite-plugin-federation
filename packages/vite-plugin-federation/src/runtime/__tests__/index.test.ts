@@ -9,6 +9,7 @@ const {
   registerPluginsMock,
   registerRemotesMock,
   registerSharedMock,
+  SourceTextModuleMock,
 } = vi.hoisted(() => ({
   createInstanceMock: vi.fn((options) => ({ options })),
   getInstanceMock: vi.fn(() => ({ name: 'host', options: { name: 'host' } })),
@@ -18,6 +19,54 @@ const {
   registerPluginsMock: vi.fn(),
   registerRemotesMock: vi.fn(),
   registerSharedMock: vi.fn(),
+  SourceTextModuleMock: class {
+    code: string;
+    namespace: Record<string, unknown>;
+    options: {
+      importModuleDynamically: (specifier: string) => Promise<any>;
+    };
+
+    constructor(
+      code: string,
+      options: {
+        importModuleDynamically: (specifier: string) => Promise<any>;
+      }
+    ) {
+      this.code = code;
+      this.namespace = {};
+      this.options = options;
+    }
+
+    async link() {}
+
+    async evaluate() {
+      const bindings: Record<string, unknown> = {};
+
+      for (const match of this.code.matchAll(/export const (\w+) = "([^"]+)";/g)) {
+        bindings[match[1]] = match[2];
+        this.namespace[match[1]] = match[2];
+      }
+
+      for (const match of this.code.matchAll(/const\s+(\w+)\s*=\s*await import\("([^"]+)"\);/g)) {
+        const importedModule = await this.options.importModuleDynamically(match[2]);
+        bindings[match[1]] = importedModule.namespace ?? importedModule;
+      }
+
+      for (const match of this.code.matchAll(/const\s+(\w+)\s*=\s*(\w+)\.(\w+);/g)) {
+        const source = bindings[match[2]] as Record<string, unknown> | undefined;
+        bindings[match[1]] = source?.[match[3]];
+      }
+
+      for (const match of this.code.matchAll(/export\s*\{\s*(\w+)\s+as\s+(\w+)\s*\};/g)) {
+        this.namespace[match[2]] = bindings[match[1]];
+      }
+
+      for (const match of this.code.matchAll(/export\s*\{\s*(\w+)\.(\w+)\s+as\s+(\w+)\s*\};/g)) {
+        const source = bindings[match[1]] as Record<string, unknown> | undefined;
+        this.namespace[match[3]] = source?.[match[2]];
+      }
+    }
+  },
 }));
 
 vi.mock('@module-federation/runtime', () => ({
@@ -36,6 +85,10 @@ vi.mock('@module-federation/runtime', () => ({
   registerPlugins: registerPluginsMock,
   registerRemotes: registerRemotesMock,
   registerShared: registerSharedMock,
+}));
+
+vi.mock('node:vm', () => ({
+  SourceTextModule: SourceTextModuleMock,
 }));
 
 import {
@@ -135,6 +188,63 @@ describe('runtime api', () => {
         name: 'server-host',
       })
     );
+  });
+
+  it('installs a node entry loader plugin for server runtimes', async () => {
+    createServerFederationInstance({
+      name: 'server-host',
+      remotes: [],
+      shared: {},
+      plugins: [],
+      inBrowser: true,
+    });
+
+    const initOptions = initMock.mock.calls.at(-1)?.[0];
+    const normalizerPlugin = initOptions.plugins.find(
+      (plugin: { name: string }) =>
+        plugin.name === 'vite-plugin-federation:node-entry-loader'
+    );
+
+    expect(normalizerPlugin).toBeTruthy();
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('/dep.js?mf_target=node')) {
+        return new Response('export const foo = "dep-value";', {
+          headers: {
+            'content-type': 'text/javascript',
+          },
+          status: 200,
+        });
+      }
+
+      return new Response(
+        [
+          'const __vite_ssr_import_0__ = await __vite_ssr_import__("/dep.js", {"importedNames":["foo"]});',
+          'export { __vite_ssr_import_0__.foo as foo };',
+        ].join('\n'),
+        {
+          headers: {
+            'content-type': 'text/javascript',
+          },
+          status: 200,
+        }
+      );
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const namespace = await normalizerPlugin.loadEntry({
+      remoteInfo: {
+        entry: 'http://127.0.0.1:4175/@fs/runtime/index.js?mf_target=node',
+        type: 'module',
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:4175/@fs/runtime/index.js?mf_target=node');
+    expect(
+      fetchMock.mock.calls.some(([url]) => url === 'http://127.0.0.1:4175/dep.js?mf_target=node')
+    ).toBe(true);
+    expect(namespace).toBeTruthy();
   });
 
   it('collapses concurrent manifest fetches into a single request', async () => {
