@@ -10,6 +10,9 @@ export default defineConfig({
   preview: {
     port: 4174,
   },
+  ssr: {
+    noExternal: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
+  },
   plugins: [
     react(),
     federation({

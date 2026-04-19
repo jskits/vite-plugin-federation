@@ -1,0 +1,91 @@
+html {
+  color-scheme: light;
+  font-family:
+    "IBM Plex Sans",
+    "Segoe UI",
+    sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.08), transparent 40%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+body {
+  margin: 0;
+  color: #0f172a;
+}
+
+.ssr-shell {
+  max-width: 60rem;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 4rem 1.5rem;
+}
+
+.ssr-kicker {
+  margin: 0 0 0.9rem;
+  color: #0f766e;
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ssr-title {
+  margin: 0;
+  font-size: clamp(2.4rem, 6vw, 4.5rem);
+  line-height: 0.95;
+}
+
+.ssr-copy {
+  max-width: 46rem;
+  color: #475569;
+  line-height: 1.7;
+  font-size: 1.05rem;
+}
+
+.ssr-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  margin: 2rem 0;
+}
+
+.ssr-card {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 16px 50px rgba(15, 23, 42, 0.08);
+}
+
+.ssr-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.ssr-card p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.ssr-remote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 9rem;
+  padding: 1rem;
+}
+
+.ssr-footnote {
+  color: #475569;
+  line-height: 1.7;
+}
+
+code {
+  font-family:
+    "IBM Plex Mono",
+    "SFMono-Regular",
+    monospace;
+  font-size: 0.95em;
+}

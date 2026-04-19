@@ -113,6 +113,25 @@ importers:
         specifier: 8.0.8
         version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.8.3)
 
+  examples/react-ssr-host:
+    dependencies:
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+      vite-plugin-federation:
+        specifier: workspace:*
+        version: link:../../packages/vite-plugin-federation
+    devDependencies:
+      '@vitejs/plugin-react':
+        specifier: 5.1.2
+        version: 5.1.2(vite@8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.8.3))
+      vite:
+        specifier: 8.0.8
+        version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.8.3)
+
   packages/vite-plugin-federation:
     dependencies:
       '@module-federation/dts-plugin':

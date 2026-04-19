@@ -43,13 +43,25 @@ This repo includes a minimal React host/remote verification pair:
 
 - `examples/react-remote`
 - `examples/react-host`
+- `examples/react-ssr-host`
 
 Use the following commands:
 
 ```bash
 pnpm examples:build
 pnpm examples:dev
+pnpm examples:ssr:build
 ```
+
+To verify the SSR path locally, start the remote preview first and then start the SSR host:
+
+```bash
+pnpm --filter example-react-remote preview
+pnpm --filter example-react-ssr-host serve
+```
+
+The SSR host example starts Node with `--experimental-vm-modules`, because the current
+Module Federation runtime uses the VM module loader for remote ESM evaluation on the server.
 
 ## Release Flow
 

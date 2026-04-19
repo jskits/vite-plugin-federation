@@ -4,8 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "clean": "rimraf dist",
+    "build": "pnpm build:client && pnpm build:ssr && node scripts/merge-ssr-artifacts.mjs",
+    "build:client": "vite build",
+    "build:ssr": "vite build --ssr src/App.jsx --outDir dist-ssr",
+    "clean": "rimraf dist dist-ssr",
     "dev": "vite",
     "preview": "vite preview --port 4174"
   },
