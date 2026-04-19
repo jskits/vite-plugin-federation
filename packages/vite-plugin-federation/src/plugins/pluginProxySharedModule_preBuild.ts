@@ -103,7 +103,7 @@ export function proxySharedModule(options: {
       }
 
       if (key.endsWith('/') && source.startsWith(`${keyBase}/`)) {
-        prefixMatch ||= { key, proxyable: false };
+        prefixMatch ||= { key, proxyable: true };
       }
     }
 

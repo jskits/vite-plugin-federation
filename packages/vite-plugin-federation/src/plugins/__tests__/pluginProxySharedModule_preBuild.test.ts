@@ -81,6 +81,28 @@ function makeShared(): NormalizedShared {
         strictVersion: false,
       },
     },
+    'react/': {
+      name: 'react/',
+      from: '',
+      version: '19.2.4',
+      scope: 'default',
+      shareConfig: {
+        singleton: true,
+        requiredVersion: '^19.2.4',
+        strictVersion: false,
+      },
+    },
+    'react-dom/': {
+      name: 'react-dom/',
+      from: '',
+      version: '19.2.4',
+      scope: 'default',
+      shareConfig: {
+        singleton: true,
+        requiredVersion: '^19.2.4',
+        strictVersion: false,
+      },
+    },
     vue: {
       name: 'vue',
       from: '',
@@ -180,6 +202,13 @@ describe('pluginProxySharedModule_preBuild', () => {
     {
       name: 'proxies non-react shared modules through loadShare in serve mode when vinext is disabled',
       source: 'vue',
+      hasVinext: false,
+      hasAstro: false,
+      expected: { id: expect.stringContaining('/resolved/') },
+    },
+    {
+      name: 'proxies prefix shared subpaths through loadShare in serve mode',
+      source: 'react-dom/client',
       hasVinext: false,
       hasAstro: false,
       expected: { id: expect.stringContaining('/resolved/') },
