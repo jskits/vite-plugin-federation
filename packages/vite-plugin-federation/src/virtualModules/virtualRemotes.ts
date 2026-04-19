@@ -30,6 +30,7 @@ export function getUsedRemotesMap() {
 }
 export function generateRemotes(id: string, command: string, isRolldown: boolean) {
   const useESM = command === 'build' || isRolldown;
+  const useDevRefreshBridge = command === 'serve' && useESM;
   const importLine =
     command === 'build'
       ? getRuntimeInitPromiseBootstrapCode()
@@ -37,6 +38,12 @@ export function generateRemotes(id: string, command: string, isRolldown: boolean
         ? `${getRuntimeInitBootstrapCode()}
     const { initPromise } = globalThis[globalKey];`
         : `const {initPromise} = require("${virtualRuntimeInitStatus.getImportId()}")`;
+  const devRefreshImportLine = useDevRefreshBridge
+    ? 'import { refreshRemote as __mf_refreshRemote } from "vite-plugin-federation/runtime";'
+    : '';
+  const devRefreshFlagLine = useDevRefreshBridge
+    ? 'const __mf_shouldRefreshRemote = /(?:\\?|&)t=/.test(import.meta.url);'
+    : '';
   const awaitOrPlaceholder = useESM
     ? 'await '
     : '/*mf top-level-await placeholder replacement mf*/';
@@ -54,10 +61,20 @@ export function generateRemotes(id: string, command: string, isRolldown: boolean
       : useESM
         ? 'export default exportModule'
         : 'module.exports = exportModule';
+  const loadRemoteLine = useDevRefreshBridge
+    ? `const res = initPromise.then(async (runtime) => {
+      if (__mf_shouldRefreshRemote) {
+        await __mf_refreshRemote(${JSON.stringify(id)});
+      }
+      return runtime.loadRemote(${JSON.stringify(id)});
+    })`
+    : `const res = initPromise.then(runtime => runtime.loadRemote(${JSON.stringify(id)}))`;
 
   return `
+    ${devRefreshImportLine}
     ${importLine}
-    const res = initPromise.then(runtime => runtime.loadRemote(${JSON.stringify(id)}))
+    ${devRefreshFlagLine}
+    ${loadRemoteLine}
     const exportModule = ${awaitOrPlaceholder}initPromise.then(_ => res)
     ${exportLine}
   `;

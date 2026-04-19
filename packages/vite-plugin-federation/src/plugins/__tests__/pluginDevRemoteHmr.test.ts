@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import pluginDevRemoteHmr from '../pluginDevRemoteHmr';
+import { packageNameEncode } from '../../utils/packageUtils';
 
 const { mfWarn } = vi.hoisted(() => ({
   mfWarn: vi.fn(),
@@ -71,8 +72,10 @@ function createServer(overrides: Record<string, any> = {}) {
     ws: {
       send: vi.fn(),
     },
+    reloadModule: vi.fn(async () => {}),
     moduleGraph: {
       getModulesByFile: vi.fn(() => undefined),
+      idToModuleMap: new Map(),
     },
     httpServer: {
       once: vi.fn((event: string, handler: () => void) => {
@@ -92,6 +95,11 @@ function createServer(overrides: Record<string, any> = {}) {
       closeHandlers.forEach((handler) => handler());
     },
   };
+}
+
+function getRemoteVirtualModuleId(remoteRequestId: string) {
+  const encodedTag = packageNameEncode('__loadRemote__');
+  return `/repo/node_modules/__mf__virtual/${encodedTag}${packageNameEncode(remoteRequestId)}${encodedTag}.js`;
 }
 
 describe('pluginDevRemoteHmr', () => {
@@ -177,7 +185,7 @@ describe('pluginDevRemoteHmr', () => {
         type: 'custom',
         event: 'mf:remote-update',
         data: expect.objectContaining({
-          action: 'full-reload',
+          action: 'partial-reload',
           expose: './Button',
           kind: 'expose',
           remote: 'remote-app',
@@ -217,7 +225,7 @@ describe('pluginDevRemoteHmr', () => {
     expect(server.watcher.off).toHaveBeenCalledTimes(3);
   });
 
-  it('connects host to remote hmr websocket and triggers full reload', async () => {
+  it('connects host to remote hmr websocket and triggers full reload for boundary updates', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => ({
@@ -269,7 +277,7 @@ describe('pluginDevRemoteHmr', () => {
       data: JSON.stringify({
         type: 'custom',
         event: 'mf:remote-update',
-        data: { action: 'full-reload', file: '/src/Button.tsx', kind: 'expose', remote: 'remoteApp', ts: 1 },
+        data: { action: 'full-reload', file: '/src/bootstrap.ts', kind: 'boundary', remote: 'remoteApp', ts: 1 },
       }),
     });
 
@@ -277,6 +285,80 @@ describe('pluginDevRemoteHmr', () => {
 
     close();
     expect(socket.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads matching host virtual modules for remote expose updates', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        event: 'mf:remote-update',
+        wsUrl: 'ws://remote.example:4174/app?token=abc',
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWebSocket as any);
+
+    const remoteButtonModule = {
+      id: getRemoteVirtualModuleId('remoteApp/Button'),
+      importers: new Set(),
+      url: '/node_modules/__mf__virtual/remoteApp__loadRemote__Button.js',
+    };
+    const { server } = createServer({
+      moduleGraph: {
+        getModulesByFile: vi.fn(() => undefined),
+        idToModuleMap: new Map([[remoteButtonModule.id, remoteButtonModule]]),
+      },
+    });
+
+    const plugin = pluginDevRemoteHmr({
+      name: 'host-app',
+      dev: { remoteHmr: true },
+      exposes: {},
+      remotes: {
+        remoteApp: {
+          entry: 'http://remote.example/assets/remoteEntry.js',
+          name: 'remoteApp',
+        },
+      },
+      virtualModuleDir: '__mf__virtual',
+    } as any);
+
+    plugin.configureServer?.(server as any);
+
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+
+    MockWebSocket.instances[0].onmessage?.({
+      data: JSON.stringify({
+        type: 'custom',
+        event: 'mf:remote-update',
+        data: {
+          action: 'partial-reload',
+          expose: './Button',
+          file: '/repo/src/Button.tsx',
+          kind: 'expose',
+          remote: 'remoteApp',
+          ts: 123,
+        },
+      }),
+    });
+
+    await vi.waitFor(() => expect(server.reloadModule).toHaveBeenCalledWith(remoteButtonModule));
+
+    expect(server.ws.send).toHaveBeenCalledWith({
+      type: 'custom',
+      event: 'vite-plugin-federation:remote-expose-update',
+      data: expect.objectContaining({
+        action: 'partial-reload',
+        expose: './Button',
+        hostRemote: 'remoteApp',
+        remote: 'remoteApp',
+        remoteOrigin: 'http://remote.example',
+        remoteRequestId: 'remoteApp/Button',
+        ts: 123,
+      }),
+    });
+    expect(server.ws.send).not.toHaveBeenCalledWith({ type: 'full-reload' });
   });
 
   it('forwards remote style updates without forcing a full reload', async () => {
@@ -418,9 +500,18 @@ describe('pluginDevRemoteHmr', () => {
         type: 'module',
       },
     });
-    expect(tags?.[0].children).toContain('vite-plugin-federation:remote-style-update');
-    expect(tags?.[0].children).toContain('vite-plugin-federation:remote-types-update');
-    expect(tags?.[0].children).toContain('window.location.reload()');
+    expect(tags?.[0].children).toContain(
+      '/@id/virtual:vite-plugin-federation/remote-hmr-client'
+    );
+
+    const resolvedId = plugin.resolveId?.('virtual:vite-plugin-federation/remote-hmr-client');
+    expect(resolvedId).toBe('\0virtual:vite-plugin-federation/remote-hmr-client');
+
+    const clientModule = plugin.load?.('\0virtual:vite-plugin-federation/remote-hmr-client');
+    expect(clientModule).toContain('vite-plugin-federation:remote-style-update');
+    expect(clientModule).toContain('vite-plugin-federation:remote-types-update');
+    expect(clientModule).toContain('vite-plugin-federation:remote-expose-update');
+    expect(clientModule).toContain('window.location.reload()');
   });
 
   it('triggers full reload for host local file changes', async () => {
