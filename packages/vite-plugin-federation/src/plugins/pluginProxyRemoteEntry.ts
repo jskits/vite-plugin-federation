@@ -17,6 +17,7 @@ import {
   generateSsrRemoteEntry,
   getExposesCssMapPlaceholder,
   getHostAutoInitPath,
+  getSsrRemoteEntryFileName,
 } from '../virtualModules';
 import { parsePromise } from './pluginModuleParseEnd';
 
@@ -29,6 +30,9 @@ interface ProxyRemoteEntryParams {
   virtualExposesId: string;
 }
 
+const DEV_NODE_TARGET_QUERY_KEY = 'mf_target';
+const DEV_NODE_TARGET_QUERY_VALUE = 'node';
+
 export default function ({
   options,
   remoteEntryId,
@@ -37,6 +41,21 @@ export default function ({
 }: ProxyRemoteEntryParams): Plugin {
   let viteConfig: any, _command: string, root: string;
   const shouldUseEagerExposeImports = () => Boolean(viteConfig?.build?.ssr);
+  const getDevIdPrefix = () => `${viteConfig?.base || '/'}@id/`.replace(/\/{2,}/g, '/');
+  const getSsrRemoteEntryRequestPaths = () => {
+    const base = viteConfig?.base || '/';
+    return new Set(
+      [
+        `${base}@id/${ssrRemoteEntryId}`,
+        `${base}${getSsrRemoteEntryFileName(options.filename)}`,
+      ].map((value) => value.replace(/\/{2,}/g, '/'))
+    );
+  };
+  const toNodeTargetUrl = (origin: string, requestPath: string) => {
+    const resolved = new URL(requestPath, origin);
+    resolved.searchParams.set(DEV_NODE_TARGET_QUERY_KEY, DEV_NODE_TARGET_QUERY_VALUE);
+    return resolved.toString();
+  };
 
   return {
     name: 'proxyRemoteEntry',
@@ -47,6 +66,67 @@ export default function ({
     },
     config(config, { command }) {
       _command = command;
+    },
+    configureServer(server) {
+      if (Object.keys(options.exposes).length === 0) return;
+
+      server.middlewares.use(async (req, res, next) => {
+        const rawUrl = req.url;
+        if (!rawUrl) {
+          next();
+          return;
+        }
+
+        const host =
+          req.headers.host ||
+          `${server.config.server.host || 'localhost'}:${server.config.server.port || 5173}`;
+        const protocol = server.config.server.https ? 'https' : 'http';
+        const origin = server.config.server.origin || `${protocol}://${host}`;
+        const requestUrl = new URL(rawUrl, origin);
+        const requestPath = requestUrl.pathname;
+        const isNodeTargetRequest =
+          requestUrl.searchParams.get(DEV_NODE_TARGET_QUERY_KEY) === DEV_NODE_TARGET_QUERY_VALUE;
+
+        if (!isNodeTargetRequest && !getSsrRemoteEntryRequestPaths().has(requestPath)) {
+          next();
+          return;
+        }
+
+        const transformTargetId = (() => {
+          if (getSsrRemoteEntryRequestPaths().has(requestPath)) {
+            return ssrRemoteEntryId;
+          }
+          const devIdPrefix = getDevIdPrefix();
+          if (requestPath.startsWith(devIdPrefix)) {
+            return requestPath.slice(devIdPrefix.length);
+          }
+          return requestPath;
+        })();
+
+        const transformed = await server.transformRequest(transformTargetId, { ssr: true });
+        if (!transformed?.code) {
+          next();
+          return;
+        }
+
+        const code = transformed.code
+          .replace(/(from\s+["'])(\/[^"']+)(["'])/g, (_, before, target, after) => {
+            return `${before}${toNodeTargetUrl(origin, target)}${after}`;
+          })
+          .replace(/(import\s+["'])(\/[^"']+)(["'])/g, (_, before, target, after) => {
+            return `${before}${toNodeTargetUrl(origin, target)}${after}`;
+          })
+          .replace(
+            /(import\(\s*["'])(\/[^"']+)(["']\s*\))/g,
+            (_, before, target, after) => {
+              return `${before}${toNodeTargetUrl(origin, target)}${after}`;
+            }
+          );
+
+        res.setHeader('Content-Type', 'text/javascript');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.end(code);
+      });
     },
     async buildStart() {
       // Emit each exposed module as a chunk entry so the bundler properly

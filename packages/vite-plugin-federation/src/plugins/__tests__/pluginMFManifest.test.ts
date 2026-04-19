@@ -407,10 +407,20 @@ describe('pluginMFManifest', () => {
     };
     const next = vi.fn();
 
-    middlewares[0]({ url: '/mf-manifest.json' }, res, next);
+    middlewares[0](
+      {
+        headers: {
+          host: '127.0.0.1:4174',
+        },
+        url: '/mf-manifest.json',
+      },
+      res,
+      next
+    );
 
     expect(next).not.toHaveBeenCalled();
     const manifest = JSON.parse(res.end.mock.calls[0][0]);
+    expect(manifest.metaData.publicPath).toBe('http://127.0.0.1:4174/');
     expect(manifest.metaData.remoteEntry.name).toBe('remoteEntry.js');
     expect(manifest.metaData.ssrRemoteEntry.name).toBe('remoteEntry.ssr.js');
   });

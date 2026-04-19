@@ -82,6 +82,24 @@ const Manifest = (): Plugin[] => {
     });
   };
 
+  const getDevRequestPublicPath = (req: { headers?: Record<string, string | string[] | undefined> }) => {
+    if (mfOptions.publicPath === 'auto') {
+      return 'auto';
+    }
+
+    const forwardedProto = req.headers?.['x-forwarded-proto'];
+    const protocol = Array.isArray(forwardedProto)
+      ? forwardedProto[0]
+      : forwardedProto || (viteConfig.server?.https ? 'https' : 'http');
+    const hostHeader = req.headers?.host;
+    const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+    if (!host) {
+      return publicPath;
+    }
+
+    return `${protocol}://${host}${viteConfig.base.replace(/\/?$/, '/')}`;
+  };
+
   const getEffectiveRemoteEntryFile = () => remoteEntryFile || filename;
   const getEffectiveSsrRemoteEntryFile = () =>
     ssrRemoteEntryFile ||
@@ -145,7 +163,7 @@ const Manifest = (): Plugin[] => {
                   types: getTypesMetadata(mfOptions),
                   globalName: name,
                   pluginVersion: '0.2.5',
-                  publicPath,
+                  publicPath: getDevRequestPublicPath(req),
                 },
               })
             );
