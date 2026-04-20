@@ -113,6 +113,11 @@ interface FederationRuntimePluginLike {
 type FederationRuntimePlugins = NonNullable<UserOptions['plugins']>;
 const nodeRuntimeModuleCache = new Map<string, Promise<any>>();
 type NodeVmModule = typeof import('node:vm');
+type RuntimeInstanceWithInternals = ModuleFederation & {
+  options?: {
+    remotes?: Array<Record<string, unknown>>;
+  };
+};
 
 async function importNodeVmModule(): Promise<NodeVmModule> {
   const globalImportHook = (
@@ -357,11 +362,7 @@ function snapshotInstance(instance: ModuleFederation | null) {
 
 function syncRegisteredRemoteDebugState() {
   const debugState = getRuntimeDebugState();
-  const runtimeInstance = getRuntimeInstance() as ModuleFederation & {
-    options?: {
-      remotes?: Array<Record<string, unknown>>;
-    };
-  } | null;
+  const runtimeInstance = getRuntimeInstance() as RuntimeInstanceWithInternals | null;
 
   const remotes = runtimeInstance?.options?.remotes;
   if (!Array.isArray(remotes)) {
@@ -409,6 +410,53 @@ export function registerRemotes(...args: Parameters<ModuleFederation['registerRe
   syncRegisteredRemoteDebugState();
   publishRuntimeDebugUpdate('register-remotes');
   return result;
+}
+
+function findRegisteredRuntimeRemote(
+  runtimeInstance: RuntimeInstanceWithInternals | null,
+  remoteIdentifier: string | undefined
+) {
+  if (!remoteIdentifier || !Array.isArray(runtimeInstance?.options?.remotes)) {
+    return undefined;
+  }
+
+  return runtimeInstance.options.remotes.find((remote) => {
+    return remote?.name === remoteIdentifier || remote?.alias === remoteIdentifier;
+  });
+}
+
+function registerRuntimeRemoteWithReplace(
+  remote: Parameters<ModuleFederation['registerRemotes']>[0][number],
+  options: {
+    force?: boolean;
+    remoteIdentifier?: string;
+  } = {}
+) {
+  if (!options.force) {
+    return registerRemotes([remote]);
+  }
+
+  const runtimeInstance = getRuntimeInstance() as RuntimeInstanceWithInternals | null;
+  const registeredRemote =
+    findRegisteredRuntimeRemote(runtimeInstance, options.remoteIdentifier) ||
+    findRegisteredRuntimeRemote(
+      runtimeInstance,
+      typeof remote.alias === 'string' ? remote.alias : undefined
+    ) ||
+    findRegisteredRuntimeRemote(
+      runtimeInstance,
+      typeof remote.name === 'string' ? remote.name : undefined
+    );
+  const remoteHandler = (runtimeInstance as { remoteHandler?: { removeRemote?: unknown } } | null)
+    ?.remoteHandler;
+  const removeRemote = remoteHandler?.removeRemote;
+
+  if (registeredRemote && typeof removeRemote === 'function') {
+    removeRemote.call(remoteHandler, registeredRemote);
+    return registerRemotes([remote]);
+  }
+
+  return registerRemotes([remote], { force: true });
 }
 
 export function registerShared(...args: Parameters<ModuleFederation['registerShared']>) {
@@ -658,7 +706,10 @@ export async function registerManifestRemote(
       type: selectedEntry.type || 'module',
     };
 
-    registerRemotes([registration], { force: options.force });
+    registerRuntimeRemoteWithReplace(registration, {
+      force: options.force,
+      remoteIdentifier: remoteAlias,
+    });
 
     debugState.registeredManifestRemotes.set(requestKey, {
       alias: remoteAlias,
@@ -697,11 +748,7 @@ function getRegisteredManifestRemote(
 }
 
 function getRegisteredRuntimeRemote(remoteAlias: string) {
-  const runtimeInstance = getRuntimeInstance() as ModuleFederation & {
-    options?: {
-      remotes?: Array<Record<string, unknown>>;
-    };
-  } | null;
+  const runtimeInstance = getRuntimeInstance() as RuntimeInstanceWithInternals | null;
   const remotes = runtimeInstance?.options?.remotes;
 
   if (!Array.isArray(remotes)) {
@@ -800,8 +847,9 @@ export async function refreshRemote(
       : {}),
   } as Parameters<ModuleFederation['registerRemotes']>[0][number];
 
-  registerRuntimeRemotes([refreshedRuntimeRemote], {
+  registerRuntimeRemoteWithReplace(refreshedRuntimeRemote, {
     force: true,
+    remoteIdentifier: remoteAlias,
   });
   syncRegisteredRemoteDebugState();
   publishRuntimeDebugUpdate('refresh-remote');

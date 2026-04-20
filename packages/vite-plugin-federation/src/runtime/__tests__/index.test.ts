@@ -9,6 +9,7 @@ const {
   registerPluginsMock,
   registerRemotesMock,
   registerSharedMock,
+  removeRemoteMock,
   SourceTextModuleMock,
 } = vi.hoisted(() => ({
   createInstanceMock: vi.fn((options) => ({ options })),
@@ -19,6 +20,7 @@ const {
   registerPluginsMock: vi.fn(),
   registerRemotesMock: vi.fn(),
   registerSharedMock: vi.fn(),
+  removeRemoteMock: vi.fn(),
   SourceTextModuleMock: class {
     code: string;
     namespace: Record<string, unknown>;
@@ -116,6 +118,7 @@ describe('runtime api', () => {
     registerPluginsMock.mockReset();
     registerRemotesMock.mockReset();
     registerSharedMock.mockReset();
+    removeRemoteMock.mockReset();
     vi.unstubAllGlobals();
     vi.stubGlobal('__VITE_PLUGIN_FEDERATION_IMPORT_NODE_VM__', async () => ({
       SourceTextModule: SourceTextModuleMock,
@@ -217,6 +220,39 @@ describe('runtime api', () => {
         }),
       ],
       { force: true }
+    );
+  });
+
+  it('silently replaces runtime remotes when internal removeRemote is available', async () => {
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        remotes: [{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js', type: 'module' }],
+      },
+      remoteHandler: {
+        removeRemote: removeRemoteMock,
+      },
+    });
+
+    await refreshRemote('remoteApp/Button', { target: 'web' });
+
+    expect(removeRemoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'remoteApp',
+        entry: 'http://localhost/remoteEntry.js',
+      })
+    );
+    expect(registerRemotesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: 'remoteApp',
+        entry: expect.stringMatching(/^http:\/\/localhost\/remoteEntry\.js\?t=\d+$/),
+        type: 'module',
+      }),
+    ]);
+    expect(registerRemotesMock).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ force: true })
     );
   });
 
@@ -391,8 +427,7 @@ describe('runtime api', () => {
           entryGlobalName: 'remote-app',
           name: 'remoteApp',
         }),
-      ],
-      { force: undefined }
+      ]
     );
 
     const debugInfo = getFederationDebugInfo();
@@ -431,8 +466,7 @@ describe('runtime api', () => {
         expect.objectContaining({
           entry: 'http://localhost:4174/assets/remoteEntry.js',
         }),
-      ],
-      { force: undefined }
+      ]
     );
   });
 
