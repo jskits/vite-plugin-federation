@@ -361,6 +361,133 @@ describe('pluginDevRemoteHmr', () => {
     expect(server.ws.send).not.toHaveBeenCalledWith({ type: 'full-reload' });
   });
 
+  it('matches remote virtual modules from urlToModuleMap when idToModuleMap is empty', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        event: 'mf:remote-update',
+        wsUrl: 'ws://remote.example:4174/app?token=abc',
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWebSocket as any);
+
+    const remoteButtonModule = {
+      id: undefined,
+      importers: new Set(),
+      url: '/node_modules/__mf__virtual/__mfe_internal__hostApp__loadRemote__remoteApp_mf_1_Button__loadRemote__.mjs',
+    };
+    const { server } = createServer({
+      moduleGraph: {
+        getModulesByFile: vi.fn(() => undefined),
+        idToModuleMap: new Map(),
+        urlToModuleMap: new Map([[remoteButtonModule.url, remoteButtonModule]]),
+      },
+    });
+
+    const plugin = pluginDevRemoteHmr({
+      name: 'host-app',
+      dev: { remoteHmr: true },
+      exposes: {},
+      remotes: {
+        remoteApp: {
+          entry: 'http://remote.example/assets/remoteEntry.js',
+          name: 'remoteApp',
+        },
+      },
+      virtualModuleDir: '__mf__virtual',
+    } as any);
+
+    plugin.configureServer?.(server as any);
+
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+
+    MockWebSocket.instances[0].onmessage?.({
+      data: JSON.stringify({
+        type: 'custom',
+        event: 'mf:remote-update',
+        data: {
+          action: 'partial-reload',
+          expose: './Button',
+          file: '/repo/src/Button.tsx',
+          kind: 'expose',
+          remote: 'remoteApp',
+          ts: 124,
+        },
+      }),
+    });
+
+    await vi.waitFor(() => expect(server.reloadModule).toHaveBeenCalledWith(remoteButtonModule));
+    expect(server.ws.send).not.toHaveBeenCalledWith({ type: 'full-reload' });
+  });
+
+  it('matches remote virtual modules from getModulesByFile using the expected virtual file path', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        event: 'mf:remote-update',
+        wsUrl: 'ws://remote.example:4174/app?token=abc',
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWebSocket as any);
+
+    const remoteButtonVirtualFile =
+      '/repo/node_modules/__mf__virtual/__mfe_internal__hostApp__loadRemote__remoteApp_mf_1_Button__loadRemote__.mjs';
+    const remoteButtonModule = {
+      id: undefined,
+      importers: new Set(),
+      url: '/node_modules/__mf__virtual/__mfe_internal__hostApp__loadRemote__remoteApp_mf_1_Button__loadRemote__.mjs',
+    };
+    const { server } = createServer({
+      moduleGraph: {
+        getModulesByFile: vi.fn((file: string) =>
+          file === remoteButtonVirtualFile ? new Set([remoteButtonModule]) : undefined
+        ),
+        idToModuleMap: new Map(),
+        urlToModuleMap: new Map(),
+      },
+    });
+
+    const plugin = pluginDevRemoteHmr({
+      name: 'host-app',
+      internalName: '__mfe_internal__hostApp',
+      dev: { remoteHmr: true },
+      exposes: {},
+      remotes: {
+        remoteApp: {
+          entry: 'http://remote.example/assets/remoteEntry.js',
+          name: 'remoteApp',
+        },
+      },
+      virtualModuleDir: '__mf__virtual',
+    } as any);
+
+    plugin.configureServer?.(server as any);
+
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+
+    MockWebSocket.instances[0].onmessage?.({
+      data: JSON.stringify({
+        type: 'custom',
+        event: 'mf:remote-update',
+        data: {
+          action: 'partial-reload',
+          expose: './Button',
+          file: '/repo/src/Button.tsx',
+          kind: 'expose',
+          remote: 'remoteApp',
+          ts: 125,
+        },
+      }),
+    });
+
+    await vi.waitFor(() => expect(server.reloadModule).toHaveBeenCalledWith(remoteButtonModule));
+    expect(server.ws.send).not.toHaveBeenCalledWith({ type: 'full-reload' });
+  });
+
   it('forwards remote style updates without forcing a full reload', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,

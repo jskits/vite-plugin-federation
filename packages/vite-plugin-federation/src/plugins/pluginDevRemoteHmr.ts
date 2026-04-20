@@ -1,5 +1,6 @@
 import path from 'pathe';
 import type { Plugin, ViteDevServer } from 'vite';
+import { clearDevRemoteVersions, setDevRemoteVersion } from '../utils/devRemoteVersionState';
 import { mfWarn } from '../utils/logger';
 import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 import { packageNameDecode, packageNameEncode } from '../utils/packageUtils';
@@ -314,23 +315,103 @@ function getVirtualRemoteRequestId(moduleId: string) {
   return packageNameDecode(encodedRemoteRequest.slice(0, endIndex));
 }
 
-function findHostRemoteModules(
-  server: ViteDevServer,
-  remoteNames: string[],
-  expose?: string
-) {
-  const idToModuleMap = (server.moduleGraph as {
+function collectModuleGraphNodes(server: ViteDevServer) {
+  const moduleGraph = server.moduleGraph as {
     idToModuleMap?: Map<string, ModuleGraphNode>;
-  }).idToModuleMap;
+    urlToModuleMap?: Map<string, ModuleGraphNode>;
+  };
+  const collectedModules = new Set<ModuleGraphNode>();
 
-  if (!(idToModuleMap instanceof Map)) {
+  for (const moduleMap of [moduleGraph.idToModuleMap, moduleGraph.urlToModuleMap]) {
+    if (!(moduleMap instanceof Map)) continue;
+
+    for (const moduleNode of moduleMap.values()) {
+      if (moduleNode) {
+        collectedModules.add(moduleNode);
+      }
+    }
+  }
+
+  return collectedModules;
+}
+
+function getExpectedRemoteVirtualModuleFiles(
+  server: ViteDevServer,
+  options: NormalizedModuleFederationOptions,
+  remoteRequestIds: Iterable<string>
+) {
+  if (!options.internalName) {
     return [];
   }
 
+  const root = server.config.root || process.cwd();
+  const virtualModuleRoot = path.resolve(root, 'node_modules', options.virtualModuleDir);
+  const remoteLoadTag = '__loadRemote__';
+
+  return [...remoteRequestIds].flatMap((remoteRequestId) => {
+    const baseFileName = packageNameEncode(
+      `${options.internalName}${remoteLoadTag}${remoteRequestId}${remoteLoadTag}`
+    );
+    return ['.mjs', '.js'].map((ext) =>
+      normalizeFilePath(path.resolve(virtualModuleRoot, `${baseFileName}${ext}`))
+    );
+  });
+}
+
+function collectModuleGraphNodesByFile(
+  server: ViteDevServer,
+  fileIds: Iterable<string>
+) {
+  const moduleGraph = server.moduleGraph as {
+    getModuleById?: (id: string) => ModuleGraphNode | undefined;
+    getModulesByFile?: (file: string) => Set<ModuleGraphNode> | undefined;
+  };
+  const collectedModules = new Set<ModuleGraphNode>();
+
+  for (const fileId of fileIds) {
+    if (typeof moduleGraph.getModuleById === 'function') {
+      const moduleNode = moduleGraph.getModuleById(fileId);
+      if (moduleNode) {
+        collectedModules.add(moduleNode);
+      }
+    }
+
+    if (typeof moduleGraph.getModulesByFile === 'function') {
+      const fileModules = moduleGraph.getModulesByFile(fileId);
+      if (fileModules) {
+        for (const moduleNode of fileModules) {
+          if (moduleNode) {
+            collectedModules.add(moduleNode);
+          }
+        }
+      }
+    }
+  }
+
+  return collectedModules;
+}
+
+function findHostRemoteModules(
+  server: ViteDevServer,
+  options: NormalizedModuleFederationOptions,
+  remoteNames: string[],
+  expose?: string
+) {
   const candidates = getRemoteRequestCandidates(remoteNames, expose);
+  const moduleNodes = new Set<ModuleGraphNode>(collectModuleGraphNodes(server));
+  const expectedVirtualModuleFiles = getExpectedRemoteVirtualModuleFiles(server, options, candidates);
+
+  for (const moduleNode of collectModuleGraphNodesByFile(server, expectedVirtualModuleFiles)) {
+    moduleNodes.add(moduleNode);
+  }
+
+  if (moduleNodes.size === 0) {
+    return [];
+  }
+
   const matchedModules: ModuleGraphNode[] = [];
 
-  for (const moduleNode of idToModuleMap.values()) {
+  for (const moduleNode of moduleNodes.values()) {
     const remoteRequestId = [moduleNode?.id, moduleNode?.url]
       .filter((value): value is string => typeof value === 'string')
       .map((value) => getVirtualRemoteRequestId(value))
@@ -362,6 +443,7 @@ function toHostRemotePayload(
 
 async function triggerHostRemoteExposeUpdate(
   server: ViteDevServer,
+  options: NormalizedModuleFederationOptions,
   payload: HostRemoteUpdatePayload
 ) {
   server.ws.send({
@@ -381,6 +463,7 @@ async function triggerHostRemoteExposeUpdate(
 
   const matchedModules = findHostRemoteModules(
     server,
+    options,
     [payload.hostRemote, payload.remote].filter(Boolean),
     payload.expose
   );
@@ -486,6 +569,8 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
 
       const isRemote = Object.keys(options.exposes).length > 0;
       const isHost = Object.keys(options.remotes).length > 0;
+
+      clearDevRemoteVersions(options.internalName);
 
       if (isRemote) {
         const endpointPath = getRemoteHmrPath(server.config.base);
@@ -630,9 +715,18 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
               }
 
               if (payload.action === 'partial-reload') {
+                const hostPayload = toHostRemotePayload(
+                  payload,
+                  configuredRemoteName,
+                  getRemoteOrigin(remote.entry, server)
+                );
+                if (hostPayload.remoteRequestId) {
+                  setDevRemoteVersion(options.internalName, hostPayload.remoteRequestId, hostPayload.ts);
+                }
                 void triggerHostRemoteExposeUpdate(
                   server,
-                  toHostRemotePayload(payload, configuredRemoteName, getRemoteOrigin(remote.entry, server))
+                  options,
+                  hostPayload
                 );
                 return;
               }
@@ -655,6 +749,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
 
         const teardown = () => {
           isTearingDown = true;
+          clearDevRemoteVersions(options.internalName);
           reconnectTimers.forEach((timer) => clearTimeout(timer));
           reconnectTimers.clear();
           connections.forEach((connection) => {

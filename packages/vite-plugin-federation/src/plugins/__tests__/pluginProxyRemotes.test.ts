@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   addUsedRemoteMock,
+  getDevRemoteVersionMock,
   getInstalledPackageEntryMock,
   getIsRolldownMock,
   getRemoteVirtualModuleMock,
   remoteModulePath,
 } = vi.hoisted(() => ({
   addUsedRemoteMock: vi.fn(),
+  getDevRemoteVersionMock: vi.fn(() => undefined),
   getInstalledPackageEntryMock: vi.fn(() => undefined),
   getIsRolldownMock: vi.fn(() => true),
   getRemoteVirtualModuleMock: vi.fn(),
@@ -17,6 +19,10 @@ const {
 vi.mock('../../utils/packageUtils', () => ({
   getInstalledPackageEntry: getInstalledPackageEntryMock,
   getIsRolldown: getIsRolldownMock,
+}));
+
+vi.mock('../../utils/devRemoteVersionState', () => ({
+  getDevRemoteVersion: getDevRemoteVersionMock,
 }));
 
 vi.mock('../../virtualModules', () => ({
@@ -29,6 +35,7 @@ import pluginProxyRemotes from '../pluginProxyRemotes';
 describe('pluginProxyRemotes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getDevRemoteVersionMock.mockReturnValue(undefined);
     getRemoteVirtualModuleMock.mockReturnValue({
       getPath: () => remoteModulePath,
     });
@@ -108,6 +115,28 @@ describe('pluginProxyRemotes', () => {
     );
 
     expect(result).toBe(remoteModulePath);
+    expect(getRemoteVirtualModuleMock).toHaveBeenCalledWith(
+      'scheduler/SchedulePanel',
+      'serve',
+      true
+    );
+    expect(addUsedRemoteMock).toHaveBeenCalledWith('scheduler', 'scheduler/SchedulePanel');
+  });
+
+  it('appends the latest dev remote version query when present', () => {
+    getDevRemoteVersionMock.mockReturnValue(123456789);
+    const { plugin } = createSchedulerPlugin();
+    const result = (plugin as any).resolveId.call(
+      { meta: { rolldownVersion: '1.0.0' } } as any,
+      'scheduler/SchedulePanel',
+      '/repo/src/App.tsx'
+    );
+
+    expect(result).toBe('/virtual/scheduler.js?t=123456789');
+    expect(getDevRemoteVersionMock).toHaveBeenCalledWith(
+      undefined,
+      'scheduler/SchedulePanel'
+    );
     expect(getRemoteVirtualModuleMock).toHaveBeenCalledWith(
       'scheduler/SchedulePanel',
       'serve',
