@@ -44,6 +44,9 @@ export function generateRemotes(id: string, command: string, isRolldown: boolean
   const devRefreshFlagLine = useDevRefreshBridge
     ? 'const __mf_shouldRefreshRemote = /(?:\\?|&)t=/.test(import.meta.url);'
     : '';
+  const devHmrAcceptLine = useDevRefreshBridge
+    ? 'if (import.meta.hot) {\n      import.meta.hot.accept();\n    }'
+    : '';
   const awaitOrPlaceholder = useESM
     ? 'await '
     : '/*mf top-level-await placeholder replacement mf*/';
@@ -77,5 +80,6 @@ export function generateRemotes(id: string, command: string, isRolldown: boolean
     ${loadRemoteLine}
     const exportModule = ${awaitOrPlaceholder}initPromise.then(_ => res)
     ${exportLine}
+    ${devHmrAcceptLine}
   `;
 }
