@@ -1,5 +1,5 @@
 import type { Alias, Plugin } from 'vite';
-import { NormalizedShared } from '../utils/normalizeModuleFederationOptions';
+import type { NormalizedShared } from '../utils/normalizeModuleFederationOptions';
 import { mfWarnWithCode } from '../utils/logger';
 
 /**
@@ -53,12 +53,12 @@ export function checkAliasConflicts(options: { shared?: NormalizedShared }): Plu
         conflicts.forEach(({ sharedModule, alias, target }) => {
           mfWarnWithCode(
             'MFV-002',
-            `Shared module "${sharedModule}" is aliased by "${alias}" to "${target}"`
+            `Shared module "${sharedModule}" is aliased by "${alias}" to "${target}"`,
           );
         });
         mfWarnWithCode(
           'MFV-002',
-          "This may cause runtime errors as the shared module will bypass Module Federation's sharing mechanism."
+          "This may cause runtime errors as the shared module will bypass Module Federation's sharing mechanism.",
         );
       }
     },

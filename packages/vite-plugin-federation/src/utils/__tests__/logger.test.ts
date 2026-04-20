@@ -15,7 +15,7 @@ describe('logger', () => {
 
   it('formats messages with error codes', () => {
     expect(formatModuleFederationMessage('invalid config', 'MFV-001')).toBe(
-      '[Module Federation] MFV-001 invalid config'
+      '[Module Federation] MFV-001 invalid config',
     );
   });
 

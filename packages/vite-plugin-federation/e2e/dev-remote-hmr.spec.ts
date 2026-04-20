@@ -36,7 +36,7 @@ test.describe('dev remote hmr', () => {
     await page.goto('/');
 
     await expect(
-      page.getByRole('button', { name: 'Loaded from reactRemote/Button' })
+      page.getByRole('button', { name: 'Loaded from reactRemote/Button' }),
     ).toBeVisible();
     await expect(page.locator('main')).toContainText('Runtime refresh count: 0');
     await expect(page.locator('main')).toContainText('Loaded through the runtime bridge API.');
@@ -50,7 +50,7 @@ test.describe('dev remote hmr', () => {
         () => {
           sessionStorage.setItem('__mf_beforeunload_seen', '1');
         },
-        { once: true }
+        { once: true },
       );
 
       window.addEventListener('vite-plugin-federation:remote-expose-update', (event) => {
@@ -65,17 +65,19 @@ test.describe('dev remote hmr', () => {
         await replaceFileOnce(
           remoteButtonFile,
           'return <button className="remote-button">{label}</button>;',
-          'return <button className="remote-button">{label} / e2e static update</button>;'
-        )
+          'return <button className="remote-button">{label} / e2e static update</button>;',
+        ),
       );
 
       await expect(
-        page.getByRole('button', { name: 'Loaded from reactRemote/Button / e2e static update' })
+        page.getByRole('button', { name: 'Loaded from reactRemote/Button / e2e static update' }),
       ).toBeVisible({ timeout: 15_000 });
       await expect(page.locator('main')).toContainText('Runtime refresh count: 0');
       await expect
         .poll(async () => {
-          const payload = await page.evaluate(() => sessionStorage.getItem('__mf_last_remote_update'));
+          const payload = await page.evaluate(() =>
+            sessionStorage.getItem('__mf_last_remote_update'),
+          );
           return payload ? JSON.parse(payload) : null;
         })
         .toMatchObject({
@@ -90,19 +92,21 @@ test.describe('dev remote hmr', () => {
         await replaceFileOnce(
           remoteCardFile,
           'Loaded through the runtime bridge API.',
-          'Loaded through the runtime bridge API. / e2e runtime update'
-        )
+          'Loaded through the runtime bridge API. / e2e runtime update',
+        ),
       );
 
       await expect(page.locator('main')).toContainText('Runtime refresh count: 1', {
         timeout: 15_000,
       });
       await expect(page.locator('main')).toContainText(
-        'Loaded through the runtime bridge API. / e2e runtime update'
+        'Loaded through the runtime bridge API. / e2e runtime update',
       );
       await expect
         .poll(async () => {
-          const payload = await page.evaluate(() => sessionStorage.getItem('__mf_last_remote_update'));
+          const payload = await page.evaluate(() =>
+            sessionStorage.getItem('__mf_last_remote_update'),
+          );
           return payload ? JSON.parse(payload) : null;
         })
         .toMatchObject({
@@ -118,7 +122,7 @@ test.describe('dev remote hmr', () => {
       await Promise.all(
         restoreTasks.reverse().map(async (restore) => {
           await restore();
-        })
+        }),
       );
     }
   });

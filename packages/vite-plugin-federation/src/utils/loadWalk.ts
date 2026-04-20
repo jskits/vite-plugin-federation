@@ -1,4 +1,6 @@
-type Walk = typeof import('estree-walker').walk;
+import type { walk as estreeWalk } from 'estree-walker';
+
+type Walk = typeof estreeWalk;
 
 let walkPromise: Promise<Walk> | null = null;
 

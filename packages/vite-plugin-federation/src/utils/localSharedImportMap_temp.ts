@@ -15,7 +15,7 @@ export function writeLocalSharedImportMap_temp(content: string) {
   createFile(
     localSharedImportMapId + '.js',
     '\n// Windows temporarily needs this file, https://github.com/module-federation/vite/issues/68\n' +
-      content
+      content,
   );
 }
 function createFile(filePath: string, content: string) {

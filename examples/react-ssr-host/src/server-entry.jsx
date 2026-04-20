@@ -1,8 +1,5 @@
 import { renderToString } from 'react-dom/server';
-import {
-  fetchFederationManifest,
-  loadRemoteFromManifest,
-} from 'vite-plugin-federation/runtime';
+import { fetchFederationManifest, loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
 import { AppShell } from './AppShell.jsx';
 import {
   DEFAULT_REMOTE_MANIFEST_URL,

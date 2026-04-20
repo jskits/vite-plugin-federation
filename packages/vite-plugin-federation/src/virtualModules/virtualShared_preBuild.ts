@@ -11,9 +11,10 @@
 
 import { existsSync, readFileSync, statSync } from 'fs';
 import { createRequire } from 'module';
+import type * as EsModuleLexer from 'es-module-lexer';
 import path from 'pathe';
 import { mfWarn } from '../utils/logger';
-import { ShareItem } from '../utils/normalizeModuleFederationOptions';
+import type { ShareItem } from '../utils/normalizeModuleFederationOptions';
 import {
   getPackageDetectionCwd,
   getInstalledPackageJson,
@@ -61,7 +62,7 @@ const localRequire = createRequire(import.meta.url);
 function resolvePackageEntryFromProjectRoot(pkg: string): string | undefined {
   try {
     const projectRequire = createRequire(
-      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`)
+      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`),
     );
     return projectRequire.resolve(pkg);
   } catch {
@@ -131,7 +132,7 @@ function getEsmNamedExports(pkg: string): string[] {
     entryPath = getPackageEsmEntryPath(pkg);
     if (!entryPath) return [];
 
-    const { initSync, parse } = localRequire('es-module-lexer') as typeof import('es-module-lexer');
+    const { initSync, parse } = localRequire('es-module-lexer') as typeof EsModuleLexer;
     initSync();
     source = readFileSync(entryPath, 'utf-8');
     const [, exports] = parse(source, entryPath);
@@ -172,7 +173,7 @@ function resolveRelativeModule(filePath: string, specifier: string): string | un
 function getNamedExportsViaRegex(
   source: string,
   filePath?: string,
-  visited?: Set<string>
+  visited?: Set<string>,
 ): string[] {
   const names = new Set<string>();
   visited = visited || new Set();
@@ -182,7 +183,7 @@ function getNamedExportsViaRegex(
     `export\\s+(?:async\\s+)?(?:` +
       `function(?:\\*\\s*|\\s+\\*?\\s*)` +
       `|const\\s+|let\\s+|var\\s+|class\\s+)(${JS_IDENTIFIER_PATTERN})`,
-    'gu'
+    'gu',
   );
   let match: RegExpExecArray | null;
   while ((match = declRegex.exec(source)) !== null) {
@@ -193,7 +194,7 @@ function getNamedExportsViaRegex(
   const listRegex = /export\s*\{([^}]+)\}/g;
   const typeOnlySpecifierRegex = new RegExp(
     `^type\\s+${JS_IDENTIFIER_PATTERN}(?:\\s+as\\s+${JS_IDENTIFIER_PATTERN})?$`,
-    'u'
+    'u',
   );
   const exportSpecifierRegex = new RegExp(`(?:\\S+\\s+as\\s+)?(${JS_IDENTIFIER_PATTERN})$`, 'u');
   while ((match = listRegex.exec(source)) !== null) {
@@ -240,7 +241,7 @@ function getPackageNamedExports(pkg: string): string[] {
     // like react are found even when the plugin is installed in a nested
     // pnpm store location where peer dependencies are not hoisted.
     const projectRequire = createRequire(
-      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`)
+      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`),
     );
     const mod = projectRequire(pkg);
     return Object.keys(mod).filter((k) => isValidEsmExportName(k));
@@ -252,7 +253,7 @@ function getPackageNamedExports(pkg: string): string[] {
 export function getLocalProviderImportPath(pkg: string): string | undefined {
   try {
     const projectRequire = createRequire(
-      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`)
+      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`),
     );
     const resolved = projectRequire.resolve(pkg);
     return isWorkspaceFilePath(resolved) ? resolved : undefined;
@@ -285,7 +286,7 @@ export type SharedImportSourceInspection = {
 
 export function inspectSharedImportSource(
   pkg: string,
-  shareItem?: ShareItem
+  shareItem?: ShareItem,
 ): SharedImportSourceInspection {
   const configuredImport = shareItem?.shareConfig.import;
   if (typeof configuredImport === 'string') {
@@ -342,7 +343,7 @@ export function inspectSharedImportSource(
 
 export function getConcreteSharedImportSource(
   pkg: string,
-  shareItem?: ShareItem
+  shareItem?: ShareItem,
 ): string | undefined {
   return inspectSharedImportSource(pkg, shareItem).concreteImportSource || undefined;
 }
@@ -393,7 +394,7 @@ export function writeLoadShareModule(
   pkg: string,
   shareItem: ShareItem,
   command: string,
-  isRolldown: boolean
+  isRolldown: boolean,
 ) {
   if (!loadShareCacheMap[pkg]) {
     const useESM = shouldUseEsmLoadShare(pkg, command, isRolldown);
@@ -432,7 +433,7 @@ export function writeLoadShareModule(
         mfWarn(
           `Shared dependency "${pkg}" has import: false but is not installed locally.\n` +
             `  Named imports (e.g. import { ... } from '${pkg}') will not work in production builds.\n` +
-            `  Install it as a devDependency to enable named export detection.`
+            `  Install it as a devDependency to enable named export detection.`,
         );
       }
       exportLine = useESM
@@ -452,7 +453,7 @@ export function writeLoadShareModule(
     const exportModule = ${awaitOrPlaceholder}res.then((factory) => (typeof factory === "function" ? factory() : factory))
     ${exportLine}
   `,
-      true
+      true,
     );
     return;
   }
@@ -521,6 +522,6 @@ export function writeLoadShareModule(
     }
     ${exportLine}
   `,
-    true
+    true,
   );
 }

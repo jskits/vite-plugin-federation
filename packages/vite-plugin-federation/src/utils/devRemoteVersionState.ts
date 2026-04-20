@@ -9,7 +9,11 @@ function getScopeState(scope: string) {
   return scopeState;
 }
 
-export function setDevRemoteVersion(scope: string | undefined, remoteRequestId: string, version: number) {
+export function setDevRemoteVersion(
+  scope: string | undefined,
+  remoteRequestId: string,
+  version: number,
+) {
   if (!scope || !remoteRequestId || !Number.isFinite(version)) return;
   getScopeState(scope).set(remoteRequestId, version);
 }

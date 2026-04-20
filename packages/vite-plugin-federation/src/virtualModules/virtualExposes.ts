@@ -1,4 +1,4 @@
-import { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
+import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 
 const EXPOSES_CSS_MAP_PLACEHOLDER = '__MF_EXPOSES_CSS_MAP__';
 
@@ -7,7 +7,7 @@ export function getExposesCssMapPlaceholder() {
 }
 
 export function getVirtualExposesId(
-  options: Pick<NormalizedModuleFederationOptions, 'internalName' | 'filename'>
+  options: Pick<NormalizedModuleFederationOptions, 'internalName' | 'filename'>,
 ) {
   const scopedKey = `${options.internalName}__${options.filename}`.replace(/[^a-zA-Z0-9_-]/g, '_');
   return `virtual:mf-exposes:${scopedKey}`;
@@ -17,7 +17,7 @@ export function generateExposes(
   options: NormalizedModuleFederationOptions,
   buildOptions: {
     eagerImports?: boolean;
-  } = {}
+  } = {},
 ) {
   const cssBucketKeyPrefix = `css__${options.name}__`;
   const eagerImports = buildOptions.eagerImports === true;
@@ -26,7 +26,7 @@ export function generateExposes(
     ? exposeEntries
         .map(
           ([, expose], index) =>
-            `import * as __mf_expose_${index} from ${JSON.stringify(expose.import)};`
+            `import * as __mf_expose_${index} from ${JSON.stringify(expose.import)};`,
         )
         .join('\n')
     : '';

@@ -46,7 +46,7 @@ vi.mock('../../utils/VirtualModule', () => ({
 }));
 
 import { proxySharedModule } from '../pluginProxySharedModule_preBuild';
-import { NormalizedShared } from '../../utils/normalizeModuleFederationOptions';
+import type { NormalizedShared } from '../../utils/normalizeModuleFederationOptions';
 
 const preBuildShareItemMap = new Map<string, NormalizedShared[string]>();
 
@@ -164,7 +164,7 @@ describe('pluginProxySharedModule_preBuild', () => {
       {
         command: 'serve',
         mode: 'development',
-      }
+      },
     );
 
     return { config, proxyPlugin };
@@ -228,7 +228,7 @@ describe('pluginProxySharedModule_preBuild', () => {
           resolve: async (id: string) => ({ id: `/resolved/${id}` }),
         },
         testCase.source,
-        '/src/main.ts'
+        '/src/main.ts',
       );
 
       expect(config.resolve.alias).toEqual([]);
@@ -268,7 +268,7 @@ describe('pluginProxySharedModule_preBuild', () => {
     proxyPlugin.config?.call(
       { meta: {}, resolve: async (id: string) => ({ id: `/resolved/${id}` }) },
       config as any,
-      { command: 'serve', mode: 'development' }
+      { command: 'serve', mode: 'development' },
     );
     proxyPlugin.configResolved?.({
       cacheDir: '/vite/deps',
@@ -299,7 +299,7 @@ describe('pluginProxySharedModule_preBuild', () => {
         resolve: async (id: string) => ({ id: `/resolved/${id}` }),
       } as any,
       'transitive__prebuild__',
-      '/src/main.ts'
+      '/src/main.ts',
     );
 
     expect(resolution).toEqual({ id: '/resolved//abs/transitive/index.js' });
@@ -329,7 +329,7 @@ describe('pluginProxySharedModule_preBuild', () => {
       {
         command: 'build',
         mode: 'production',
-      }
+      },
     );
 
     preBuildShareItemMap.set('transitive', shared['transitive/']);
@@ -339,7 +339,7 @@ describe('pluginProxySharedModule_preBuild', () => {
         resolve: async (id: string) => ({ id: `/resolved/${id}` }),
       } as any,
       'transitive__prebuild__',
-      '/src/main.ts'
+      '/src/main.ts',
     );
 
     expect(resolution).toEqual({ id: '/resolved//abs/transitive/slash-entry.js' });
@@ -362,7 +362,7 @@ describe('pluginProxySharedModule_preBuild', () => {
         resolve: async (id: string) => ({ id: `/resolved/${id}` }),
       } as any,
       'transitive-no-override__prebuild__',
-      '/src/main.ts'
+      '/src/main.ts',
     );
 
     expect(resolution).toEqual({
@@ -375,7 +375,7 @@ describe('pluginProxySharedModule_preBuild', () => {
 
     // Simulate "lit" having lit-html, lit-element, @lit/reactive-element as dependencies
     existsSyncMock.mockImplementation(
-      (p: string) => p === '/repo/apps/remote/node_modules/lit/package.json'
+      (p: string) => p === '/repo/apps/remote/node_modules/lit/package.json',
     );
     readFileSyncMock.mockImplementation((p: string) => {
       if (p === '/repo/apps/remote/node_modules/lit/package.json') {
@@ -441,13 +441,13 @@ describe('pluginProxySharedModule_preBuild', () => {
 
     // Warnings should have been emitted
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('"lit-html" is a dependency of shared package "lit"')
+      expect.stringContaining('"lit-html" is a dependency of shared package "lit"'),
     );
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('"lit-element" is a dependency of shared package "lit"')
+      expect.stringContaining('"lit-element" is a dependency of shared package "lit"'),
     );
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('"@lit/reactive-element" is a dependency of shared package "lit"')
+      expect.stringContaining('"@lit/reactive-element" is a dependency of shared package "lit"'),
     );
 
     warnSpy.mockRestore();
@@ -459,7 +459,7 @@ describe('pluginProxySharedModule_preBuild', () => {
     hasPackageDependencyMock.mockReturnValue(false);
 
     existsSyncMock.mockImplementation(
-      (p: string) => p === '/repo/apps/remote/node_modules/lit/package.json'
+      (p: string) => p === '/repo/apps/remote/node_modules/lit/package.json',
     );
     readFileSyncMock.mockImplementation((p: string) => {
       if (p === '/repo/apps/remote/node_modules/lit/package.json') {
@@ -522,7 +522,7 @@ describe('pluginProxySharedModule_preBuild', () => {
         resolve: async (id: string) => ({ id: `/resolved/${id}` }),
       },
       'transitive-no-override__prebuild__',
-      '/src/main.ts'
+      '/src/main.ts',
     );
 
     expect(config.resolve.alias).toEqual([]);

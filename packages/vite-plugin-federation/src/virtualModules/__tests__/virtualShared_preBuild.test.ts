@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ShareItem } from '../../utils/normalizeModuleFederationOptions';
+import type { ShareItem } from '../../utils/normalizeModuleFederationOptions';
 import { writeLoadShareModule } from '../virtualShared_preBuild';
 
 const { writeSyncSpy, mfWarnSpy } = vi.hoisted(() => ({
   writeSyncSpy: vi.fn(),
   mfWarnSpy: vi.fn(),
 }));
-const parseSpy = vi.hoisted(() => vi.fn((source: string) => [[], []]));
+const parseSpy = vi.hoisted(() => vi.fn((_source: string) => [[], []]));
 
 const { hasPackageDependencyMock } = vi.hoisted(() => ({
   hasPackageDependencyMock: vi.fn(() => false),
@@ -50,7 +50,7 @@ vi.mock('fs', () => ({
       filePath.endsWith('node_modules/mock-package-reexport-type/package.json') ||
       filePath.endsWith('/mock-package-reexport-type/package.json') ||
       filePath.endsWith('node_modules/mock-package-generator-export/package.json') ||
-      filePath.endsWith('/mock-package-generator-export/package.json')
+      filePath.endsWith('/mock-package-generator-export/package.json'),
   ),
   readFileSync: vi.fn((filePath: string) => {
     if (
@@ -321,13 +321,13 @@ describe('writeLoadShareModule', () => {
     // Destructuring should alias the keys
     // const { delete: __mf_0, get: __mf_1, request: __mf_2 } = exportModule;
     expect(generatedCode).toContain(
-      'const { delete: __mf_0, get: __mf_1, request: __mf_2 } = exportModule;'
+      'const { delete: __mf_0, get: __mf_1, request: __mf_2 } = exportModule;',
     );
 
     // Export uses aliased keys AS the original keys
     // export { __mf_0 as delete, __mf_1 as get, __mf_2 as request };
     expect(generatedCode).toContain(
-      'export { __mf_0 as delete, __mf_1 as get, __mf_2 as request };'
+      'export { __mf_0 as delete, __mf_1 as get, __mf_2 as request };',
     );
   });
 
@@ -423,7 +423,7 @@ describe('writeLoadShareModule', () => {
 
     expect(generatedCode).toContain('const providerModulePromise = typeof window === "undefined"');
     expect(generatedCode).toContain(
-      '? ((await providerModulePromise)?.default ?? await providerModulePromise)'
+      '? ((await providerModulePromise)?.default ?? await providerModulePromise)',
     );
   });
 
@@ -446,7 +446,7 @@ describe('writeLoadShareModule', () => {
     const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
 
     expect(generatedCode).toContain(
-      'const { useCounter: __mf_0, useLogger: __mf_1 } = exportModule;'
+      'const { useCounter: __mf_0, useLogger: __mf_1 } = exportModule;',
     );
     expect(generatedCode).toContain('export { __mf_0 as useCounter, __mf_1 as useLogger };');
     expect(generatedCode).not.toContain('export * from');
@@ -592,7 +592,7 @@ describe('writeLoadShareModule', () => {
     // Should warn about missing named exports in ESM build
     expect(mfWarnSpy).toHaveBeenCalledWith(expect.stringContaining('not installed locally'));
     expect(mfWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Install it as a devDependency')
+      expect.stringContaining('Install it as a devDependency'),
     );
   });
 
@@ -640,7 +640,7 @@ describe('writeLoadShareModule', () => {
 
     expect(parseSpy).toHaveBeenCalledWith(
       expect.stringContaining('__TYPE_ONLY_EXPORT__'),
-      expect.anything()
+      expect.anything(),
     );
     expect(generatedCode).toContain('const { SharedCounter2: __mf_0 } = exportModule;');
     expect(generatedCode).toContain('export { __mf_0 as SharedCounter2 };');

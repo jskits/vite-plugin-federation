@@ -20,7 +20,7 @@ function getEndpointPath(base: string, endpoint: string) {
 }
 
 function getManifestFileName(
-  manifest: NormalizedModuleFederationOptions['manifest']
+  manifest: NormalizedModuleFederationOptions['manifest'],
 ): string | undefined {
   if (!manifest) return;
   if (manifest === true) return 'mf-manifest.json';
@@ -44,7 +44,9 @@ function isDevtoolsEnabled(dev: NormalizedModuleFederationOptions['dev']) {
 }
 
 function escapeInlineScriptJson(value: unknown) {
-  return JSON.stringify(value).replace(/</g, '\\u003C').replace(/\u2028/g, '\\u2028');
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003C')
+    .replace(/\u2028/g, '\\u2028');
 }
 
 function getDevtoolsBootstrapCode(payloadCode: string) {
@@ -54,7 +56,9 @@ function getDevtoolsBootstrapCode(payloadCode: string) {
 function buildPayload(options: NormalizedModuleFederationOptions, config: ResolvedConfig) {
   const manifestFileName = getManifestFileName(options.manifest);
   const debugFileName = manifestFileName
-    ? [manifestFileName.split('/').slice(0, -1).join('/'), 'mf-debug.json'].filter(Boolean).join('/')
+    ? [manifestFileName.split('/').slice(0, -1).join('/'), 'mf-debug.json']
+        .filter(Boolean)
+        .join('/')
     : undefined;
   const basePath = getBasePath(config.base);
 

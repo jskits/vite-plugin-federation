@@ -85,7 +85,7 @@ function wrapDynamicImport(original: string): string {
 function applyRewrites(
   code: string,
   imports: ImportInfo[],
-  id: string
+  id: string,
 ): { code: string; map: ReturnType<MagicString['generateMap']> } | undefined {
   if (imports.length === 0) return;
 
@@ -104,7 +104,7 @@ function applyRewrites(
           ms.overwrite(
             imp.start,
             imp.end,
-            `import { __moduleExports as ${imp.namespaceLocal} } from ${src};`
+            `import { __moduleExports as ${imp.namespaceLocal} } from ${src};`,
           );
         } else {
           const nsId = `__mf_ns_${counter++}`;
@@ -114,7 +114,7 @@ function applyRewrites(
           importParts.push(`__moduleExports as ${nsId}`);
 
           const destructParts = imp.named.map((s) =>
-            s.imported === s.local ? s.local : `${s.imported}: ${s.local}`
+            s.imported === s.local ? s.local : `${s.imported}: ${s.local}`,
           );
 
           let rewrite = `import { ${importParts.join(', ')} } from ${src};`;
@@ -150,7 +150,7 @@ function applyRewrites(
       case 'export-all': {
         console.warn(
           `[module-federation] "export * from '${imp.source}'" is not supported ` +
-            `with Rolldown — use explicit named re-exports instead. (${id})`
+            `with Rolldown — use explicit named re-exports instead. (${id})`,
         );
         break;
       }
@@ -175,7 +175,7 @@ function applyRewrites(
 async function collectFromAST(
   ast: any,
   code: string,
-  isRemoteImport: (source: string) => boolean
+  isRemoteImport: (source: string) => boolean,
 ): Promise<ImportInfo[]> {
   const walk = await loadWalk();
   const result: ImportInfo[] = [];
@@ -293,7 +293,7 @@ async function collectFromAST(
 
 async function collectFromEsLexer(
   code: string,
-  isRemoteImport: (source: string) => boolean
+  isRemoteImport: (source: string) => boolean,
 ): Promise<ImportInfo[] | undefined> {
   await initEsLexer;
 
@@ -427,7 +427,7 @@ async function collectFromEsLexer(
 
 function collectFromRegex(
   code: string,
-  isRemoteImport: (source: string) => boolean
+  isRemoteImport: (source: string) => boolean,
 ): ImportInfo[] | undefined {
   const result: ImportInfo[] = [];
 
@@ -541,7 +541,7 @@ async function warnOnDynamicRemoteImportVariables(
   ast: any,
   code: string,
   remoteNames: string[],
-  importerId: string
+  importerId: string,
 ) {
   const walk = await loadWalk();
 
@@ -556,7 +556,7 @@ async function warnOnDynamicRemoteImportVariables(
           (name) =>
             templateText.includes(`\`${name}/`) ||
             templateText.includes(`'${name}/`) ||
-            templateText.includes(`"${name}/`)
+            templateText.includes(`"${name}/`),
         );
 
         if (!hasRemotePrefix) return;
@@ -564,7 +564,7 @@ async function warnOnDynamicRemoteImportVariables(
         mfWarnWithCode(
           'MFV-007',
           `Dynamic remote import variables are not supported for "${templateText}" in ${importerId}. ` +
-            'Use loadRemote() for variable-based remote requests instead.'
+            'Use loadRemote() for variable-based remote requests instead.',
         );
         return;
       }
@@ -582,7 +582,7 @@ async function warnOnDynamicRemoteImportVariables(
         mfWarnWithCode(
           'MFV-007',
           `Dynamic remote import variables are not supported for "${expressionText}" in ${importerId}. ` +
-            'Use loadRemote() for variable-based remote requests instead.'
+            'Use loadRemote() for variable-based remote requests instead.',
         );
       }
     },

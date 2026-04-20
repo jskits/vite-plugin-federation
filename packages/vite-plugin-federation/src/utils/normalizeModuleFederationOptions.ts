@@ -70,13 +70,13 @@ function warnOnReservedInternalNamePrefix(name: string, kind: 'containerName' | 
   if (!name.startsWith(INTERNAL_NAME_PREFIX)) return;
   mfWarn(
     `Reserved internal ${kind} prefix "${INTERNAL_NAME_PREFIX}" detected in public ${kind} "${name}". ` +
-      'This prefix is reserved for internal module federation names and may cause conflicts.'
+      'This prefix is reserved for internal module federation names and may cause conflicts.',
   );
 }
 
 function normalizeExposesItem(
   key: string,
-  item: string | { import: string; css?: ExposeCssOptions; dontAppendStylesToHead?: boolean }
+  item: string | { import: string; css?: ExposeCssOptions; dontAppendStylesToHead?: boolean },
 ): ExposesItem {
   let importPath: string = '';
   let css: ExposeCssOptions | undefined;
@@ -86,7 +86,7 @@ function normalizeExposesItem(
   if (typeof item === 'object') {
     importPath = item.import;
     const injectCss = normalizeExposeCssInject(
-      item.dontAppendStylesToHead ? 'manual' : item.css?.inject
+      item.dontAppendStylesToHead ? 'manual' : item.css?.inject,
     );
     css =
       injectCss === undefined
@@ -107,7 +107,7 @@ function normalizeExposesItem(
 }
 
 function normalizeExposeCssInject(
-  inject: ExposeCssOptions['inject'] | undefined
+  inject: ExposeCssOptions['inject'] | undefined,
 ): ExposeCssInjectMode | undefined {
   if (inject === undefined) return undefined;
   if (inject === true) return 'head';
@@ -118,15 +118,17 @@ function normalizeExposeCssInject(
 
   throw createModuleFederationError(
     'MFV-001',
-    `Invalid expose css.inject value "${String(inject)}". Expected "head", "manual", or "none".`
+    `Invalid expose css.inject value "${String(inject)}". Expected "head", "manual", or "none".`,
   );
 }
 
 function normalizeExposes(
-  exposes: Record<
-    string,
-    string | { import: string; css?: ExposeCssOptions; dontAppendStylesToHead?: boolean }
-  > | undefined
+  exposes:
+    | Record<
+        string,
+        string | { import: string; css?: ExposeCssOptions; dontAppendStylesToHead?: boolean }
+      >
+    | undefined,
 ): Record<string, ExposesItem> {
   if (!exposes) return {};
   const res: Record<string, ExposesItem> = {};
@@ -137,7 +139,7 @@ function normalizeExposes(
 }
 
 export function normalizeRemotes(
-  remotes: Record<string, string | RemoteObjectConfig> | undefined
+  remotes: Record<string, string | RemoteObjectConfig> | undefined,
 ): Record<string, RemoteObjectConfig> {
   if (!remotes) return {};
   const result: Record<string, RemoteObjectConfig> = {};
@@ -195,7 +197,7 @@ function normalizeRemoteItem(key: string, remote: string | RemoteObjectConfig): 
     {
       ...remote,
       internalName: toInternalModuleFederationName(remote.name || key),
-    }
+    },
   );
 }
 
@@ -243,7 +245,9 @@ function searchPackageVersion(sharedName: string): string | undefined {
       }
       potentialPackageJsonDir = path.dirname(potentialPackageJsonDir);
     }
-  } catch (_) {}
+  } catch {
+    return undefined;
+  }
   return undefined;
 }
 
@@ -269,7 +273,7 @@ function normalizeShareItem(
   key: string,
   shareItem:
     | string
-      | {
+    | {
         name: string;
         import?: ShareImportOption;
         version?: string;
@@ -277,7 +281,7 @@ function normalizeShareItem(
         singleton?: boolean;
         requiredVersion?: string;
         strictVersion?: boolean;
-      }
+      },
 ): ShareItem {
   let version: string | undefined;
 
@@ -296,10 +300,10 @@ function normalizeShareItem(
             process.cwd(),
             'node_modules',
             removePathFromNpmPackage(key),
-            'package.json'
+            'package.json',
           );
           version = projectRequire(localPath).version;
-        } catch (e2) {
+        } catch {
           version = searchPackageVersion(key);
           if (!version) mfError(e1);
         }
@@ -352,7 +356,7 @@ function normalizeShared(
             strictVersion?: boolean;
           }
       >
-    | undefined
+    | undefined,
 ): NormalizedShared {
   if (!shared) return {};
   const result: NormalizedShared = {};
@@ -403,9 +407,7 @@ function normalizeManifest(manifest: ModuleFederationOptions['manifest']) {
   };
 }
 
-function normalizeCompat(
-  compat: ModuleFederationOptions['compat']
-): CompatibilityOptions {
+function normalizeCompat(compat: ModuleFederationOptions['compat']): CompatibilityOptions {
   if (compat === false) {
     return {
       originjs: false,
@@ -611,7 +613,7 @@ export function getNormalizeShareItem(key: string) {
 }
 
 export function normalizeModuleFederationOptions(
-  options: ModuleFederationOptions
+  options: ModuleFederationOptions,
 ): NormalizedModuleFederationOptions {
   warnOnReservedInternalNamePrefix(options.name, 'containerName');
   if (options.virtualModuleDir && options.virtualModuleDir.includes('/')) {
@@ -619,7 +621,7 @@ export function normalizeModuleFederationOptions(
       'MFV-001',
       `Invalid virtualModuleDir: "${options.virtualModuleDir}". ` +
         `The virtualModuleDir option cannot contain slashes (/). ` +
-        `Please use a single directory name like '__mf__virtual__your_app_name'.`
+        `Please use a single directory name like '__mf__virtual__your_app_name'.`,
     );
   }
 
@@ -635,7 +637,8 @@ export function normalizeModuleFederationOptions(
     shareScope: options.shareScope || 'default',
     shared: normalizeShared(options.shared),
     runtimePlugins: options.runtimePlugins || [],
-    implementation: options.implementation || currentPackageRequire.resolve('@module-federation/runtime'),
+    implementation:
+      options.implementation || currentPackageRequire.resolve('@module-federation/runtime'),
     manifest: normalizeManifest(options.manifest),
     dev: options.dev,
     dts: options.dts,

@@ -2,7 +2,8 @@ import defu from 'defu';
 import { readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'pathe';
-import { normalizePath, Plugin, UserConfig } from 'vite';
+import type { Plugin, UserConfig } from 'vite';
+import { normalizePath } from 'vite';
 import addEntry from './plugins/pluginAddEntry';
 import { checkAliasConflicts } from './plugins/pluginCheckAliasConflicts';
 import { PluginDevProxyModuleTopLevelAwait } from './plugins/pluginDevProxyModuleTopLevelAwait';
@@ -25,12 +26,12 @@ import {
   sanitizeFederationControlChunk,
 } from './utils/controlChunkSanitizer';
 import { createModuleFederationError, mfWarn } from './utils/logger';
-import {
+import type {
   ModuleFederationOptions,
   NormalizedModuleFederationOptions,
-  normalizeModuleFederationOptions,
   PluginManifestOptions,
 } from './utils/normalizeModuleFederationOptions';
+import { normalizeModuleFederationOptions } from './utils/normalizeModuleFederationOptions';
 import normalizeOptimizeDepsPlugin from './utils/normalizeOptimizeDeps';
 import {
   getInstalledPackageEntry,
@@ -183,15 +184,15 @@ function createEarlyVirtualModulesPlugin(options: NormalizedModuleFederationOpti
           // That bypasses the remote namespace fixup path and breaks named
           // exports on dynamic import, which Angular relies on.
           const collidingInstalledRemotes = Object.keys(remotes || {}).filter((remoteName) =>
-            getInstalledPackageJson(remoteName, { cwd: root })
+            getInstalledPackageJson(remoteName, { cwd: root }),
           );
           const collidingInstalledRemoteEntries = collidingInstalledRemotes.map(
-            (remoteName) => getInstalledPackageEntry(remoteName, { cwd: root }) || remoteName
+            (remoteName) => getInstalledPackageEntry(remoteName, { cwd: root }) || remoteName,
           );
           config.optimizeDeps.exclude.push(
             ...Object.keys(remotes || {}).filter(
-              (remoteName) => !collidingInstalledRemotes.includes(remoteName)
-            )
+              (remoteName) => !collidingInstalledRemotes.includes(remoteName),
+            ),
           );
           config.optimizeDeps.include.push(...collidingInstalledRemoteEntries);
         }
@@ -252,7 +253,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
   if (isTestEnv()) return [];
   const options = normalizeModuleFederationOptions(mfUserOptions);
   const isVinext = hasPackageDependency('vinext');
-  const { name, remotes, shared, filename, hostInitInjectLocation } = options;
+  const { name, remotes: _remotes, shared, filename, hostInitInjectLocation } = options;
   if (!name) throw createModuleFederationError('MFV-001', 'name is required');
 
   const remoteEntryId = getRemoteEntryId(options);
@@ -359,7 +360,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
         moduleParseTimeout: options.moduleParseTimeout,
         moduleParseIdleTimeout: options.moduleParseIdleTimeout,
         virtualExposesId,
-      }
+      },
     ),
     ...proxySharedModule({
       shared,
@@ -415,7 +416,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
             if (warnedAboutCodeSplitting) return;
             warnedAboutCodeSplitting = true;
             mfWarn(
-              'Ignoring `output.codeSplitting = false` because module federation requires chunk splitting.'
+              'Ignoring `output.codeSplitting = false` because module federation requires chunk splitting.',
             );
             return;
           }
@@ -432,7 +433,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           mfWarn(
             'Ignoring `output.codeSplitting.groups` because it conflicts with module federation. ' +
               'Grouping shared dependency init wrappers with their dependent modules can break runtime init order ' +
-              'and cause standalone remotes to fail before mount.'
+              'and cause standalone remotes to fail before mount.',
           );
         };
 
@@ -448,7 +449,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
               'Ignoring `output.manualChunks` because it conflicts with module federation. ' +
                 'Module federation transforms shared dependency imports with top-level await, and grouping ' +
                 'these transformed modules into a single chunk creates circular async dependencies that cause ' +
-                'the application to silently hang.'
+                'the application to silently hang.',
             );
           }
           const mfManualChunks = function (id: string) {
@@ -490,7 +491,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
         if (Array.isArray(rolldownOutput)) {
           rolldownOutput.forEach((output) => applyManualChunks(output as any));
           desiredRolldownOutput = rolldownOutput.map((output) =>
-            snapshotRolldownOutput(output as Record<string, any>)
+            snapshotRolldownOutput(output as Record<string, any>),
           );
         } else {
           applyManualChunks((buildWithRolldown.rolldownOptions.output ||= {}) as any);
@@ -510,7 +511,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           output: Record<string, any> | undefined,
           restoredOutput:
             | Pick<Record<string, any>, 'entryFileNames' | 'chunkFileNames' | 'assetFileNames'>
-            | undefined
+            | undefined,
         ) => {
           if (!output || !restoredOutput) return;
           if (restoredOutput.entryFileNames !== undefined) {
@@ -532,7 +533,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
             const rolldownOptions = await getRolldownOptions.call(environment);
             if (Array.isArray(rolldownOptions.output)) {
               rolldownOptions.output.forEach((output: Record<string, any>, index: number) =>
-                applyRolldownOutput(output, desiredRolldownOutput?.[index])
+                applyRolldownOutput(output, desiredRolldownOutput?.[index]),
               );
             } else {
               rolldownOptions.output ||= {};
@@ -577,7 +578,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           code = code.replace(
             'export default exportModule',
             'export const __moduleExports = exportModule;\n' +
-              'export default exportModule.__esModule ? exportModule.default : exportModule'
+              'export default exportModule.__esModule ? exportModule.default : exportModule',
           );
           // Rollup supports syntheticNamedExports to resolve named imports
           // from the __moduleExports namespace.  Rolldown (Vite 8+) does not
@@ -602,7 +603,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           if (chunk.type !== 'chunk') continue;
           if (fileName.includes(LOAD_SHARE_TAG)) continue;
 
-          let code = chunk.code;
+          const code = chunk.code;
           let m;
           const importedFromLoadShare = new Set<string>();
           const importRegex = /import\s*\{([^}]+)\}\s*from\s*["'][^"']*__loadShare__[^"']*["']/g;
@@ -674,7 +675,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
                 .replace(/\.js$/, '')
                 .replace(/-[A-Za-z0-9_-]+$/, '');
               const importRe = new RegExp(
-                `import\\s*\\{([^}]+)\\}\\s*from\\s*["']([^"']*${proxyBaseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"']*)["']\\s*;?`
+                `import\\s*\\{([^}]+)\\}\\s*from\\s*["']([^"']*${proxyBaseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"']*)["']\\s*;?`,
               );
               const importMatch = importRe.exec(code);
               if (!importMatch) continue;
@@ -735,7 +736,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
                   // Rename function to match local binding name
                   const renamedFunc = funcBody.replace(
                     new RegExp(`function\\s+${proxyLocal}\\s*\\(`),
-                    `function ${b.local}(`
+                    `function ${b.local}(`,
                   );
                   inlineable.push({ local: b.local, funcBody: renamedFunc });
                   claimedLocals.add(b.local);
@@ -747,7 +748,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
                     proxyLocal,
                     code,
                     fullImport,
-                    unavailableLocals
+                    unavailableLocals,
                   );
                   claimedLocals.add(resolvedBinding.local);
                   nonInlineable.push(resolvedBinding);
@@ -756,7 +757,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
 
               // Also rewrite the import when only an alias was corrected.
               const hasRenamedAlias = nonInlineable.some(
-                (b) => bindings.find((ob) => ob.imported === b.imported)?.local !== b.local
+                (b) => bindings.find((ob) => ob.imported === b.imported)?.local !== b.local,
               );
               if (inlineable.length === 0 && !hasRenamedAlias) continue;
 
@@ -806,7 +807,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           const nextCode = sanitizeFederationControlChunk(
             readFileSync(outputPath, 'utf-8'),
             chunk.fileName,
-            filename
+            filename,
           );
 
           writeFileSync(outputPath, nextCode);
@@ -851,7 +852,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
     {
       name: 'vite-plugin-federation',
       enforce: 'post',
-      // @ts-expect-error
+      // @ts-expect-error rolldown surfaces plugin internals through a private field
       // used to expose plugin options: https://github.com/rolldown/rolldown/discussions/2577#discussioncomment-11137593
       _options: options,
       config(config, { command: _command }: { command: string }) {
@@ -933,7 +934,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           config.define['ENV_TARGET'] !== JSON.stringify(options.target)
         ) {
           mfWarn(
-            `ENV_TARGET define (${config.define['ENV_TARGET']}) differs from target option ("${options.target}"). ENV_TARGET will not be overridden.`
+            `ENV_TARGET define (${config.define['ENV_TARGET']}) differs from target option ("${options.target}"). ENV_TARGET will not be overridden.`,
           );
         }
       },
@@ -997,7 +998,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
                   // functions like Stencil's getScopeId: (e,t)=>"sc-"+e.$tagName$
                   const replaced = chunk.code.replace(
                     /=\(?(\w+)(?:,\w+)?\)?\s*=>\s*["'][./][^"']*["']\s*\+\s*\1/,
-                    replacement
+                    replacement,
                   );
                   if (replaced !== chunk.code) {
                     chunk.code = replaced;
@@ -1006,15 +1007,15 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
                   // Function expression: function(e){return"/"+e} (1 or 2 params)
                   chunk.code = chunk.code.replace(
                     /=function\((\w+)(?:,\w+)?\)\{return\s*["'][./][^"']*["']\s*\+\s*\1\s*\}/,
-                    replacement
+                    replacement,
                   );
                   chunk.code = chunk.code.replace(
                     /=function\((\w+)(?:,\w+)?\)\{return new URL\("\.\.\/"\+\1,import\.meta\.url\)\.href\}/,
-                    replacement
+                    replacement,
                   );
                   chunk.code = chunk.code.replace(
                     /new URL\("\.\.\/"\+(\w+),import\.meta\.url\)\.href/g,
-                    `new URL(${replacementExpr},import.meta.url).href`
+                    `new URL(${replacementExpr},import.meta.url).href`,
                   );
 
                   // Vite's preload helper assumes a browser DOM and crashes when a
@@ -1026,19 +1027,19 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
                   ) {
                     chunk.code = chunk.code.replace(
                       /=function\((\w+),(\w+),(\w+)\)\{let (\w+)=Promise\.resolve\(\);/,
-                      '=function($1,$2,$3){if(typeof document>"u"||typeof window>"u")return $1();let $4=Promise.resolve();'
+                      '=function($1,$2,$3){if(typeof document>"u"||typeof window>"u")return $1();let $4=Promise.resolve();',
                     );
                     chunk.code = chunk.code.replace(
                       /=function\((\w+),(\w+)\)\{let (\w+)=Promise\.resolve\(\);/,
-                      '=function($1,$2){if(typeof document>"u"||typeof window>"u")return $1();let $3=Promise.resolve();'
+                      '=function($1,$2){if(typeof document>"u"||typeof window>"u")return $1();let $3=Promise.resolve();',
                     );
                     chunk.code = chunk.code.replace(
                       /=\((\w+),(\w+),(\w+)\)=>\{let (\w+)=Promise\.resolve\(\);/,
-                      '=($1,$2,$3)=>{if(typeof document>"u"||typeof window>"u")return $1();let $4=Promise.resolve();'
+                      '=($1,$2,$3)=>{if(typeof document>"u"||typeof window>"u")return $1();let $4=Promise.resolve();',
                     );
                     chunk.code = chunk.code.replace(
                       /=\((\w+),(\w+)\)=>\{let (\w+)=Promise\.resolve\(\);/,
-                      '=($1,$2)=>{if(typeof document>"u"||typeof window>"u")return $1();let $3=Promise.resolve();'
+                      '=($1,$2)=>{if(typeof document>"u"||typeof window>"u")return $1();let $3=Promise.resolve();',
                     );
                   }
                 }

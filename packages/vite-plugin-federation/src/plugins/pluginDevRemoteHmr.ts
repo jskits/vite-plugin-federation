@@ -154,7 +154,9 @@ function getStringPreview(value: unknown, max = 180) {
   else if (typeof value === 'object' && value !== null) {
     try {
       rawValue = JSON.stringify(value);
-    } catch {}
+    } catch {
+      rawValue = '[unserializable]';
+    }
   }
   return rawValue.slice(0, max);
 }
@@ -176,14 +178,14 @@ function getExposeImportMap(server: ViteDevServer, options: NormalizedModuleFede
       .map(([exposeName, expose]) => [
         normalizeFilePath(path.resolve(root, expose.import)),
         exposeName,
-      ])
+      ]),
   );
 }
 
 function findExposeNameForFile(
   server: ViteDevServer,
   options: NormalizedModuleFederationOptions,
-  file: string
+  file: string,
 ) {
   const exposeImportMap = getExposeImportMap(server, options);
   const normalizedFile = normalizeFilePath(file);
@@ -192,7 +194,11 @@ function findExposeNameForFile(
     return exposeImportMap.get(normalizedFile);
   }
 
-  const getModulesByFile = (server.moduleGraph as { getModulesByFile?: (file: string) => Set<ModuleGraphNode> | undefined } | undefined)?.getModulesByFile;
+  const getModulesByFile = (
+    server.moduleGraph as
+      | { getModulesByFile?: (file: string) => Set<ModuleGraphNode> | undefined }
+      | undefined
+  )?.getModulesByFile;
   if (typeof getModulesByFile !== 'function') return;
 
   const visited = new Set<ModuleGraphNode>();
@@ -223,7 +229,7 @@ function findExposeNameForFile(
 function classifyRemoteUpdate(
   server: ViteDevServer,
   options: NormalizedModuleFederationOptions,
-  file: string
+  file: string,
 ): RemoteUpdatePayload {
   const normalizedFile = normalizeFilePath(file);
   const exposeName = findExposeNameForFile(server, options, normalizedFile);
@@ -338,7 +344,7 @@ function collectModuleGraphNodes(server: ViteDevServer) {
 function getExpectedRemoteVirtualModuleFiles(
   server: ViteDevServer,
   options: NormalizedModuleFederationOptions,
-  remoteRequestIds: Iterable<string>
+  remoteRequestIds: Iterable<string>,
 ) {
   if (!options.internalName) {
     return [];
@@ -350,18 +356,15 @@ function getExpectedRemoteVirtualModuleFiles(
 
   return [...remoteRequestIds].flatMap((remoteRequestId) => {
     const baseFileName = packageNameEncode(
-      `${options.internalName}${remoteLoadTag}${remoteRequestId}${remoteLoadTag}`
+      `${options.internalName}${remoteLoadTag}${remoteRequestId}${remoteLoadTag}`,
     );
     return ['.mjs', '.js'].map((ext) =>
-      normalizeFilePath(path.resolve(virtualModuleRoot, `${baseFileName}${ext}`))
+      normalizeFilePath(path.resolve(virtualModuleRoot, `${baseFileName}${ext}`)),
     );
   });
 }
 
-function collectModuleGraphNodesByFile(
-  server: ViteDevServer,
-  fileIds: Iterable<string>
-) {
+function collectModuleGraphNodesByFile(server: ViteDevServer, fileIds: Iterable<string>) {
   const moduleGraph = server.moduleGraph as {
     getModuleById?: (id: string) => ModuleGraphNode | undefined;
     getModulesByFile?: (file: string) => Set<ModuleGraphNode> | undefined;
@@ -395,11 +398,15 @@ function findHostRemoteModules(
   server: ViteDevServer,
   options: NormalizedModuleFederationOptions,
   remoteNames: string[],
-  expose?: string
+  expose?: string,
 ) {
   const candidates = getRemoteRequestCandidates(remoteNames, expose);
   const moduleNodes = new Set<ModuleGraphNode>(collectModuleGraphNodes(server));
-  const expectedVirtualModuleFiles = getExpectedRemoteVirtualModuleFiles(server, options, candidates);
+  const expectedVirtualModuleFiles = getExpectedRemoteVirtualModuleFiles(
+    server,
+    options,
+    candidates,
+  );
 
   for (const moduleNode of collectModuleGraphNodesByFile(server, expectedVirtualModuleFiles)) {
     moduleNodes.add(moduleNode);
@@ -428,7 +435,7 @@ function findHostRemoteModules(
 function toHostRemotePayload(
   payload: RemoteUpdatePayload,
   configuredRemoteName: string,
-  remoteOrigin: string | null
+  remoteOrigin: string | null,
 ): HostRemoteUpdatePayload {
   return {
     ...payload,
@@ -444,7 +451,7 @@ function toHostRemotePayload(
 async function triggerHostRemoteExposeUpdate(
   server: ViteDevServer,
   options: NormalizedModuleFederationOptions,
-  payload: HostRemoteUpdatePayload
+  payload: HostRemoteUpdatePayload,
 ) {
   server.ws.send({
     type: 'custom',
@@ -452,9 +459,11 @@ async function triggerHostRemoteExposeUpdate(
     data: payload,
   });
 
-  const reloadModule = (server as ViteDevServer & {
-    reloadModule?: (module: ModuleGraphNode) => Promise<void>;
-  }).reloadModule;
+  const reloadModule = (
+    server as ViteDevServer & {
+      reloadModule?: (module: ModuleGraphNode) => Promise<void>;
+    }
+  ).reloadModule;
 
   if (typeof reloadModule !== 'function') {
     server.ws.send({ type: 'full-reload' });
@@ -465,25 +474,25 @@ async function triggerHostRemoteExposeUpdate(
     server,
     options,
     [payload.hostRemote, payload.remote].filter(Boolean),
-    payload.expose
+    payload.expose,
   );
 
   if (matchedModules.length === 0) {
     mfWarn(
       `Remote expose update "${payload.remoteRequestId || payload.hostRemote}" had no matching host virtual modules. ` +
-        'Runtime consumers should handle the expose-update event directly.'
+        'Runtime consumers should handle the expose-update event directly.',
     );
     return;
   }
 
   const reloadResults = await Promise.allSettled(
-    matchedModules.map((moduleNode) => reloadModule.call(server, moduleNode))
+    matchedModules.map((moduleNode) => reloadModule.call(server, moduleNode)),
   );
 
   for (const [index, result] of reloadResults.entries()) {
     if (result.status === 'rejected') {
       mfWarn(
-        `Failed to reload federated host module "${matchedModules[index]?.url || matchedModules[index]?.id || payload.remoteRequestId}": ${getStringPreview(result.reason)}`
+        `Failed to reload federated host module "${matchedModules[index]?.url || matchedModules[index]?.id || payload.remoteRequestId}": ${getStringPreview(result.reason)}`,
       );
     }
   }
@@ -589,7 +598,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
               remote: options.name,
               event: REMOTE_HMR_EVENT,
               wsUrl,
-            })
+            }),
           );
         });
 
@@ -630,12 +639,12 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
           remoteName: string,
           remote: { entry: string },
           attempt: number,
-          reason: string
+          reason: string,
         ) => {
           if (isTearingDown) return;
           if (attempt >= REMOTE_HMR_CONNECT_MAX_RETRIES) {
             mfWarn(
-              `Remote "${remoteName}" full HMR reconnect skipped after ${REMOTE_HMR_CONNECT_MAX_RETRIES} attempts: ${reason}`
+              `Remote "${remoteName}" full HMR reconnect skipped after ${REMOTE_HMR_CONNECT_MAX_RETRIES} attempts: ${reason}`,
             );
             return;
           }
@@ -647,7 +656,11 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
           reconnectTimers.set(remoteName, timer);
         };
 
-        const connectRemote = async (remoteAlias: string, remote: { entry: string; name?: string }, attempt = 0) => {
+        const connectRemote = async (
+          remoteAlias: string,
+          remote: { entry: string; name?: string },
+          attempt = 0,
+        ) => {
           if (isTearingDown) return;
           const configuredRemoteName = remote.name || remoteAlias;
           const endpoint = getRemoteHmrEndpoint(remote.entry, server);
@@ -660,7 +673,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
             const metadataResponse = await fetch(endpoint);
             if (!metadataResponse.ok) {
               mfWarn(
-                `Failed to fetch remote HMR metadata from "${configuredRemoteName}": ${metadataResponse.status}`
+                `Failed to fetch remote HMR metadata from "${configuredRemoteName}": ${metadataResponse.status}`,
               );
               scheduleReconnect(remoteAlias, remote, attempt, `HTTP ${metadataResponse.status}`);
               return;
@@ -693,7 +706,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
                   data: toHostRemotePayload(
                     payload,
                     configuredRemoteName,
-                    getRemoteOrigin(remote.entry, server)
+                    getRemoteOrigin(remote.entry, server),
                   ),
                 });
                 return;
@@ -718,16 +731,16 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
                 const hostPayload = toHostRemotePayload(
                   payload,
                   configuredRemoteName,
-                  getRemoteOrigin(remote.entry, server)
+                  getRemoteOrigin(remote.entry, server),
                 );
                 if (hostPayload.remoteRequestId) {
-                  setDevRemoteVersion(options.internalName, hostPayload.remoteRequestId, hostPayload.ts);
+                  setDevRemoteVersion(
+                    options.internalName,
+                    hostPayload.remoteRequestId,
+                    hostPayload.ts,
+                  );
                 }
-                void triggerHostRemoteExposeUpdate(
-                  server,
-                  options,
-                  hostPayload
-                );
+                void triggerHostRemoteExposeUpdate(server, options, hostPayload);
                 return;
               }
 
@@ -741,7 +754,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
             connections.push(ws);
           } catch (error) {
             mfWarn(
-              `Failed to connect remote HMR for "${configuredRemoteName}" on attempt ${attempt + 1}: ${getStringPreview(error)}`
+              `Failed to connect remote HMR for "${configuredRemoteName}" on attempt ${attempt + 1}: ${getStringPreview(error)}`,
             );
             scheduleReconnect(remoteAlias, remote, attempt, getStringPreview(error));
           }

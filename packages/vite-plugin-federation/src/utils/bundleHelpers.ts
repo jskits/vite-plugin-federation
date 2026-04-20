@@ -10,7 +10,7 @@ export function resolveProxyAlias(
   proxyLocal: string,
   code: string,
   fullImport: string,
-  claimedLocals: Set<string> = new Set()
+  claimedLocals: Set<string> = new Set(),
 ): { imported: string; local: string } {
   const codeWithoutImport = code.replace(fullImport, '');
   const escapedLocal = binding.local.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -37,12 +37,12 @@ export function resolveProxyAlias(
 export function findEntryFile(
   filename: string,
   bundle: OutputBundleLike,
-  entryName = 'remoteEntry'
+  entryName = 'remoteEntry',
 ) {
   for (const [_, fileData] of Object.entries(bundle)) {
     if (
       fileData.fileName === filename ||
-      filename.replace(/[\[\]]/g, '_').replace(/\.[^/.]+$/, '') === fileData.name ||
+      filename.replace(/[[\]]/g, '_').replace(/\.[^/.]+$/, '') === fileData.name ||
       fileData.name === entryName
     ) {
       return fileData.fileName; // We can return early since we only need to find remoteEntry once

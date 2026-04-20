@@ -234,16 +234,16 @@ describe('module-federation-esm-shims', () => {
     // Federation chunks are still isolated
     expect(functionOutput.manualChunks(`/virtual/${runtimeInitId}`)).toBe('runtimeInit');
     expect(functionOutput.manualChunks(`/virtual/react${LOAD_SHARE_TAG}chunk.js`)).toBe(
-      `react${LOAD_SHARE_TAG}chunk.js`
+      `react${LOAD_SHARE_TAG}chunk.js`,
     );
     // User's manualChunks is ignored — non-federation modules return undefined
     expect(functionOutput.manualChunks('/src/custom.ts')).toBeUndefined();
 
     expect(
-      (objectOutput.manualChunks as unknown as Function)('/src/react/index.ts')
+      (objectOutput.manualChunks as unknown as Function)('/src/react/index.ts'),
     ).toBeUndefined();
     expect(
-      (objectOutput.manualChunks as unknown as Function)('/src/other/index.ts')
+      (objectOutput.manualChunks as unknown as Function)('/src/other/index.ts'),
     ).toBeUndefined();
 
     // Warning was emitted (once for both outputs)
@@ -282,13 +282,15 @@ describe('module-federation-esm-shims', () => {
 
     expect(config.build.rolldownOptions.output[0].codeSplitting).toBeUndefined();
     expect(config.build.rolldownOptions.output[1].manualChunks(`/virtual/${runtimeInitId}`)).toBe(
-      'runtimeInit'
+      'runtimeInit',
     );
     expect(
-      config.build.rolldownOptions.output[1].manualChunks(`/virtual/react${LOAD_SHARE_TAG}chunk.js`)
+      config.build.rolldownOptions.output[1].manualChunks(
+        `/virtual/react${LOAD_SHARE_TAG}chunk.js`,
+      ),
     ).toBe(`react${LOAD_SHARE_TAG}chunk.js`);
     expect(
-      config.build.rolldownOptions.output[1].manualChunks('/src/other/index.ts')
+      config.build.rolldownOptions.output[1].manualChunks('/src/other/index.ts'),
     ).toBeUndefined();
     expect(mfWarn).toHaveBeenCalledTimes(2);
   });
@@ -348,7 +350,7 @@ describe('module-federation-esm-shims', () => {
         environments: {
           client: environment,
         },
-      } as any
+      } as any,
     );
 
     const restoredOptions = await environment.getRolldownOptions();
@@ -405,7 +407,7 @@ describe('module-federation-esm-shims', () => {
         environments: {
           client: environment,
         },
-      } as any
+      } as any,
     );
 
     const restoredOptions = await environment.getRolldownOptions();
@@ -434,7 +436,7 @@ describe('vite:module-federation-early-init', () => {
         meta: { rolldownVersion: '1.0.0' },
       } as any,
       config,
-      { command: 'serve', mode: 'test' }
+      { command: 'serve', mode: 'test' },
     );
 
     expect(config.optimizeDeps.include).toContain(virtualRuntimeInitStatus.getImportId());
@@ -481,11 +483,11 @@ describe('vite:module-federation-early-init', () => {
     expect(config.optimizeDeps.exclude).toContain('lit/directives/class-map.js');
     expect(config.optimizeDeps.include).toContain(getPreBuildLibImportId('lit'));
     expect(config.optimizeDeps.include).toContain(
-      getPreBuildLibImportId('lit/directives/class-map.js')
+      getPreBuildLibImportId('lit/directives/class-map.js'),
     );
     expect(config.optimizeDeps.include).not.toContain(getLoadShareImportId('lit', false, 'serve'));
     expect(config.optimizeDeps.include).not.toContain(
-      getLoadShareImportId('lit/directives/class-map.js', false, 'serve')
+      getLoadShareImportId('lit/directives/class-map.js', false, 'serve'),
     );
   });
 
@@ -649,7 +651,7 @@ describe('module-federation-fix-preload', () => {
     plugin.generateBundle?.call({} as any, {} as any, bundle as any);
 
     expect(bundle['static/js/preload-helper-abc.js'].code).toContain(
-      'new URL("..\\u002F..\\u002F"+e,import.meta.url).href'
+      'new URL("..\\u002F..\\u002F"+e,import.meta.url).href',
     );
   });
 
@@ -692,11 +694,11 @@ describe('module-federation-fix-preload', () => {
     plugin.config?.call(
       {} as any,
       {} as any,
-      { command: 'build', mode: 'test' } as { command: 'build'; mode: 'test' }
+      { command: 'build', mode: 'test' } as { command: 'build'; mode: 'test' },
     );
 
     const originalCode =
-      'const u=function(e){return new URL(\"../\"+e,import.meta.url).href};modulepreload';
+      'const u=function(e){return new URL("../"+e,import.meta.url).href};modulepreload';
     const bundle = {
       'preload-helper-abc.js': {
         type: 'chunk',
@@ -718,7 +720,7 @@ describe('module-federation-fix-preload', () => {
     plugin.config?.call(
       {} as any,
       {} as any,
-      { command: 'build', mode: 'test' } as { command: 'build'; mode: 'test' }
+      { command: 'build', mode: 'test' } as { command: 'build'; mode: 'test' },
     );
 
     const originalCode =
@@ -753,7 +755,7 @@ describe('module-federation-fix-preload', () => {
     plugin.generateBundle?.call({} as any, {} as any, bundle as any);
 
     expect(bundle['preload-helper-abc.js'].code).toContain(
-      'if(typeof document>"u"||typeof window>"u")return r();'
+      'if(typeof document>"u"||typeof window>"u")return r();',
     );
   });
 });
@@ -767,7 +769,7 @@ describe('module-federation-dev-await-shared-init', () => {
 
     const configPlugin = plugins.find((entry) => entry.name === 'vite:module-federation-config');
     const awaitPlugin = plugins.find(
-      (entry) => entry.name === 'module-federation-dev-await-shared-init'
+      (entry) => entry.name === 'module-federation-dev-await-shared-init',
     );
 
     if (!configPlugin) throw new Error('vite:module-federation-config plugin not found');
@@ -777,13 +779,13 @@ describe('module-federation-dev-await-shared-init', () => {
       {} as any,
       {
         cacheDir: '/Users/project/node_modules/.vite/_myapp_static_/',
-      } as any
+      } as any,
     );
 
     const inputCode = 'import "react";\ninit_abc__loadShare__react();\n';
     const output = awaitPlugin.transform?.(
       inputCode,
-      '/Users/project/node_modules/.vite/_myapp_static_/deps/react.js?import'
+      '/Users/project/node_modules/.vite/_myapp_static_/deps/react.js?import',
     );
     const outputCode = typeof output === 'string' ? output : output?.code;
     expect(outputCode).toContain('await init_abc__loadShare__react();');
@@ -806,7 +808,7 @@ describe('module-federation-dev-await-shared-init', () => {
 
     const configPlugin = plugins.find((entry) => entry.name === 'vite:module-federation-config');
     const awaitPlugin = plugins.find(
-      (entry) => entry.name === 'module-federation-dev-await-shared-init'
+      (entry) => entry.name === 'module-federation-dev-await-shared-init',
     );
 
     if (!configPlugin) throw new Error('vite:module-federation-config plugin not found');
@@ -816,7 +818,7 @@ describe('module-federation-dev-await-shared-init', () => {
       {} as any,
       {
         cacheDir: '/Users/project/node_modules/.vite/_myapp_static_',
-      } as any
+      } as any,
     );
 
     const inputCode = 'import "react";\ninit_abc__loadShare__react();\n';
@@ -851,10 +853,10 @@ describe('module-federation-esm-shims preview await insertion', () => {
     plugin.generateBundle?.call({} as any, {} as any, bundle as any);
 
     expect(bundle['assets/index.js'].code).toContain(
-      'import{a as init_host__loadShare__react__loadShare__}from"./__loadShare__react.js";await init_host__loadShare__react__loadShare__();\nvar SemconvStability;'
+      'import{a as init_host__loadShare__react__loadShare__}from"./__loadShare__react.js";await init_host__loadShare__react__loadShare__();\nvar SemconvStability;',
     );
     expect(bundle['assets/index.js'].code).toContain(
-      "*  import {SemconvStability, semconvStabilityFromStr} from '@opentelemetry/instrumentation';\n*/\n(init_host__loadShare__react__loadShare__(),factory(module));"
+      "*  import {SemconvStability, semconvStabilityFromStr} from '@opentelemetry/instrumentation';\n*/\n(init_host__loadShare__react__loadShare__(),factory(module));",
     );
   });
 
@@ -879,7 +881,7 @@ describe('module-federation-esm-shims preview await insertion', () => {
     plugin.generateBundle?.call({} as any, {} as any, bundle as any);
 
     expect(bundle['assets/index.js'].code).toContain(
-      'import{a as init_react__loadShare__}from"./react__loadShare__.js";import{b as init_dom__loadShare__}from"./react-dom__loadShare__.js";await init_react__loadShare__();await init_dom__loadShare__();(init_react__loadShare__(),factory(module));(init_dom__loadShare__(),factory(module));'
+      'import{a as init_react__loadShare__}from"./react__loadShare__.js";import{b as init_dom__loadShare__}from"./react-dom__loadShare__.js";await init_react__loadShare__();await init_dom__loadShare__();(init_react__loadShare__(),factory(module));(init_dom__loadShare__(),factory(module));',
     );
   });
 });

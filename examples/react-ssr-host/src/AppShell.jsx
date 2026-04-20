@@ -5,8 +5,8 @@ export function AppShell({ RemoteButton, buttonProps }) {
       <h1 className="ssr-title">reactSsrHost</h1>
       <p className="ssr-copy">
         This page renders a federated React component on the server through{' '}
-        <code>loadRemoteFromManifest()</code>, injects the remote expose CSS from the manifest,
-        and hydrates the exact same remote on the client.
+        <code>loadRemoteFromManifest()</code>, injects the remote expose CSS from the manifest, and
+        hydrates the exact same remote on the client.
       </p>
 
       <section className="ssr-grid">
@@ -35,9 +35,8 @@ export function AppShell({ RemoteButton, buttonProps }) {
       </section>
 
       <p className="ssr-footnote">
-        Default remote manifest URL:{' '}
-        <code>http://localhost:4174/mf-manifest.json</code>. Override it with{' '}
-        <code>REACT_REMOTE_MANIFEST_URL</code> when starting the server.
+        Default remote manifest URL: <code>http://localhost:4174/mf-manifest.json</code>. Override
+        it with <code>REACT_REMOTE_MANIFEST_URL</code> when starting the server.
       </p>
     </main>
   );

@@ -13,7 +13,7 @@ describe('controlChunkSanitizer', () => {
       'async function load(){return or(()=>import("./assets/localSharedImportMap.js"),[],import.meta.url)}';
 
     expect(stripEmptyPreloadCalls(code)).toBe(
-      'async function load(){return import("./assets/localSharedImportMap.js")}'
+      'async function load(){return import("./assets/localSharedImportMap.js")}',
     );
   });
 
@@ -22,7 +22,7 @@ describe('controlChunkSanitizer', () => {
       'import "../remoteEntry.js";' + 'import "./other.js";' + 'export const usedShared = {};';
 
     expect(
-      sanitizeFederationControlChunk(code, 'assets/localSharedImportMap-abc.js', 'remoteEntry.js')
+      sanitizeFederationControlChunk(code, 'assets/localSharedImportMap-abc.js', 'remoteEntry.js'),
     ).toBe('import "./other.js";export const usedShared = {};');
   });
 
@@ -39,7 +39,7 @@ describe('controlChunkSanitizer', () => {
     const result = stripEmptyPreloadCalls(code);
 
     expect(result).toContain(
-      '"@byte/ui":async()=>await o(()=>import("./index-Bc0YS1wt.js"),__vite__mapDeps([0]),import.meta.url)'
+      '"@byte/ui":async()=>await o(()=>import("./index-Bc0YS1wt.js"),__vite__mapDeps([0]),import.meta.url)',
     );
 
     expect(result).toContain('"@byte/user-session":async()=>await import("./index-BV4s8wZv.js")');
@@ -63,7 +63,7 @@ describe('controlChunkSanitizer', () => {
     expect(isFederationControlChunk('remoteEntry.js', 'remoteEntry.js')).toBe(true);
     expect(isFederationControlChunk('assets/hostInit-abc.js', 'remoteEntry.js')).toBe(true);
     expect(isFederationControlChunk('assets/localSharedImportMap-abc.js', 'remoteEntry.js')).toBe(
-      true
+      true,
     );
     expect(isFederationControlChunk('assets/app-abc.js', 'remoteEntry.js')).toBe(false);
   });

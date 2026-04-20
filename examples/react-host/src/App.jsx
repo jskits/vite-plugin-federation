@@ -84,10 +84,7 @@ export default function App() {
             />
           ) : (
             <Suspense fallback={<p>Loading remote button…</p>}>
-              <RemoteButton
-                key={buttonRefreshVersion}
-                label="Loaded from reactRemote/Button"
-              />
+              <RemoteButton key={buttonRefreshVersion} label="Loaded from reactRemote/Button" />
             </Suspense>
           )}
         </article>
@@ -97,7 +94,11 @@ export default function App() {
           <p style={{ color: '#64748b', marginTop: 0 }}>
             Runtime refresh count: <strong>{cardRefreshCount}</strong>
           </p>
-          {RemoteCard ? <RemoteCard title="Loaded via loadRemote('reactRemote/Card')" /> : <p>Loading remote card…</p>}
+          {RemoteCard ? (
+            <RemoteCard title="Loaded via loadRemote('reactRemote/Card')" />
+          ) : (
+            <p>Loading remote card…</p>
+          )}
         </article>
       </section>
     </main>

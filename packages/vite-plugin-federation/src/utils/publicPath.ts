@@ -1,4 +1,4 @@
-import { NormalizedModuleFederationOptions } from './normalizeModuleFederationOptions';
+import type { NormalizedModuleFederationOptions } from './normalizeModuleFederationOptions';
 
 /**
  * Resolves the public path for remote entries
@@ -10,7 +10,7 @@ import { NormalizedModuleFederationOptions } from './normalizeModuleFederationOp
 export function resolvePublicPath(
   options: NormalizedModuleFederationOptions,
   viteBase: string,
-  originalBase?: string
+  originalBase?: string,
 ): string {
   // Use explicitly set publicPath if provided, but treat "auto" as unset
   // (webpack convention: "auto" means infer at runtime, not a literal path segment)

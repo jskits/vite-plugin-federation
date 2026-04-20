@@ -3,11 +3,13 @@ import {
   getLocalSharedImportMapPath_temp,
   writeLocalSharedImportMap_temp,
 } from '../utils/localSharedImportMap_temp';
+import type {
+  NormalizedModuleFederationOptions,
+  ShareItem,
+} from '../utils/normalizeModuleFederationOptions';
 import {
   getNormalizeModuleFederationOptions,
   getNormalizeShareItem,
-  NormalizedModuleFederationOptions,
-  ShareItem,
 } from '../utils/normalizeModuleFederationOptions';
 import { hasPackageDependency } from '../utils/packageUtils';
 import { serializeRuntimeOptions } from '../utils/serializeRuntimeOptions';
@@ -24,7 +26,7 @@ import {
   getSharedImportSource,
 } from './virtualShared_preBuild';
 
-let usedShares: Set<string> = new Set();
+const usedShares: Set<string> = new Set();
 export function getUsedShares() {
   return usedShares;
 }
@@ -32,10 +34,8 @@ export function addUsedShares(pkg: string) {
   usedShares.add(pkg);
 }
 // *** Expose locally provided shared modules here
-const localSharedImportMapModule = new VirtualModule('localSharedImportMap');
 export function getLocalSharedImportMapPath() {
   return getLocalSharedImportMapPath_temp();
-  // return localSharedImportMapModule.getPath()
 }
 let prevLocalSharedImportMapContent: string | undefined;
 export function writeLocalSharedImportMap() {
@@ -43,7 +43,6 @@ export function writeLocalSharedImportMap() {
   if (prevLocalSharedImportMapContent !== nextContent) {
     prevLocalSharedImportMapContent = nextContent;
     writeLocalSharedImportMap_temp(nextContent);
-    //   localSharedImportMapModule.writeSync(generateLocalSharedImportMap(), true)
   }
 }
 export function generateLocalSharedImportMap() {
@@ -153,14 +152,14 @@ const REMOTE_ENTRY_ID = 'virtual:mf-REMOTE_ENTRY_ID';
 const SSR_REMOTE_ENTRY_ID = 'virtual:mf-SSR_REMOTE_ENTRY_ID';
 
 export function getRemoteEntryId(
-  options: Pick<NormalizedModuleFederationOptions, 'internalName' | 'filename'>
+  options: Pick<NormalizedModuleFederationOptions, 'internalName' | 'filename'>,
 ) {
   const scopedKey = `${options.internalName}__${options.filename}`.replace(/[^a-zA-Z0-9_-]/g, '_');
   return `${REMOTE_ENTRY_ID}:${scopedKey}`;
 }
 
 export function getSsrRemoteEntryId(
-  options: Pick<NormalizedModuleFederationOptions, 'internalName' | 'filename'>
+  options: Pick<NormalizedModuleFederationOptions, 'internalName' | 'filename'>,
 ) {
   const scopedKey = `${options.internalName}__${options.filename}`.replace(/[^a-zA-Z0-9_-]/g, '_');
   return `${SSR_REMOTE_ENTRY_ID}:${scopedKey}`;
@@ -174,7 +173,7 @@ export function getSsrRemoteEntryFileName(filename: string) {
 export function generateRemoteEntry(
   options: NormalizedModuleFederationOptions,
   virtualExposesId = getVirtualExposesId(options),
-  command = 'build'
+  command = 'build',
 ): string {
   const pluginImportNames = options.runtimePlugins.map((p, i) => {
     if (typeof p === 'string') {
@@ -263,7 +262,7 @@ export function generateRemoteEntry(
 
 export function generateSsrRemoteEntry(
   options: NormalizedModuleFederationOptions,
-  virtualExposesId = getVirtualExposesId(options)
+  virtualExposesId = getVirtualExposesId(options),
 ): string {
   const pluginImportNames = options.runtimePlugins.map((p, i) => {
     if (typeof p === 'string') {

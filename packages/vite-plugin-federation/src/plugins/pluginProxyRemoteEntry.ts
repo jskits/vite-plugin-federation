@@ -4,7 +4,7 @@ import MagicString from 'magic-string';
 import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'pathe';
 import { fileURLToPath } from 'url';
-import { Plugin } from 'vite';
+import type { Plugin } from 'vite';
 import {
   addCssAssetsToAllExports,
   collectCssAssets,
@@ -12,7 +12,7 @@ import {
   processModuleAssets,
 } from '../utils/cssModuleHelpers';
 import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap';
-import { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
+import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 import { resolvePublicPath } from '../utils/publicPath';
 import {
   generateExposes,
@@ -39,7 +39,11 @@ const STYLE_REQUEST_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/i;
 const ABSOLUTE_URL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:/;
 
 function isBareSpecifier(requestPath: string) {
-  return !requestPath.startsWith('.') && !requestPath.startsWith('/') && !ABSOLUTE_URL_RE.test(requestPath);
+  return (
+    !requestPath.startsWith('.') &&
+    !requestPath.startsWith('/') &&
+    !ABSOLUTE_URL_RE.test(requestPath)
+  );
 }
 
 export default function ({
@@ -64,13 +68,13 @@ export default function ({
       [
         `${base}@id/${ssrRemoteEntryId}`,
         `${base}${getSsrRemoteEntryFileName(options.filename)}`,
-      ].map((value) => value.replace(/\/{2,}/g, '/'))
+      ].map((value) => value.replace(/\/{2,}/g, '/')),
     );
   };
   const toNodeTargetUrl = (origin: string, requestPath: string) => {
     const resolved = new URL(
       isBareSpecifier(requestPath) ? `/@id/${requestPath}` : requestPath,
-      origin
+      origin,
     );
     resolved.searchParams.set(DEV_NODE_TARGET_QUERY_KEY, DEV_NODE_TARGET_QUERY_VALUE);
     return resolved.toString();
@@ -78,7 +82,7 @@ export default function ({
   const replaceAsync = async (
     input: string,
     matcher: RegExp,
-    replacer: (...match: string[]) => Promise<string>
+    replacer: (...match: string[]) => Promise<string>,
   ) => {
     const matches = Array.from(input.matchAll(matcher));
     if (matches.length === 0) {
@@ -98,7 +102,7 @@ export default function ({
   };
   const rewriteStringLiteralImports = async (
     input: string,
-    rewriter: (specifier: string) => Promise<string>
+    rewriter: (specifier: string) => Promise<string>,
   ) => {
     await initEsLexer;
 
@@ -124,7 +128,7 @@ export default function ({
       magicString.overwrite(
         imported.s,
         imported.e,
-        imported.d >= 0 ? JSON.stringify(rewrittenSpecifier) : rewrittenSpecifier
+        imported.d >= 0 ? JSON.stringify(rewrittenSpecifier) : rewrittenSpecifier,
       );
     }
 
@@ -211,7 +215,7 @@ export default function ({
   const resolveNodeTargetSpecifier = async (
     origin: string,
     requestPath: string,
-    importerId: string
+    importerId: string,
   ) => {
     const optimizedDepInfo = getOptimizedDepRequestInfo(requestPath);
     if (optimizedDepInfo) {
@@ -239,7 +243,11 @@ export default function ({
       url: toNodeTargetUrl(origin, toNodeTargetRequestPath(requestPath)),
     };
   };
-  const normalizeNodeTargetModuleCode = async (code: string, origin: string, importerId: string) => {
+  const normalizeNodeTargetModuleCode = async (
+    code: string,
+    origin: string,
+    importerId: string,
+  ) => {
     const exportStatements: string[] = [];
     let exportAliasIndex = 0;
     const normalizeNodeTargetExports = (input: string) =>
@@ -265,11 +273,7 @@ export default function ({
             const parts = specifier.split(/\s+as\s+/);
             const localExpression = parts[0]?.trim();
             const exportName = (parts[1] || parts[0])?.trim();
-            if (
-              !localExpression ||
-              !exportName ||
-              /^[A-Za-z_$][\w$]*$/.test(localExpression)
-            ) {
+            if (!localExpression || !exportName || /^[A-Za-z_$][\w$]*$/.test(localExpression)) {
               return specifier;
             }
 
@@ -291,10 +295,10 @@ export default function ({
         exportStatements.push(
           exportName === 'default'
             ? `export default ${localName};`
-            : `export { ${localName} as ${exportName} };`
+            : `export { ${localName} as ${exportName} };`,
         );
         return '';
-      }
+      },
     );
 
     normalized = await replaceAsync(
@@ -306,7 +310,7 @@ export default function ({
         return resolved.needsInterop
           ? `await ${importExpression}.then((mod) => mod.default ?? mod)`
           : `await ${importExpression}`;
-      }
+      },
     );
     normalized = await replaceAsync(
       normalized,
@@ -317,7 +321,7 @@ export default function ({
         return resolved.needsInterop
           ? `${importExpression}.then((mod) => mod.default ?? mod)`
           : importExpression;
-      }
+      },
     );
     normalized = normalized
       .replace(/\b__vite_ssr_import_meta__\.url\b/g, 'import.meta.url')
@@ -327,7 +331,7 @@ export default function ({
       (_statement, localExpression: string, exportName: string) => {
         const localAlias = `__mf_export_${exportAliasIndex++}__`;
         return `const ${localAlias} = ${localExpression};\nexport { ${localAlias} as ${exportName} };`;
-      }
+      },
     );
 
     normalized = await rewriteStringLiteralImports(normalized, async (target) => {
@@ -416,7 +420,11 @@ export default function ({
           return;
         }
 
-        const code = await normalizeNodeTargetModuleCode(transformed.code, origin, transformTargetId);
+        const code = await normalizeNodeTargetModuleCode(
+          transformed.code,
+          origin,
+          transformTargetId,
+        );
 
         res.setHeader('Content-Type', 'text/javascript');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -508,7 +516,7 @@ export default function ({
                 ? viteConfig.server.host
                 : 'localhost';
             const publicPath = JSON.stringify(
-              resolvePublicPath(options, viteConfig.base) + options.filename
+              resolvePublicPath(options, viteConfig.base) + options.filename,
             );
             return `
           if (typeof window !== 'undefined') {
@@ -590,11 +598,11 @@ export default function ({
           (acc, [exposeKey, expose]) => {
             const assets = filesMap[expose.import] || createEmptyAssetMap();
             acc[exposeKey] = [...assets.css.sync, ...assets.css.async].map((cssAsset) =>
-              ensureRelativeImportPath(file.fileName, cssAsset)
+              ensureRelativeImportPath(file.fileName, cssAsset),
             );
             return acc;
           },
-          {}
+          {},
         );
 
         for (const placeholderPattern of placeholderPatterns) {

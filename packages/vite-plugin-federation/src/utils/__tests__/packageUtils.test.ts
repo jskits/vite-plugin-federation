@@ -23,25 +23,25 @@ describe('getInstalledPackageJson', () => {
       path.join(root, `node_modules/.pnpm/${packageName}@0.27.0/node_modules/${packageName}`),
       {
         recursive: true,
-      }
+      },
     );
     writeFileSync(
       path.join(root, 'apps/host/package.json'),
-      JSON.stringify({ name: 'host', type: 'module' })
+      JSON.stringify({ name: 'host', type: 'module' }),
     );
     writeFileSync(
       path.join(
         root,
-        `node_modules/.pnpm/${packageName}@0.27.0/node_modules/${packageName}/package.json`
+        `node_modules/.pnpm/${packageName}@0.27.0/node_modules/${packageName}/package.json`,
       ),
-      JSON.stringify({ name: packageName, version: '0.27.0' })
+      JSON.stringify({ name: packageName, version: '0.27.0' }),
     );
 
     const installed = getInstalledPackageJson(packageName, { cwd: path.join(root, 'apps/host') });
 
     expect(installed?.packageJson.name).toBe(packageName);
     expect(installed?.path).toContain(
-      `/node_modules/.pnpm/${packageName}@0.27.0/node_modules/${packageName}/package.json`
+      `/node_modules/.pnpm/${packageName}@0.27.0/node_modules/${packageName}/package.json`,
     );
   });
 });

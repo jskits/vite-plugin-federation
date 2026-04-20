@@ -1,7 +1,7 @@
 import { createFilter } from '@rollup/pluginutils';
-import { Plugin } from 'vite';
+import type { Plugin } from 'vite';
 import { getDevRemoteVersion } from '../utils/devRemoteVersionState';
-import { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
+import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 import { getInstalledPackageEntry, getIsRolldown } from '../utils/packageUtils';
 import { addUsedRemote, getRemoteVirtualModule } from '../virtualModules';
 const filter: (id: string) => boolean = createFilter();
@@ -27,7 +27,7 @@ export default function (options: NormalizedModuleFederationOptions): Plugin {
     source: string,
     importer: string | undefined,
     remoteName: string,
-    isRolldown: boolean
+    isRolldown: boolean,
   ) {
     const { cleanSource, suffix } = splitSourceQuery(source);
 

@@ -16,6 +16,7 @@ import {
 } from '@module-federation/runtime';
 import type { ModuleFederation } from '@module-federation/runtime';
 import type { UserOptions } from '@module-federation/runtime/types';
+import type * as NodeVm from 'node:vm';
 import {
   createModuleFederationError,
   getModuleFederationDebugState,
@@ -112,7 +113,7 @@ interface FederationRuntimePluginLike {
 
 type FederationRuntimePlugins = NonNullable<UserOptions['plugins']>;
 const nodeRuntimeModuleCache = new Map<string, Promise<any>>();
-type NodeVmModule = typeof import('node:vm');
+type NodeVmModule = typeof NodeVm;
 type RuntimeInstanceWithInternals = ModuleFederation & {
   options?: {
     remotes?: Array<Record<string, unknown>>;
@@ -130,10 +131,9 @@ async function importNodeVmModule(): Promise<NodeVmModule> {
     return globalImportHook();
   }
 
-  const dynamicImport = new Function(
-    'specifier',
-    'return import(specifier)'
-  ) as (specifier: string) => Promise<NodeVmModule>;
+  const dynamicImport = new Function('specifier', 'return import(specifier)') as (
+    specifier: string,
+  ) => Promise<NodeVmModule>;
   return dynamicImport('node:vm');
 }
 
@@ -170,10 +170,12 @@ function getRuntimeDebugState(): RuntimeDebugState {
 
 function toNodeTargetUrl(origin: string, requestPath: string) {
   const resolved = new URL(
-    !requestPath.startsWith('.') && !requestPath.startsWith('/') && !ABSOLUTE_URL_RE.test(requestPath)
+    !requestPath.startsWith('.') &&
+      !requestPath.startsWith('/') &&
+      !ABSOLUTE_URL_RE.test(requestPath)
       ? `/@id/${requestPath}`
       : requestPath,
-    origin
+    origin,
   );
   resolved.searchParams.set(NODE_TARGET_QUERY_KEY, NODE_TARGET_QUERY_VALUE);
   return resolved.toString();
@@ -192,20 +194,22 @@ function normalizeNodeTargetModuleCode(code: string, requestUrl: string) {
       exportStatements.push(
         exportName === 'default'
           ? `export default ${localName};`
-          : `export { ${localName} as ${exportName} };`
+          : `export { ${localName} as ${exportName} };`,
       );
       return '';
-    }
+    },
   );
 
   normalized = normalized
     .replace(
       /await\s+__vite_ssr_import__\("([^"]+)"(?:,\s*\{[^)]*\})?\)/g,
-      (_match, specifier: string) => `await import(${JSON.stringify(toNodeTargetUrl(requestUrl, specifier))})`
+      (_match, specifier: string) =>
+        `await import(${JSON.stringify(toNodeTargetUrl(requestUrl, specifier))})`,
     )
     .replace(
       /__vite_ssr_dynamic_import__\("([^"]+)"\)/g,
-      (_match, specifier: string) => `import(${JSON.stringify(toNodeTargetUrl(requestUrl, specifier))})`
+      (_match, specifier: string) =>
+        `import(${JSON.stringify(toNodeTargetUrl(requestUrl, specifier))})`,
     )
     .replace(/\b__vite_ssr_import_meta__\.url\b/g, 'import.meta.url')
     .replace(/\b__vite_ssr_import_meta__\b/g, 'import.meta')
@@ -214,7 +218,7 @@ function normalizeNodeTargetModuleCode(code: string, requestUrl: string) {
       (_statement, localExpression: string, exportName: string) => {
         const localAlias = `__mf_export_${exportAliasIndex++}__`;
         return `const ${localAlias} = ${localExpression};\nexport { ${localAlias} as ${exportName} };`;
-      }
+      },
     )
     .replace(/(from\s+["'])(\/[^"']+)(["'])/g, (_match, before, target, after) => {
       return `${before}${toNodeTargetUrl(requestUrl, target)}${after}`;
@@ -243,7 +247,7 @@ async function loadNodeRuntimeModule(url: string): Promise<any> {
     if (!globalThis.fetch) {
       throw createModuleFederationError(
         'MFV-004',
-        'global fetch is unavailable. Provide a fetch implementation before loading node federation entries.'
+        'global fetch is unavailable. Provide a fetch implementation before loading node federation entries.',
       );
     }
 
@@ -251,7 +255,7 @@ async function loadNodeRuntimeModule(url: string): Promise<any> {
     if (!response.ok) {
       throw createModuleFederationError(
         'MFV-004',
-        `Failed to fetch node federation module "${url}" with status ${response.status}.`
+        `Failed to fetch node federation module "${url}" with status ${response.status}.`,
       );
     }
 
@@ -414,7 +418,7 @@ export function registerRemotes(...args: Parameters<ModuleFederation['registerRe
 
 function findRegisteredRuntimeRemote(
   runtimeInstance: RuntimeInstanceWithInternals | null,
-  remoteIdentifier: string | undefined
+  remoteIdentifier: string | undefined,
 ) {
   if (!remoteIdentifier || !Array.isArray(runtimeInstance?.options?.remotes)) {
     return undefined;
@@ -430,7 +434,7 @@ function registerRuntimeRemoteWithReplace(
   options: {
     force?: boolean;
     remoteIdentifier?: string;
-  } = {}
+  } = {},
 ) {
   if (!options.force) {
     return registerRemotes([remote]);
@@ -441,11 +445,11 @@ function registerRuntimeRemoteWithReplace(
     findRegisteredRuntimeRemote(runtimeInstance, options.remoteIdentifier) ||
     findRegisteredRuntimeRemote(
       runtimeInstance,
-      typeof remote.alias === 'string' ? remote.alias : undefined
+      typeof remote.alias === 'string' ? remote.alias : undefined,
     ) ||
     findRegisteredRuntimeRemote(
       runtimeInstance,
-      typeof remote.name === 'string' ? remote.name : undefined
+      typeof remote.name === 'string' ? remote.name : undefined,
     );
   const remoteHandler = (runtimeInstance as { remoteHandler?: { removeRemote?: unknown } } | null)
     ?.remoteHandler;
@@ -507,7 +511,7 @@ function getDefaultTarget(target?: FederationRuntimeTarget): FederationRuntimeTa
 function getManifestRequestKey(
   remoteAlias: string,
   manifestUrl: string,
-  target: FederationRuntimeTarget
+  target: FederationRuntimeTarget,
 ) {
   return `${target}:${remoteAlias}:${manifestUrl}`;
 }
@@ -517,7 +521,7 @@ function getManifestFetchImplementation(fetchOverride?: typeof fetch) {
   if (!fetchImplementation) {
     throw createModuleFederationError(
       'MFV-004',
-      'global fetch is unavailable. Provide `options.fetch` when registering manifest remotes.'
+      'global fetch is unavailable. Provide `options.fetch` when registering manifest remotes.',
     );
   }
   return fetchImplementation;
@@ -542,7 +546,7 @@ function joinUrlPath(...parts: Array<string | undefined>) {
 function resolveManifestAssetUrl(
   manifestUrl: string,
   entry: FederationRemoteManifestEntry,
-  publicPath?: string
+  publicPath?: string,
 ) {
   const entryPath = joinUrlPath(entry.path, entry.name);
   if (!entryPath) {
@@ -560,7 +564,7 @@ function resolveManifestAssetUrl(
 function appendEntryRefreshTimestamp(
   entryUrl: string,
   target: FederationRuntimeTarget,
-  enabled: boolean | undefined
+  enabled: boolean | undefined,
 ) {
   if (!enabled || target !== 'web') {
     return entryUrl;
@@ -574,13 +578,13 @@ function appendEntryRefreshTimestamp(
 function getManifestEntryForTarget(
   manifestUrl: string,
   manifest: FederationRemoteManifest,
-  target: FederationRuntimeTarget
+  target: FederationRuntimeTarget,
 ) {
   const { metaData } = manifest;
   if (!metaData) {
     throw createModuleFederationError(
       'MFV-004',
-      `Federation manifest "${manifestUrl}" is invalid: missing metaData.`
+      `Federation manifest "${manifestUrl}" is invalid: missing metaData.`,
     );
   }
 
@@ -589,7 +593,7 @@ function getManifestEntryForTarget(
     if (!nodeEntry?.name) {
       throw createModuleFederationError(
         'MFV-006',
-        `Federation manifest "${manifestUrl}" does not declare a usable ssrRemoteEntry.`
+        `Federation manifest "${manifestUrl}" does not declare a usable ssrRemoteEntry.`,
       );
     }
     return nodeEntry;
@@ -599,7 +603,7 @@ function getManifestEntryForTarget(
   if (!browserEntry?.name) {
     throw createModuleFederationError(
       'MFV-004',
-      `Federation manifest "${manifestUrl}" does not declare a usable remoteEntry.`
+      `Federation manifest "${manifestUrl}" does not declare a usable remoteEntry.`,
     );
   }
   return browserEntry;
@@ -609,21 +613,21 @@ function validateManifest(manifestUrl: string, manifest: FederationRemoteManifes
   if (!manifest || typeof manifest !== 'object') {
     throw createModuleFederationError(
       'MFV-004',
-      `Federation manifest "${manifestUrl}" is invalid: expected a JSON object.`
+      `Federation manifest "${manifestUrl}" is invalid: expected a JSON object.`,
     );
   }
 
   if (!manifest.name || !manifest.metaData) {
     throw createModuleFederationError(
       'MFV-004',
-      `Federation manifest "${manifestUrl}" is invalid: missing name or metaData.`
+      `Federation manifest "${manifestUrl}" is invalid: missing name or metaData.`,
     );
   }
 }
 
 export async function fetchFederationManifest(
   manifestUrl: string,
-  options: Pick<RegisterManifestRemoteOptions, 'fetch' | 'fetchInit'> = {}
+  options: Pick<RegisterManifestRemoteOptions, 'fetch' | 'fetchInit'> = {},
 ) {
   const debugState = getRuntimeDebugState();
   const cachedManifest = debugState.manifestCache.get(manifestUrl);
@@ -640,12 +644,12 @@ export async function fetchFederationManifest(
     try {
       const response = await getManifestFetchImplementation(options.fetch)(
         manifestUrl,
-        options.fetchInit
+        options.fetchInit,
       );
       if (!response.ok) {
         throw createModuleFederationError(
           'MFV-004',
-          `Failed to fetch federation manifest "${manifestUrl}" with status ${response.status}.`
+          `Failed to fetch federation manifest "${manifestUrl}" with status ${response.status}.`,
         );
       }
 
@@ -674,7 +678,7 @@ export async function fetchFederationManifest(
 export async function registerManifestRemote(
   remoteAlias: string,
   manifestUrl: string,
-  options: RegisterManifestRemoteOptions = {}
+  options: RegisterManifestRemoteOptions = {},
 ) {
   const debugState = getRuntimeDebugState();
   const target = getDefaultTarget(options.target);
@@ -695,7 +699,7 @@ export async function registerManifestRemote(
     const remoteEntryUrl = resolveManifestAssetUrl(
       manifestUrl,
       selectedEntry,
-      manifest.metaData.publicPath
+      manifest.metaData.publicPath,
     );
     const registration = {
       alias: remoteAlias === remoteName ? undefined : remoteAlias,
@@ -737,10 +741,7 @@ export interface RefreshRemoteOptions extends RegisterManifestRemoteOptions {
   manifestUrl?: string;
 }
 
-function getRegisteredManifestRemote(
-  remoteAlias: string,
-  target: FederationRuntimeTarget
-) {
+function getRegisteredManifestRemote(remoteAlias: string, target: FederationRuntimeTarget) {
   const debugState = getRuntimeDebugState();
   return [...debugState.registeredManifestRemotes.entries()].find(([, remote]) => {
     return remote.alias === remoteAlias && remote.target === target;
@@ -764,10 +765,7 @@ function isManifestRemoteEntry(entry: unknown) {
   return typeof entry === 'string' && MANIFEST_URL_RE.test(entry);
 }
 
-export async function refreshRemote(
-  remoteIdOrAlias: string,
-  options: RefreshRemoteOptions = {}
-) {
+export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRemoteOptions = {}) {
   const remoteAlias = remoteIdOrAlias.split('/')[0];
   if (!remoteAlias) {
     throw createModuleFederationError('MFV-004', `Invalid remote id "${remoteIdOrAlias}".`);
@@ -806,7 +804,7 @@ export async function refreshRemote(
   if (!runtimeRemote) {
     throw createModuleFederationError(
       'MFV-004',
-      `Remote "${remoteAlias}" is not registered in the current federation runtime instance.`
+      `Remote "${remoteAlias}" is not registered in the current federation runtime instance.`,
     );
   }
 
@@ -838,11 +836,7 @@ export async function refreshRemote(
     ...runtimeRemoteRecord,
     ...(typeof runtimeRemoteRecord.entry === 'string'
       ? {
-          entry: appendEntryRefreshTimestamp(
-            runtimeRemoteRecord.entry,
-            target,
-            true
-          ),
+          entry: appendEntryRefreshTimestamp(runtimeRemoteRecord.entry, target, true),
         }
       : {}),
   } as Parameters<ModuleFederation['registerRemotes']>[0][number];
@@ -858,7 +852,7 @@ export async function refreshRemote(
 
 export async function registerManifestRemotes(
   remotes: Record<string, string | (RegisterManifestRemoteOptions & { manifestUrl: string })>,
-  target?: FederationRuntimeTarget
+  target?: FederationRuntimeTarget,
 ) {
   const registrations = await Promise.all(
     Object.entries(remotes).map(([remoteAlias, remoteConfig]) => {
@@ -869,7 +863,7 @@ export async function registerManifestRemotes(
         ...remoteConfig,
         target: remoteConfig.target || target,
       });
-    })
+    }),
   );
 
   return registrations;
@@ -879,7 +873,7 @@ export async function loadRemoteFromManifest<T>(
   remoteId: string,
   manifestUrl: string,
   options: RegisterManifestRemoteOptions &
-    Partial<NonNullable<Parameters<ModuleFederation['loadRemote']>[1]>> = {}
+    Partial<NonNullable<Parameters<ModuleFederation['loadRemote']>[1]>> = {},
 ) {
   const [remoteAlias] = remoteId.split('/');
   if (!remoteAlias) {
@@ -934,7 +928,7 @@ export function getFederationDebugInfo() {
       pendingManifestRequests: [...debugState.manifestRequests.keys()],
       pendingRemoteRegistrations: [...debugState.registrationRequests.keys()],
       registeredManifestRemotes: [...debugState.registeredManifestRemotes.values()].map(
-        (remote) => ({ ...remote })
+        (remote) => ({ ...remote }),
       ),
       registeredRemotes: debugState.registeredRemotes.map((remote) => ({ ...remote })),
       registeredSharedKeys: [...debugState.registeredSharedKeys],
@@ -960,12 +954,14 @@ function publishRuntimeDebugUpdate(event: RuntimeDebugEventName) {
 
   const browserWindow = (globalThis as { window?: { dispatchEvent?: (event: unknown) => void } })
     .window;
-  const CustomEventCtor = (globalThis as { CustomEvent?: new (type: string, init?: { detail?: unknown }) => unknown }).CustomEvent;
+  const CustomEventCtor = (
+    globalThis as { CustomEvent?: new (type: string, init?: { detail?: unknown }) => unknown }
+  ).CustomEvent;
   if (browserWindow?.dispatchEvent && typeof CustomEventCtor === 'function') {
     browserWindow.dispatchEvent(
       new CustomEventCtor('vite-plugin-federation:debug', {
         detail: payload,
-      })
+      }),
     );
   }
 }

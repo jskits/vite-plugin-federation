@@ -72,7 +72,7 @@ const normalizeDevOptions = (dev: NormalizedModuleFederationOptions['dev']): Dev
 };
 
 const buildDtsModuleFederationConfig = (
-  options: NormalizedModuleFederationOptions
+  options: NormalizedModuleFederationOptions,
 ): moduleFederationPlugin.ModuleFederationPluginOptions => {
   const exposes: Record<string, string> = {};
   Object.entries(options.exposes).forEach(([key, value]) => {
@@ -120,7 +120,7 @@ const resolveOutputDir = (config: ResolvedConfig): string => {
 
 const ensureRuntimePlugin = (
   options: NormalizedModuleFederationOptions,
-  pluginId: string
+  pluginId: string,
 ): void => {
   const hasPlugin = options.runtimePlugins.some((plugin) => {
     if (typeof plugin === 'string') {
@@ -136,7 +136,7 @@ const ensureRuntimePlugin = (
 
 const normalizeDevDtsOptions = (
   dts: NormalizedModuleFederationOptions['dts'],
-  context: string
+  context: string,
 ): moduleFederationPlugin.PluginDtsOptions | false => {
   const defaultGenerateTypes: moduleFederationPlugin.DtsRemoteOptions = {
     compileInChildProcess: true,
@@ -156,7 +156,7 @@ const normalizeDevDtsOptions = (
           ? (dts as moduleFederationPlugin.PluginDtsOptions).displayErrorInTerminal
           : undefined,
     },
-    'mfOptions.dts'
+    'mfOptions.dts',
   )(dts as moduleFederationPlugin.PluginDtsOptions | boolean | undefined);
 };
 
@@ -221,7 +221,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
       if (!options.name) {
         throw createModuleFederationError(
           'MFV-001',
-          'name is required if you want to enable dev server!'
+          'name is required if you want to enable dev server!',
         );
       }
 
@@ -235,7 +235,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
       const normalizedGenerateTypes = normalizeOptions<moduleFederationPlugin.DtsRemoteOptions>(
         Boolean(normalizedDtsOptions),
         { compileInChildProcess: true },
-        'mfOptions.dts.generateTypes'
+        'mfOptions.dts.generateTypes',
       )(normalizedDtsOptions.generateTypes);
 
       const remote =
@@ -265,7 +265,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
       const normalizedConsumeTypes = normalizeOptions<moduleFederationPlugin.DtsHostOptions>(
         Boolean(normalizedDtsOptions),
         { consumeAPITypes: true },
-        'mfOptions.dts.consumeTypes'
+        'mfOptions.dts.consumeTypes',
       )(normalizedDtsOptions.consumeTypes);
 
       const host =
@@ -296,7 +296,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
                 extraOptions,
                 displayErrorInTerminal: normalizedDtsOptions.displayErrorInTerminal,
               },
-              resolve
+              resolve,
             );
           });
         }

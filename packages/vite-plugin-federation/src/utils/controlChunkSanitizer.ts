@@ -67,14 +67,14 @@ export function isFederationControlChunk(fileName: string, filename: string): bo
 export function sanitizeFederationControlChunk(
   code: string,
   fileName: string,
-  filename: string
+  filename: string,
 ): string {
   let nextCode = stripEmptyPreloadCalls(code);
 
   if (fileName.includes('localSharedImportMap')) {
     const remoteEntryImportRegex = new RegExp(
       `import\\s*["'][^"']*${filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']\\s*;?`,
-      'g'
+      'g',
     );
     nextCode = nextCode.replace(remoteEntryImportRegex, '');
   }

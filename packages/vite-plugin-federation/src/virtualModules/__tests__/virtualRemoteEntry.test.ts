@@ -78,7 +78,7 @@ vi.mock('../virtualShared_preBuild', () => {
     getPreBuildLibImportId: (pkg: string) => `virtual:prebuild:${pkg}`,
     getConcreteSharedImportSource: (
       pkg: string,
-      shareItem?: { shareConfig?: { import?: string | false } }
+      shareItem?: { shareConfig?: { import?: string | false } },
     ) =>
       typeof shareItem?.shareConfig?.import === 'string' ? shareItem.shareConfig.import : undefined,
     getLocalProviderImportPath: (pkg: string) =>
@@ -87,7 +87,7 @@ vi.mock('../virtualShared_preBuild', () => {
         : undefined,
     getSharedImportSource: (
       pkg: string,
-      shareItem?: { shareConfig?: { import?: string | false } }
+      shareItem?: { shareConfig?: { import?: string | false } },
     ) =>
       typeof shareItem?.shareConfig?.import === 'string'
         ? shareItem.shareConfig.import
@@ -188,7 +188,7 @@ describe('virtualRemoteEntry', () => {
     const code = mod.generateLocalSharedImportMap();
 
     expect(code).toContain(
-      'let pkg = await import("/workspace/packages/transitive-no-override/dist/index.js");'
+      'let pkg = await import("/workspace/packages/transitive-no-override/dist/index.js");',
     );
     expect(code).not.toContain('virtual:prebuild:transitive-no-override');
   });
@@ -206,7 +206,7 @@ describe('virtualRemoteEntry', () => {
     const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
 
     expect(generatedCode).toContain(
-      'const remoteEntry = await import("virtual:test-remote-entry");'
+      'const remoteEntry = await import("virtual:test-remote-entry");',
     );
     expect(generatedCode).toContain('await remoteEntry.init();');
     expect(generatedCode).not.toContain('Promise.resolve(remoteEntry.__tla)');
@@ -228,7 +228,7 @@ describe('virtualRemoteEntry', () => {
         shareStrategy: 'version-first',
       } as any,
       'virtual:exposes',
-      'build'
+      'build',
     );
 
     expect(code).toContain('const __mfResolveGlobalKey =');
@@ -250,14 +250,14 @@ describe('virtualRemoteEntry', () => {
         shareStrategy: 'version-first',
       } as any,
       'virtual:exposes',
-      'serve'
+      'serve',
     );
 
     // Shim must guard against existing runtime
     expect(code).toContain("if (typeof __VUE_HMR_RUNTIME__ === 'undefined')");
     // Shim must provide all three methods Vue's HMR expects
     expect(code).toContain(
-      'globalThis.__VUE_HMR_RUNTIME__ = { createRecord() {}, rerender() {}, reload() {} }'
+      'globalThis.__VUE_HMR_RUNTIME__ = { createRecord() {}, rerender() {}, reload() {} }',
     );
     // Shim must appear before any imports so it's defined when component code executes
     const shimIndex = code.indexOf('__VUE_HMR_RUNTIME__');
@@ -279,14 +279,14 @@ describe('virtualRemoteEntry', () => {
         shareStrategy: 'version-first',
       } as any,
       'virtual:exposes',
-      'build'
+      'build',
     );
 
     expect(code).toContain(
-      'localSharedImportMapPromise ??= import("/virtual/localSharedImportMap.js")'
+      'localSharedImportMapPromise ??= import("/virtual/localSharedImportMap.js")',
     );
     expect(code).toContain(
-      'exposesMapPromise ??= import("virtual:exposes").then((mod) => mod.default ?? mod)'
+      'exposesMapPromise ??= import("virtual:exposes").then((mod) => mod.default ?? mod)',
     );
     expect(code).toContain('const {usedShared, usedRemotes} = await getLocalSharedImportMap()');
     expect(code).toContain('const exposesMap = await getExposesMap()');
@@ -308,7 +308,7 @@ describe('virtualRemoteEntry', () => {
         shareScope: 'default',
         shareStrategy: 'version-first',
       } as any,
-      'virtual:exposes'
+      'virtual:exposes',
     );
 
     expect(code).toContain('import exposesMap from "virtual:exposes";');

@@ -89,7 +89,6 @@ const initResolve = __mfResolveState.initResolve;
 }
 
 export function writeRuntimeInitStatus(command: string) {
-  const globalKey = getRuntimeInitGlobalKey();
   const exportStatement =
     command === 'build'
       ? `const { initPromise, initResolve, initReject } = globalThis[globalKey];

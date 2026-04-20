@@ -50,7 +50,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await (plugin as any).transform.call(
         createContext(),
         'import { foo } from "remoteApp/utils";',
-        '/src/app.js'
+        '/src/app.js',
       );
       expect(result).toBeUndefined();
     });
@@ -60,7 +60,7 @@ describe('pluginRemoteNamedExports', () => {
         'import { foo } from "remoteApp/utils"',
         '/src/app.js',
         false,
-        { remotes: {} } as any
+        { remotes: {} } as any,
       );
       expect(result).toBeUndefined();
     });
@@ -78,7 +78,7 @@ describe('pluginRemoteNamedExports', () => {
     it('skips federation internal modules (__loadRemote__)', async () => {
       const result = await transform(
         'import { foo } from "remoteApp/utils"',
-        '/virtual/__loadRemote__remoteApp.js'
+        '/virtual/__loadRemote__remoteApp.js',
       );
       expect(result).toBeUndefined();
     });
@@ -86,7 +86,7 @@ describe('pluginRemoteNamedExports', () => {
     it('skips federation internal modules (__loadShare__)', async () => {
       const result = await transform(
         'import { foo } from "remoteApp/utils"',
-        '/virtual/__loadShare__react.js'
+        '/virtual/__loadShare__react.js',
       );
       expect(result).toBeUndefined();
     });
@@ -128,7 +128,7 @@ describe('pluginRemoteNamedExports', () => {
 
     it('does not touch non-remote imports', async () => {
       const code = ['import { foo } from "remoteApp/utils";', 'import { bar } from "lodash";'].join(
-        '\n'
+        '\n',
       );
       const result = await transform(code);
       expect(result).toContain('__moduleExports');
@@ -144,7 +144,7 @@ describe('pluginRemoteNamedExports', () => {
     it('skips bare remote-name rewrites inside node_modules files', async () => {
       const result = await transform(
         'import { foo } from "remoteApp";',
-        '/repo/node_modules/some-package/index.js'
+        '/repo/node_modules/some-package/index.js',
       );
       expect(result).toBeUndefined();
     });
@@ -152,7 +152,7 @@ describe('pluginRemoteNamedExports', () => {
     it('still rewrites remote subpaths inside node_modules files', async () => {
       const result = await transform(
         'import { foo } from "remoteApp/utils";',
-        '/repo/node_modules/some-package/index.js'
+        '/repo/node_modules/some-package/index.js',
       );
       expect(result).toContain('__moduleExports');
       expect(result).toContain('const { foo }');
@@ -190,7 +190,7 @@ describe('pluginRemoteNamedExports', () => {
 
     it('wraps tagged remote imports after Vite rewrites the source id', async () => {
       const result = await transform(
-        'const m = import("/virtual/remoteApp__loadRemote__utils.js");'
+        'const m = import("/virtual/remoteApp__loadRemote__utils.js");',
       );
       expect(result).toContain('.then(function(__mf_m__)');
       expect(result).toContain('__moduleExports');
@@ -213,9 +213,7 @@ describe('pluginRemoteNamedExports', () => {
 
       const result = await transform('const m = import(`remoteApp/${name}`);');
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('MFV-007'),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('MFV-007'));
       expect(result).toBeUndefined();
 
       warnSpy.mockRestore();
@@ -255,7 +253,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform(
         'import { foo } from "remoteApp/utils";',
         '/src/app.tsx',
-        true
+        true,
       );
       expect(result).toContain('__moduleExports');
       expect(result).toContain('const { foo }');
@@ -265,7 +263,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform(
         'import * as utils from "remoteApp/utils";',
         '/src/app.tsx',
-        true
+        true,
       );
       expect(result).toContain('import { __moduleExports as utils }');
     });
@@ -274,7 +272,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform(
         'import Default, { foo } from "remoteApp/utils";',
         '/src/app.tsx',
-        true
+        true,
       );
       expect(result).toContain('default as Default');
       expect(result).toContain('const { foo }');
@@ -289,7 +287,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform(
         'export { foo } from "remoteApp/utils";',
         '/src/app.tsx',
-        true
+        true,
       );
       expect(result).toContain('import { __moduleExports as');
       expect(result).toContain('__mf_re_');
@@ -299,7 +297,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform(
         'import type { Foo } from "remoteApp/utils";',
         '/src/app.tsx',
-        true
+        true,
       );
       expect(result).toBeUndefined();
     });
@@ -308,7 +306,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform(
         'import Default from "remoteApp/utils";',
         '/src/app.tsx',
-        true
+        true,
       );
       expect(result).toBeUndefined();
     });
@@ -335,7 +333,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform(
         'import { foo as myFoo } from "remoteApp/utils";',
         '/src/app.tsx',
-        true
+        true,
       );
       expect(result).toContain('foo: myFoo');
     });
@@ -344,7 +342,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await transform(
         'export { foo as myFoo } from "remoteApp/utils";',
         '/src/app.tsx',
-        true
+        true,
       );
       expect(result).toContain('as myFoo');
     });
@@ -359,7 +357,7 @@ describe('pluginRemoteNamedExports', () => {
           '}',
         ].join('\n'),
         '/src/app.jsx',
-        true
+        true,
       );
       expect(result).toContain('import { __moduleExports as routesRemote }');
       expect(result).not.toContain('import * as routesRemote');
@@ -375,7 +373,7 @@ describe('pluginRemoteNamedExports', () => {
         const result = await transform(
           'import { foo } from "remoteApp/utils";',
           `/src/app${ext}`,
-          needsFallback
+          needsFallback,
         );
         expect(result).toContain('__moduleExports');
       });
@@ -401,7 +399,7 @@ describe('pluginRemoteNamedExports', () => {
       const result = await (plugin as any).transform.call(
         ctx,
         'import { foo } from "remoteApp/utils";',
-        '/src/app.js'
+        '/src/app.js',
       );
       expect(result).toBeDefined();
       expect(result.map).toBeDefined();

@@ -58,7 +58,7 @@ describe('injectEntryScript', () => {
     const html = '<html><head></head><body></body></html>';
     const result = injectEntryScript(html, INIT_SRC);
     expect(result).toContain(
-      `<head><script type="module" src="/__mf__virtual/hostAutoInit.js"></script>`
+      `<head><script type="module" src="/__mf__virtual/hostAutoInit.js"></script>`,
     );
   });
 });
@@ -70,13 +70,13 @@ describe('sanitizeDevEntryPath', () => {
 
   it('passes through paths without backslashes', () => {
     expect(sanitizeDevEntryPath('/node_modules/__mf__virtual/init.js')).toBe(
-      '/node_modules/__mf__virtual/init.js'
+      '/node_modules/__mf__virtual/init.js',
     );
   });
 
   it('converts backslashes to forward slashes', () => {
     expect(sanitizeDevEntryPath('/node_modules\\__mf__virtual\\init.js')).toBe(
-      '/node_modules/__mf__virtual/init.js'
+      '/node_modules/__mf__virtual/init.js',
     );
   });
 });

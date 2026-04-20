@@ -42,7 +42,7 @@ export const trackAsset = (
   key: string,
   fileName: string,
   isAsync: boolean,
-  type: AssetType
+  type: AssetType,
 ) => {
   if (!map[key]) {
     map[key] = createEmptyAssetMap();
@@ -99,7 +99,7 @@ const chunkContainsCssModules = (modules: Record<string, unknown>): boolean => {
 export const processModuleAssets = (
   bundle: OutputBundleLike,
   filesMap: PreloadMap,
-  moduleMatcher: (modulePath: string) => string | undefined
+  moduleMatcher: (modulePath: string) => string | undefined,
 ) => {
   // Pre-collect all CSS assets in the bundle for fallback matching
   const bundleCssAssets = collectCssAssets(bundle);
@@ -191,7 +191,7 @@ export const deduplicateAssets = (filesMap: PreloadMap): PreloadMap => {
  */
 export const buildFileToShareKeyMap = async (
   shareKeys: Set<string>,
-  resolveFn: (id: string) => Promise<{ id: string } | null>
+  resolveFn: (id: string) => Promise<{ id: string } | null>,
 ): Promise<Map<string, string>> => {
   const fileToShareKey = new Map<string, string>();
 
@@ -202,8 +202,8 @@ export const buildFileToShareKeyMap = async (
           shareKey,
           file: resolution?.id?.split('?')[0],
         }))
-        .catch(() => null)
-    )
+        .catch(() => null),
+    ),
   );
 
   for (const resolution of resolutions) {

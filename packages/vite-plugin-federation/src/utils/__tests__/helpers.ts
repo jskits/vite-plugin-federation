@@ -1,7 +1,7 @@
 import type { NormalizedModuleFederationOptions } from '../normalizeModuleFederationOptions';
 
 export function getDefaultMockOptions(
-  overrides: Partial<NormalizedModuleFederationOptions> = {}
+  overrides: Partial<NormalizedModuleFederationOptions> = {},
 ): NormalizedModuleFederationOptions {
   return {
     exposes: {},

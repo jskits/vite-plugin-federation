@@ -17,12 +17,12 @@ function toRunnableModule(code: string) {
     'URL',
     '__dynamicImport',
     '__importMetaUrl',
-    `return (async () => {${transformed}\n})();`
+    `return (async () => {${transformed}\n})();`,
   ) as (
     document: any,
     URLCtor: typeof URL,
     dynamicImport: (id: string) => Promise<unknown>,
-    importMetaUrl: string
+    importMetaUrl: string,
   ) => Promise<Record<string, () => Promise<unknown>>>;
 
   return factory;
@@ -39,7 +39,7 @@ describe('virtualExposes', () => {
       getVirtualExposesId({
         internalName: '__mfe_internal__@scope/remote.app',
         filename: 'nested/remoteEntry.js?x=1',
-      } as any)
+      } as any),
     ).toBe('virtual:mf-exposes:__mfe_internal___scope_remote_app__nested_remoteEntry_js_x_1');
   });
 
@@ -50,7 +50,7 @@ describe('virtualExposes', () => {
           './Button': { import: './src/Button.ts' } as any,
         },
         bundleAllCSS: false as any,
-      })
+      }),
     );
     const cssBundleCode = generateExposes(
       getDefaultMockOptions({
@@ -58,7 +58,7 @@ describe('virtualExposes', () => {
           './Button': { import: './src/Button.ts' } as any,
         },
         bundleAllCSS: true as any,
-      })
+      }),
     );
 
     expect(noCssBundleCode).toContain('const cssAssetMap = {};');
@@ -74,7 +74,7 @@ describe('virtualExposes', () => {
       }),
       {
         eagerImports: true,
-      }
+      },
     );
 
     expect(code).toContain('import * as __mf_expose_0 from "./src/Button.ts";');
@@ -90,13 +90,13 @@ describe('virtualExposes', () => {
           './two': { import: './two.js' } as any,
         },
         bundleAllCSS: true as any,
-      })
+      }),
     ).replace(
       `"${getExposesCssMapPlaceholder()}"`,
       JSON.stringify({
         './one': ['./style.css'],
         './two': ['./style.css'],
-      })
+      }),
     );
 
     const appendedHrefs: string[] = [];
@@ -127,14 +127,14 @@ describe('virtualExposes', () => {
         new Promise((resolve) => {
           dynamicImportStarts.push(id);
           importResolvers.set(id, () => resolve({ default: id }));
-        })
+        }),
     );
 
     const exposes = await toRunnableModule(code)(
       document,
       URL,
       dynamicImport,
-      'file:///repo/remoteEntry.js'
+      'file:///repo/remoteEntry.js',
     );
 
     const firstLoad = exposes['./one']();
@@ -169,12 +169,12 @@ describe('virtualExposes', () => {
           './one': { import: './one.js' } as any,
         },
         bundleAllCSS: true as any,
-      })
+      }),
     ).replace(
       `"${getExposesCssMapPlaceholder()}"`,
       JSON.stringify({
         './one': ['./broken.css'],
-      })
+      }),
     );
 
     const document = {
@@ -196,11 +196,11 @@ describe('virtualExposes', () => {
       document,
       URL,
       dynamicImport,
-      'file:///repo/remoteEntry.js'
+      'file:///repo/remoteEntry.js',
     );
 
     await expect(exposes['./one']()).rejects.toThrow(
-      '[Module Federation] Failed to load CSS asset: file:///repo/broken.css'
+      '[Module Federation] Failed to load CSS asset: file:///repo/broken.css',
     );
     expect(dynamicImport).not.toHaveBeenCalled();
   });
@@ -216,12 +216,12 @@ describe('virtualExposes', () => {
           } as any,
         },
         bundleAllCSS: true as any,
-      })
+      }),
     ).replace(
       `"${getExposesCssMapPlaceholder()}"`,
       JSON.stringify({
         './one': ['./style.css'],
-      })
+      }),
     );
 
     const document = {
@@ -237,7 +237,7 @@ describe('virtualExposes', () => {
       document,
       URL,
       dynamicImport,
-      'file:///repo/remoteEntry.js'
+      'file:///repo/remoteEntry.js',
     );
 
     await exposes['./one']();
@@ -259,12 +259,12 @@ describe('virtualExposes', () => {
           } as any,
         },
         bundleAllCSS: true as any,
-      })
+      }),
     ).replace(
       `"${getExposesCssMapPlaceholder()}"`,
       JSON.stringify({
         './one': ['./style.css'],
-      })
+      }),
     );
 
     const document = {
@@ -280,7 +280,7 @@ describe('virtualExposes', () => {
       document,
       URL,
       dynamicImport,
-      'file:///repo/remoteEntry.js'
+      'file:///repo/remoteEntry.js',
     );
 
     await exposes['./one']();

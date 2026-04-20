@@ -31,7 +31,7 @@ class MockWebSocket {
 
   constructor(
     readonly url: string,
-    readonly protocol: string
+    readonly protocol: string,
   ) {
     MockWebSocket.instances.push(this);
   }
@@ -191,7 +191,7 @@ describe('pluginDevRemoteHmr', () => {
           remote: 'remote-app',
           file: '/repo/src/Button.tsx',
         }),
-      })
+      }),
     );
     expect(server.ws.send).toHaveBeenNthCalledWith(
       2,
@@ -205,7 +205,7 @@ describe('pluginDevRemoteHmr', () => {
           remote: 'remote-app',
           file: '/repo/src/Button.css',
         }),
-      })
+      }),
     );
     expect(server.ws.send).toHaveBeenNthCalledWith(
       3,
@@ -218,7 +218,7 @@ describe('pluginDevRemoteHmr', () => {
           remote: 'remote-app',
           file: '/repo/src/other.tsx',
         }),
-      })
+      }),
     );
 
     close();
@@ -265,7 +265,7 @@ describe('pluginDevRemoteHmr', () => {
     plugin.configureServer?.(server as any);
 
     await vi.waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith('http://remote.example/assets/__mf_hmr')
+      expect(fetchMock).toHaveBeenCalledWith('http://remote.example/assets/__mf_hmr'),
     );
     await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
 
@@ -277,7 +277,13 @@ describe('pluginDevRemoteHmr', () => {
       data: JSON.stringify({
         type: 'custom',
         event: 'mf:remote-update',
-        data: { action: 'full-reload', file: '/src/bootstrap.ts', kind: 'boundary', remote: 'remoteApp', ts: 1 },
+        data: {
+          action: 'full-reload',
+          file: '/src/bootstrap.ts',
+          kind: 'boundary',
+          remote: 'remoteApp',
+          ts: 1,
+        },
       }),
     });
 
@@ -444,7 +450,7 @@ describe('pluginDevRemoteHmr', () => {
     const { server } = createServer({
       moduleGraph: {
         getModulesByFile: vi.fn((file: string) =>
-          file === remoteButtonVirtualFile ? new Set([remoteButtonModule]) : undefined
+          file === remoteButtonVirtualFile ? new Set([remoteButtonModule]) : undefined,
         ),
         idToModuleMap: new Map(),
         urlToModuleMap: new Map(),
@@ -627,9 +633,7 @@ describe('pluginDevRemoteHmr', () => {
         type: 'module',
       },
     });
-    expect(tags?.[0].children).toContain(
-      '/@id/virtual:vite-plugin-federation/remote-hmr-client'
-    );
+    expect(tags?.[0].children).toContain('/@id/virtual:vite-plugin-federation/remote-hmr-client');
 
     const resolvedId = plugin.resolveId?.('virtual:vite-plugin-federation/remote-hmr-client');
     expect(resolvedId).toBe('\0virtual:vite-plugin-federation/remote-hmr-client');

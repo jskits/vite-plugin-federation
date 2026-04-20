@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from 'fs';
 import path from 'pathe';
-import { Plugin, ResolvedConfig, UserConfig } from 'vite';
+import type { Plugin, ResolvedConfig, UserConfig } from 'vite';
 import { mfWarn } from '../utils/logger';
 import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap';
-import { NormalizedShared, ShareItem } from '../utils/normalizeModuleFederationOptions';
+import type { NormalizedShared, ShareItem } from '../utils/normalizeModuleFederationOptions';
 import {
   getIsRolldown,
   getPackageDetectionCwd,
@@ -12,7 +12,8 @@ import {
   setPackageDetectionCwd,
 } from '../utils/packageUtils';
 import { PromiseStore } from '../utils/PromiseStore';
-import VirtualModule, { assertModuleFound } from '../utils/VirtualModule';
+import type VirtualModule from '../utils/VirtualModule';
+import { assertModuleFound } from '../utils/VirtualModule';
 import {
   addUsedShares,
   getConcreteSharedImportSource,
@@ -72,7 +73,7 @@ function excludeSharedSubDependencies(shared: NormalizedShared): void {
           `"${dep}" is a dependency of shared package "${parentKey}" and is also shared separately. ` +
             `This may cause initialization order issues in dev mode. ` +
             `Consider sharing only "${parentKey}".\n` +
-            `  Auto-excluding "${dep}" from shared modules for dev mode.`
+            `  Auto-excluding "${dep}" from shared modules for dev mode.`,
         );
         delete shared[dep];
         sharedKeys.delete(dep);
@@ -122,7 +123,7 @@ export function proxySharedModule(options: {
       transform(_, id) {
         if (id.includes(getLocalSharedImportMapPath())) {
           return mapCodeToCodeWithSourcemap(
-            parsePromise.then((_) => generateLocalSharedImportMap())
+            parsePromise.then((_) => generateLocalSharedImportMap()),
           );
         }
       },

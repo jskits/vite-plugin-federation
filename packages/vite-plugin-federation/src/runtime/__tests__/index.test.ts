@@ -32,7 +32,7 @@ const {
       code: string,
       options: {
         importModuleDynamically: (specifier: string) => Promise<any>;
-      }
+      },
     ) {
       this.code = code;
       this.namespace = {};
@@ -171,7 +171,7 @@ describe('runtime api', () => {
           type: 'module',
         }),
       ],
-      { force: true }
+      { force: true },
     );
   });
 
@@ -219,7 +219,7 @@ describe('runtime api', () => {
           type: 'module',
         }),
       ],
-      { force: true }
+      { force: true },
     );
   });
 
@@ -241,7 +241,7 @@ describe('runtime api', () => {
       expect.objectContaining({
         name: 'remoteApp',
         entry: 'http://localhost/remoteEntry.js',
-      })
+      }),
     );
     expect(registerRemotesMock).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -252,7 +252,7 @@ describe('runtime api', () => {
     ]);
     expect(registerRemotesMock).not.toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ force: true })
+      expect.objectContaining({ force: true }),
     );
   });
 
@@ -301,7 +301,7 @@ describe('runtime api', () => {
       expect.objectContaining({
         inBrowser: false,
         name: 'server-host',
-      })
+      }),
     );
   });
 
@@ -316,8 +316,7 @@ describe('runtime api', () => {
 
     const initOptions = initMock.mock.calls.at(-1)?.[0];
     const normalizerPlugin = initOptions.plugins.find(
-      (plugin: { name: string }) =>
-        plugin.name === 'vite-plugin-federation:node-entry-loader'
+      (plugin: { name: string }) => plugin.name === 'vite-plugin-federation:node-entry-loader',
     );
 
     expect(normalizerPlugin).toBeTruthy();
@@ -342,7 +341,7 @@ describe('runtime api', () => {
             'content-type': 'text/javascript',
           },
           status: 200,
-        }
+        },
       );
     });
 
@@ -355,9 +354,11 @@ describe('runtime api', () => {
       },
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:4175/@fs/runtime/index.js?mf_target=node');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:4175/@fs/runtime/index.js?mf_target=node',
+    );
     expect(
-      fetchMock.mock.calls.some(([url]) => url === 'http://127.0.0.1:4175/dep.js?mf_target=node')
+      fetchMock.mock.calls.some(([url]) => url === 'http://127.0.0.1:4175/dep.js?mf_target=node'),
     ).toBe(true);
     expect(namespace).toBeTruthy();
   });
@@ -419,16 +420,14 @@ describe('runtime api', () => {
       target: 'node',
     });
 
-    expect(registerRemotesMock).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          alias: 'catalog',
-          entry: 'https://cdn.example/assets/server/remoteEntry.ssr.js',
-          entryGlobalName: 'remote-app',
-          name: 'remoteApp',
-        }),
-      ]
-    );
+    expect(registerRemotesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        alias: 'catalog',
+        entry: 'https://cdn.example/assets/server/remoteEntry.ssr.js',
+        entryGlobalName: 'remote-app',
+        name: 'remoteApp',
+      }),
+    ]);
 
     const debugInfo = getFederationDebugInfo();
     expect(debugInfo.runtime.registeredManifestRemotes).toEqual([
@@ -461,13 +460,11 @@ describe('runtime api', () => {
 
     await registerManifestRemote('remoteApp', 'http://localhost:4174/nested/mf-manifest.json');
 
-    expect(registerRemotesMock).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          entry: 'http://localhost:4174/assets/remoteEntry.js',
-        }),
-      ]
-    );
+    expect(registerRemotesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        entry: 'http://localhost:4174/assets/remoteEntry.js',
+      }),
+    ]);
   });
 
   it('collapses concurrent manifest registrations', async () => {
@@ -551,7 +548,7 @@ describe('runtime api', () => {
           name: 'catalog',
         }),
       ],
-      { force: true }
+      { force: true },
     );
   });
 
@@ -577,7 +574,7 @@ describe('runtime api', () => {
 
     const result = await loadRemoteFromManifest(
       'remoteApp/Button',
-      'http://remote.example/mf-manifest.json'
+      'http://remote.example/mf-manifest.json',
     );
 
     expect(registerRemotesMock).toHaveBeenCalledTimes(1);
@@ -590,7 +587,7 @@ describe('runtime api', () => {
     class MockCustomEvent {
       constructor(
         public type: string,
-        public init?: { detail?: unknown }
+        public init?: { detail?: unknown },
       ) {}
     }
 

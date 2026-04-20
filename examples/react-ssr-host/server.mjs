@@ -30,7 +30,9 @@ function escapeHtml(value) {
 }
 
 function serializeForInlineScript(value) {
-  return JSON.stringify(value).replace(/</g, '\\u003C').replace(/\u2028/g, '\\u2028');
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003C')
+    .replace(/\u2028/g, '\\u2028');
 }
 
 function collectClientEntryAssets(manifest, entryKey, seen = new Set()) {
@@ -75,13 +77,13 @@ function collectRemoteExposeAssets(remoteManifest, remoteManifestUrl, exposePath
 
   const css = new Set(
     [...(expose.assets?.css?.sync || []), ...(expose.assets?.css?.async || [])].map((asset) =>
-      resolveRemoteAssetUrl(remoteManifestUrl, remoteManifest, asset)
-    )
+      resolveRemoteAssetUrl(remoteManifestUrl, remoteManifest, asset),
+    ),
   );
   const js = new Set(
     [...(expose.assets?.js?.sync || [])].map((asset) =>
-      resolveRemoteAssetUrl(remoteManifestUrl, remoteManifest, asset)
-    )
+      resolveRemoteAssetUrl(remoteManifestUrl, remoteManifest, asset),
+    ),
   );
 
   return { css, js };
@@ -131,11 +133,14 @@ async function renderDocument() {
     .map((asset) => `<link rel="stylesheet" href="/${escapeHtml(asset)}" />`)
     .join('\n');
   const clientPreloadLinks = [...clientAssets.js]
-    .map((asset) => `<link rel="modulepreload" href="/${escapeHtml(clientManifest[asset].file)}" />`)
+    .map(
+      (asset) => `<link rel="modulepreload" href="/${escapeHtml(clientManifest[asset].file)}" />`,
+    )
     .join('\n');
   const remoteCssLinks = [...remoteAssets.css]
     .map(
-      (href) => `<link rel="stylesheet" data-mf-href="${escapeHtml(href)}" href="${escapeHtml(href)}" />`
+      (href) =>
+        `<link rel="stylesheet" data-mf-href="${escapeHtml(href)}" href="${escapeHtml(href)}" />`,
     )
     .join('\n');
   const remotePreloadLinks = [...remoteAssets.js]

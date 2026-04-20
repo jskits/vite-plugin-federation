@@ -36,7 +36,7 @@ describe('pluginAddEntry', () => {
       const buildPlugin = plugins[1];
       const result = (await buildPlugin.transform?.(
         'export const browserEntry = true;',
-        testCase.id
+        testCase.id,
       )) as { code: string } | undefined;
 
       if (testCase.shouldInject) {
@@ -74,7 +74,7 @@ describe('pluginAddEntry', () => {
         '    <script type="module" src="/src/main.tsx"></script>',
         '  </body>',
         '</html>',
-      ].join('\n')
+      ].join('\n'),
     );
 
     const plugins = addEntry({
@@ -89,7 +89,7 @@ describe('pluginAddEntry', () => {
     servePlugin.config?.({}, { command: 'serve', mode: 'development' });
     buildPlugin.config?.(
       { build: { rollupOptions: {} } },
-      { command: 'serve', mode: 'development' }
+      { command: 'serve', mode: 'development' },
     );
     buildPlugin.configResolved?.({
       root: tempDir,
@@ -99,7 +99,7 @@ describe('pluginAddEntry', () => {
 
     const result = (await buildPlugin.transform?.(
       'export const browserEntry = true;',
-      '/src/main.tsx'
+      '/src/main.tsx',
     )) as { code: string } | undefined;
 
     expect(result?.code).toContain('import "/virtual/hostInit.js";');
@@ -121,7 +121,7 @@ describe('pluginAddEntry', () => {
     servePlugin.config?.({}, { command: 'serve', mode: 'development' });
     buildPlugin.config?.(
       { build: { rollupOptions: {} } },
-      { command: 'serve', mode: 'development' }
+      { command: 'serve', mode: 'development' },
     );
     servePlugin.configResolved?.({
       base: '/',
@@ -137,7 +137,7 @@ describe('pluginAddEntry', () => {
     const hook = servePlugin.transformIndexHtml;
     const handler = typeof hook === 'object' ? hook.handler : hook;
     const result = handler?.(
-      '<html><head><script type="module" src="/@vite/client"></script></head><body><script type="module" src="/src/main.tsx"></script></body></html>'
+      '<html><head><script type="module" src="/@vite/client"></script></head><body><script type="module" src="/src/main.tsx"></script></body></html>',
     );
 
     expect(result).toContain('src="/@vite/client"');
@@ -161,7 +161,7 @@ describe('pluginAddEntry', () => {
     servePlugin.config?.({}, { command: 'serve', mode: 'development' });
     buildPlugin.config?.(
       { build: { rollupOptions: {} } },
-      { command: 'serve', mode: 'development' }
+      { command: 'serve', mode: 'development' },
     );
     servePlugin.configResolved?.({
       base: '/foo/',
@@ -178,7 +178,7 @@ describe('pluginAddEntry', () => {
     const hook = servePlugin.transformIndexHtml;
     const handler = typeof hook === 'object' ? hook.handler : hook;
     const result = handler?.(
-      '<html><head><script type="module" src="/foo/@vite/client"></script></head><body><script type="module" src="/foo/src/main.tsx"></script></body></html>'
+      '<html><head><script type="module" src="/foo/@vite/client"></script></head><body><script type="module" src="/foo/src/main.tsx"></script></body></html>',
     ) as string;
 
     // Vite client must not be rewritten

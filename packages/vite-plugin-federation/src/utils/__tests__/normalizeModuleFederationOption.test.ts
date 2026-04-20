@@ -1,8 +1,6 @@
 import { vi } from 'vitest';
-import {
-  ModuleFederationOptions,
-  normalizeModuleFederationOptions,
-} from '../normalizeModuleFederationOptions';
+import type { ModuleFederationOptions } from '../normalizeModuleFederationOptions';
+import { normalizeModuleFederationOptions } from '../normalizeModuleFederationOptions';
 
 const { mfErrorSpy, mfWarnSpy } = vi.hoisted(() => ({
   mfErrorSpy: vi.fn(),
@@ -80,7 +78,7 @@ describe('normalizeModuleFederationOption', () => {
     });
 
     expect(mfWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Reserved internal containerName prefix "__mfe_internal__" detected')
+      expect.stringContaining('Reserved internal containerName prefix "__mfe_internal__" detected'),
     );
   });
 
@@ -92,7 +90,7 @@ describe('normalizeModuleFederationOption', () => {
           exposes: {
             './Button': 'src/Button.js',
           },
-        }).exposes
+        }).exposes,
       ).toEqual({
         './Button': {
           import: 'src/Button.js',
@@ -109,7 +107,7 @@ describe('normalizeModuleFederationOption', () => {
               import: 'src/Button.js',
             },
           },
-        }).exposes
+        }).exposes,
       ).toEqual({
         './Button': {
           import: 'src/Button.js',
@@ -126,7 +124,7 @@ describe('normalizeModuleFederationOption', () => {
           remotes: {
             remote1: 'Button@http://localhost:3001/remoteEntry.js',
           },
-        }).remotes
+        }).remotes,
       ).toEqual({
         remote1: {
           type: 'var',
@@ -146,7 +144,7 @@ describe('normalizeModuleFederationOption', () => {
           remotes: {
             remote1: '@scope/app@http://localhost:3001/remoteEntry.js',
           },
-        }).remotes
+        }).remotes,
       ).toEqual({
         remote1: {
           type: 'var',
@@ -166,7 +164,7 @@ describe('normalizeModuleFederationOption', () => {
           remotes: {
             remote1: 'Button@http://user:password@localhost:3001/remoteEntry.js',
           },
-        }).remotes
+        }).remotes,
       ).toEqual({
         remote1: {
           type: 'var',
@@ -190,7 +188,7 @@ describe('normalizeModuleFederationOption', () => {
               entryGlobalName: 'Button',
             },
           },
-        }).remotes
+        }).remotes,
       ).toEqual({
         remote1: {
           type: 'var',
@@ -217,7 +215,7 @@ describe('normalizeModuleFederationOption', () => {
               from: 'webpack',
             },
           },
-        }).remotes
+        }).remotes,
       ).toEqual({
         remote1: {
           type: 'module',
@@ -243,7 +241,7 @@ describe('normalizeModuleFederationOption', () => {
       });
 
       expect(mfWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Reserved internal remoteAlias prefix "__mfe_internal__" detected')
+        expect.stringContaining('Reserved internal remoteAlias prefix "__mfe_internal__" detected'),
       );
     });
   });
@@ -254,7 +252,7 @@ describe('normalizeModuleFederationOption', () => {
         normalizeModuleFederationOptions({
           ...minimalOptions,
           shared: ['dep1', 'dep2'],
-        }).shared
+        }).shared,
       ).toEqual({
         dep1: {
           from: '',
@@ -293,7 +291,7 @@ describe('normalizeModuleFederationOption', () => {
               singleton: true,
             },
           },
-        }).shared
+        }).shared,
       ).toEqual({
         dep1: {
           from: '',
@@ -361,7 +359,7 @@ describe('normalizeModuleFederationOption', () => {
         normalizeModuleFederationOptions({
           ...minimalOptions,
           manifest: true,
-        }).manifest
+        }).manifest,
       ).toBe(true);
     });
 
@@ -370,7 +368,7 @@ describe('normalizeModuleFederationOption', () => {
         normalizeModuleFederationOptions({
           ...minimalOptions,
           manifest: false,
-        }).manifest
+        }).manifest,
       ).toBe(false);
     });
 
@@ -383,7 +381,7 @@ describe('normalizeModuleFederationOption', () => {
             disableAssetsAnalyze: true,
             filePath: 'test-path',
           },
-        }).manifest
+        }).manifest,
       ).toEqual({
         fileName: 'test-manifest.json',
         disableAssetsAnalyze: true,
@@ -396,7 +394,7 @@ describe('normalizeModuleFederationOption', () => {
         normalizeModuleFederationOptions({
           ...minimalOptions,
           manifest: {},
-        }).manifest
+        }).manifest,
       ).toEqual({
         fileName: 'mf-manifest.json',
       });
@@ -408,7 +406,7 @@ describe('normalizeModuleFederationOption', () => {
       expect(
         normalizeModuleFederationOptions({
           ...minimalOptions,
-        }).virtualModuleDir
+        }).virtualModuleDir,
       ).toEqual('__mf__virtual');
     });
 
@@ -417,7 +415,7 @@ describe('normalizeModuleFederationOption', () => {
         normalizeModuleFederationOptions({
           ...minimalOptions,
           virtualModuleDir: '__mf__virtual__app_name',
-        }).virtualModuleDir
+        }).virtualModuleDir,
       ).toEqual('__mf__virtual__app_name');
     });
 
@@ -439,7 +437,7 @@ describe('normalizeModuleFederationOption', () => {
       }).toThrow(
         'Invalid virtualModuleDir: "/path/to/__mf__virtual". ' +
           'The virtualModuleDir option cannot contain slashes (/). ' +
-          "Please use a single directory name like '__mf__virtual__your_app_name'."
+          "Please use a single directory name like '__mf__virtual__your_app_name'.",
       );
     });
 
@@ -448,7 +446,7 @@ describe('normalizeModuleFederationOption', () => {
         normalizeModuleFederationOptions({
           ...minimalOptions,
           virtualModuleDir: '',
-        }).virtualModuleDir
+        }).virtualModuleDir,
       ).toEqual('__mf__virtual');
     });
 
@@ -457,7 +455,7 @@ describe('normalizeModuleFederationOption', () => {
         normalizeModuleFederationOptions({
           ...minimalOptions,
           virtualModuleDir: undefined,
-        }).virtualModuleDir
+        }).virtualModuleDir,
       ).toEqual('__mf__virtual');
     });
   });
@@ -473,7 +471,7 @@ describe('normalizeModuleFederationOption', () => {
               dontAppendStylesToHead: true,
             },
           },
-        }).exposes
+        }).exposes,
       ).toEqual({
         './Button': {
           import: './src/Button.tsx',
@@ -498,7 +496,7 @@ describe('normalizeModuleFederationOption', () => {
               css: { inject: false },
             },
           },
-        }).exposes
+        }).exposes,
       ).toEqual({
         './Head': {
           import: './src/Head.tsx',

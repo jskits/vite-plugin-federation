@@ -40,7 +40,7 @@ function recordDebugEvent(
   level: ModuleFederationDebugEvent['level'],
   message: string,
   details: unknown[] = [],
-  code?: ModuleFederationErrorCode
+  code?: ModuleFederationErrorCode,
 ) {
   const state = getDebugState();
   const event: ModuleFederationDebugEvent = {
@@ -60,16 +60,13 @@ function recordDebugEvent(
   }
 }
 
-export function formatModuleFederationMessage(
-  message: string,
-  code?: ModuleFederationErrorCode
-) {
+export function formatModuleFederationMessage(message: string, code?: ModuleFederationErrorCode) {
   return `${MODULE_FEDERATION_LOG_PREFIX}${code ? ` ${code}` : ''} ${message}`;
 }
 
 export function createModuleFederationError(
   codeOrMessage: ModuleFederationErrorCode | string,
-  message?: string
+  message?: string,
 ) {
   const code = message ? (codeOrMessage as ModuleFederationErrorCode) : undefined;
   const errorMessage = message ?? codeOrMessage;
@@ -87,7 +84,7 @@ function toConsoleArgs(
   level: ModuleFederationDebugEvent['level'],
   message?: unknown,
   rest: unknown[] = [],
-  code?: ModuleFederationErrorCode
+  code?: ModuleFederationErrorCode,
 ) {
   if (typeof message === 'string') {
     recordDebugEvent(level, message, rest, code);

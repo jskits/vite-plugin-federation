@@ -11,7 +11,7 @@ export function sanitizeDevEntryPath(devEntryPath: string): string {
  */
 export function rewriteEntryScripts(
   html: string,
-  createProxySrc: (entrySrc: string) => string
+  createProxySrc: (entrySrc: string) => string,
 ): string {
   const scriptTagRegex = /<script\s+([^>]*\btype=["']module["'][^>]*\bsrc=["'][^"']+["'][^>]*)>/gi;
 

@@ -1,52 +1,42 @@
 import * as path from 'pathe';
-import type { PluginContext } from 'rollup';
-import { Plugin } from 'vite';
+import type { Plugin } from 'vite';
 import {
   getNormalizeModuleFederationOptions,
   getNormalizeShareItem,
 } from '../utils/normalizeModuleFederationOptions';
 import { getInstalledPackageEntry } from '../utils/packageUtils';
-import {
-  getUsedRemotesMap,
-  getUsedShares,
-  inspectSharedImportSource,
-} from '../virtualModules';
+import { getUsedRemotesMap, getUsedShares, inspectSharedImportSource } from '../virtualModules';
 
 import { findEntryFile, findRemoteEntryFile } from '../utils/bundleHelpers';
 import { getSsrRemoteEntryFileName } from '../virtualModules';
+import type { PreloadMap } from '../utils/cssModuleHelpers';
 import {
   buildFileToShareKeyMap,
   collectCssAssets,
   createEmptyAssetMap,
   deduplicateAssets,
   JS_EXTENSIONS,
-  PreloadMap,
   processModuleAssets,
   trackAsset,
 } from '../utils/cssModuleHelpers';
 import { resolvePublicPath } from '../utils/publicPath';
 
-// Helper to build share key map with proper context typing
-interface BuildFileToShareKeyMapContext {
-  resolve: PluginContext['resolve'];
-}
-
 const Manifest = (): Plugin[] => {
   const mfOptions = getNormalizeModuleFederationOptions();
   const { name, filename, getPublicPath, manifest: manifestOptions, varFilename } = mfOptions;
 
-  let mfManifestName =
+  const mfManifestName =
     manifestOptions === true
       ? 'mf-manifest.json'
       : typeof manifestOptions === 'object'
         ? path.join(
             manifestOptions?.filePath || '',
-            manifestOptions?.fileName || 'mf-manifest.json'
+            manifestOptions?.fileName || 'mf-manifest.json',
           )
         : undefined;
 
-  let mfManifestStatsName = mfManifestName ? getStatsFileName(mfManifestName) : undefined;
-  let mfDebugName = mfManifestName ? getDebugFileName(mfManifestName) : undefined;
+  const mfManifestStatsName = mfManifestName ? getStatsFileName(mfManifestName) : undefined;
+  const mfDebugName = mfManifestName ? getDebugFileName(mfManifestName) : undefined;
   const isConsumerProject = Object.keys(mfOptions.exposes).length === 0;
   let disableAssetsAnalyze = false;
 
@@ -86,7 +76,9 @@ const Manifest = (): Plugin[] => {
     });
   };
 
-  const getDevRequestPublicPath = (req: { headers?: Record<string, string | string[] | undefined> }) => {
+  const getDevRequestPublicPath = (req: {
+    headers?: Record<string, string | string[] | undefined>;
+  }) => {
     if (mfOptions.publicPath === 'auto') {
       return 'auto';
     }
@@ -169,7 +161,7 @@ const Manifest = (): Plugin[] => {
                   pluginVersion: '0.2.5',
                   publicPath: getDevRequestPublicPath(req),
                 },
-              })
+              }),
             );
           } else if (
             mfDebugName &&
@@ -230,7 +222,7 @@ const Manifest = (): Plugin[] => {
         const foundSsrRemoteEntryFile = findEntryFile(
           getSsrRemoteEntryFileName(mfOptions.filename),
           bundle,
-          'ssrRemoteEntry'
+          'ssrRemoteEntry',
         );
 
         // First pass: Find remoteEntry file
@@ -249,7 +241,7 @@ const Manifest = (): Plugin[] => {
 
         if (!disableAssetsAnalyze) {
           const exposesModules = Object.keys(mfOptions.exposes).map(
-            (item) => mfOptions.exposes[item].import
+            (item) => mfOptions.exposes[item].import,
           );
 
           // Process exposed modules
@@ -279,7 +271,7 @@ const Manifest = (): Plugin[] => {
           // Process shared modules
           const fileToShareKey = await buildFileToShareKeyMap(
             getUsedShares(),
-            this.resolve.bind(this)
+            this.resolve.bind(this),
           );
           processModuleAssets(bundle, filesMap, (modulePath) => fileToShareKey.get(modulePath));
 
@@ -352,7 +344,7 @@ const Manifest = (): Plugin[] => {
           moduleName: moduleKey.replace(remoteKey, '').replace('/', ''),
           alias: remoteKey,
           entry: '*',
-        }))
+        })),
     );
 
     // Process shared dependencies
@@ -425,7 +417,7 @@ const Manifest = (): Plugin[] => {
         types: getTypesMetadata(options),
         globalName: name,
         pluginVersion: '0.2.5',
-        ...(!!getPublicPath ? { getPublicPath } : { publicPath }),
+        ...(getPublicPath ? { getPublicPath } : { publicPath }),
       },
       ...(disableAssetsAnalyze ? {} : { shared }),
       remotes,
@@ -436,7 +428,7 @@ const Manifest = (): Plugin[] => {
   function generateMFStats(
     preloadMap: PreloadMap,
     bundle: Record<string, { [key: string]: any }>,
-    disableAssetsAnalyze = false
+    disableAssetsAnalyze = false,
   ) {
     const baseManifest = generateMFManifest(preloadMap, disableAssetsAnalyze);
     const bundleSummary = Object.entries(bundle).map(([fileName, chunkOrAsset]) => ({
@@ -460,7 +452,7 @@ const Manifest = (): Plugin[] => {
   function generateMFDebug(
     preloadMap: PreloadMap,
     bundle: Record<string, { [key: string]: any }> = {},
-    disableAssetsAnalyze = false
+    disableAssetsAnalyze = false,
   ) {
     const options = getNormalizeModuleFederationOptions();
 
@@ -525,7 +517,7 @@ const Manifest = (): Plugin[] => {
     return {
       controlChunks: Object.entries(bundle)
         .filter(([fileName]) =>
-          /(remoteEntry|localSharedImportMap|__loadShare__|hostInit|virtualExposes)/.test(fileName)
+          /(remoteEntry|localSharedImportMap|__loadShare__|hostInit|virtualExposes)/.test(fileName),
         )
         .map(([fileName, chunkOrAsset]) => ({
           fileName,
@@ -562,7 +554,7 @@ const Manifest = (): Plugin[] => {
                 ? 'concrete-import'
                 : sharedImportInspection.resolutionSource === 'project-root'
                   ? 'package-root'
-                : 'prebuild',
+                  : 'prebuild',
           importDisabled: shareItem.shareConfig.import === false,
           key: shareKey,
           matchType: isPrefixMatch ? 'prefix' : 'exact',

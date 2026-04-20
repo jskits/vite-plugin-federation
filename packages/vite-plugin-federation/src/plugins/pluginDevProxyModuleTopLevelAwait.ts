@@ -3,7 +3,7 @@
  */
 import { createFilter } from '@rollup/pluginutils';
 import MagicString from 'magic-string';
-import { Plugin } from 'vite';
+import type { Plugin } from 'vite';
 import { loadWalk } from '../utils/loadWalk';
 import { createModuleFederationError } from '../utils/logger';
 import { hasPackageDependency } from '../utils/packageUtils';
@@ -43,14 +43,14 @@ export function PluginDevProxyModuleTopLevelAwait(): Plugin {
         enter(node: any) {
           if (node.type === 'ExportNamedDeclaration' && node.specifiers) {
             const exportSpecifiers = node.specifiers.map(
-              (specifier: any) => specifier.exported.name
+              (specifier: any) => specifier.exported.name,
             );
             const proxyStatements = exportSpecifiers
               .map(
                 (name: string) => `
               const __mfproxy__await${name} = await ${name}();
               const __mfproxy__${name} = () => __mfproxy__await${name};
-            `
+            `,
               )
               .join('\n');
             const exportStatements = exportSpecifiers
@@ -70,7 +70,7 @@ export function PluginDevProxyModuleTopLevelAwait(): Plugin {
             const end = node.end;
 
             let proxyStatement;
-            let exportStatement = 'default';
+            const exportStatement = 'default';
 
             if (declaration.type === 'Identifier') {
               // example: export default foo;

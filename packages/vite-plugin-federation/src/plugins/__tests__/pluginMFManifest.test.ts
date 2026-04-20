@@ -79,7 +79,7 @@ async function runGenerateBundleWithManifest(
     shared?: Record<string, unknown>;
     remotes?: Record<string, unknown>;
   } = {},
-  command: 'serve' | 'build' = 'build'
+  command: 'serve' | 'build' = 'build',
 ): Promise<Record<string, string>> {
   getNormalizeModuleFederationOptions.mockReturnValue({
     name: 'basicRemote',
@@ -178,7 +178,7 @@ describe('pluginMFManifest', () => {
       }),
     });
     expect(
-      stats.buildOutput.find((chunk: any) => chunk.fileName === 'remoteEntry.js')
+      stats.buildOutput.find((chunk: any) => chunk.fileName === 'remoteEntry.js'),
     ).toBeTruthy();
   });
 
@@ -203,7 +203,7 @@ describe('pluginMFManifest', () => {
         usedShares: new Set(['react']),
         usedRemotes: new Map([['remote-app', new Set(['remote-app/Button'])]]),
       },
-      'serve'
+      'serve',
     );
 
     const manifest = JSON.parse(emitted['mf-manifest.json']);
@@ -223,7 +223,7 @@ describe('pluginMFManifest', () => {
         usedShares: new Set(['react']),
         usedRemotes: new Map([['remote-app', new Set(['remote-app/Button'])]]),
       },
-      'serve'
+      'serve',
     );
 
     const manifest = JSON.parse(emitted['mf-manifest.json']);
@@ -246,7 +246,7 @@ describe('pluginMFManifest', () => {
         },
         usedShares: new Set(['react']),
         usedRemotes: new Map([['remote-app', new Set(['remote-app/Button'])]]),
-      }
+      },
     );
 
     const manifest = JSON.parse(emitted['disabled-manifest.json']);
@@ -306,22 +306,19 @@ describe('pluginMFManifest', () => {
   });
 
   it('emits expose css mode and custom types artifact names in manifest', async () => {
-    const emitted = await runGenerateBundleWithManifest(
-      true,
-      {
-        exposePaths: {
-          './Button': {
-            import: './src/exposed.js',
-            css: { inject: 'manual' },
-          },
+    const emitted = await runGenerateBundleWithManifest(true, {
+      exposePaths: {
+        './Button': {
+          import: './src/exposed.js',
+          css: { inject: 'manual' },
         },
-        dts: {
-          generateTypes: {
-            typesFolder: '@custom-types',
-          },
+      },
+      dts: {
+        generateTypes: {
+          typesFolder: '@custom-types',
         },
-      }
-    );
+      },
+    });
 
     const manifest = JSON.parse(emitted['mf-manifest.json']);
 
@@ -420,7 +417,7 @@ describe('pluginMFManifest', () => {
         url: '/mf-manifest.json',
       },
       res,
-      next
+      next,
     );
 
     expect(next).not.toHaveBeenCalled();
@@ -458,7 +455,7 @@ describe('pluginMFManifest', () => {
       };
     });
     getInstalledPackageEntry.mockImplementation((pkg: string) =>
-      pkg === 'scheduler' ? '/repo/node_modules/.pnpm/scheduler/index.js' : undefined
+      pkg === 'scheduler' ? '/repo/node_modules/.pnpm/scheduler/index.js' : undefined,
     );
 
     const emitted = await runGenerateBundleWithManifest(true, {

@@ -16,11 +16,11 @@ describe('pluginOriginjsCompat', () => {
             shareScope: 'default',
           },
         },
-      })
+      }),
     );
 
     expect(plugin.resolveId?.('virtual:__federation__')).toBe(
-      '\0vite-plugin-federation:originjs-compat'
+      '\0vite-plugin-federation:originjs-compat',
     );
 
     const code = plugin.load?.('\0vite-plugin-federation:originjs-compat');
@@ -38,7 +38,7 @@ describe('pluginOriginjsCompat', () => {
           originjs: false,
           virtualFederationShim: false,
         },
-      })
+      }),
     );
 
     expect(plugin.resolveId?.('virtual:__federation__')).toBeUndefined();

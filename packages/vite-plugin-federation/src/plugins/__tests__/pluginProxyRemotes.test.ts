@@ -71,7 +71,7 @@ describe('pluginProxyRemotes', () => {
     const result = (plugin as any).resolveId.call(
       { meta: { rolldownVersion: '1.0.0' } } as any,
       'scheduler',
-      '/repo/src/App.tsx'
+      '/repo/src/App.tsx',
     );
 
     expect(result).toBe(remoteModulePath);
@@ -84,7 +84,7 @@ describe('pluginProxyRemotes', () => {
     const result = (plugin as any).resolveId.call(
       { meta: { rolldownVersion: '1.0.0' } } as any,
       'scheduler',
-      '/repo/node_modules/.vite/deps/react-dom.js'
+      '/repo/node_modules/.vite/deps/react-dom.js',
     );
 
     expect(result).toBe(remoteModulePath);
@@ -98,7 +98,7 @@ describe('pluginProxyRemotes', () => {
     const result = (plugin as any).resolveId.call(
       { meta: { rolldownVersion: '1.0.0' } } as any,
       'scheduler',
-      '/repo/node_modules/.vite/deps/react-dom.js'
+      '/repo/node_modules/.vite/deps/react-dom.js',
     );
 
     expect(result).toBe('/repo/node_modules/.pnpm/scheduler/index.js');
@@ -111,14 +111,14 @@ describe('pluginProxyRemotes', () => {
     const result = (plugin as any).resolveId.call(
       { meta: { rolldownVersion: '1.0.0' } } as any,
       'scheduler/SchedulePanel',
-      '/repo/node_modules/some-package/index.js'
+      '/repo/node_modules/some-package/index.js',
     );
 
     expect(result).toBe(remoteModulePath);
     expect(getRemoteVirtualModuleMock).toHaveBeenCalledWith(
       'scheduler/SchedulePanel',
       'serve',
-      true
+      true,
     );
     expect(addUsedRemoteMock).toHaveBeenCalledWith('scheduler', 'scheduler/SchedulePanel');
   });
@@ -129,18 +129,15 @@ describe('pluginProxyRemotes', () => {
     const result = (plugin as any).resolveId.call(
       { meta: { rolldownVersion: '1.0.0' } } as any,
       'scheduler/SchedulePanel',
-      '/repo/src/App.tsx'
+      '/repo/src/App.tsx',
     );
 
     expect(result).toBe('/virtual/scheduler.js?t=123456789');
-    expect(getDevRemoteVersionMock).toHaveBeenCalledWith(
-      undefined,
-      'scheduler/SchedulePanel'
-    );
+    expect(getDevRemoteVersionMock).toHaveBeenCalledWith(undefined, 'scheduler/SchedulePanel');
     expect(getRemoteVirtualModuleMock).toHaveBeenCalledWith(
       'scheduler/SchedulePanel',
       'serve',
-      true
+      true,
     );
     expect(addUsedRemoteMock).toHaveBeenCalledWith('scheduler', 'scheduler/SchedulePanel');
   });

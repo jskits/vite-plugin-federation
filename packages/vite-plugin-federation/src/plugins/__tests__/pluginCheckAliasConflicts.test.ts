@@ -59,13 +59,13 @@ describe('pluginCheckAliasConflicts', () => {
 
     expect(consoleWarnSpy).toHaveBeenCalledTimes(4);
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      '[Module Federation] MFV-002 Detected alias conflicts with shared modules:'
+      '[Module Federation] MFV-002 Detected alias conflicts with shared modules:',
     );
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Shared module "vue" is aliased by "vue"')
+      expect.stringContaining('Shared module "vue" is aliased by "vue"'),
     );
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Shared module "pinia" is aliased by "pinia"')
+      expect.stringContaining('Shared module "pinia" is aliased by "pinia"'),
     );
   });
 
@@ -151,7 +151,7 @@ describe('pluginCheckAliasConflicts', () => {
 
     expect(consoleWarnSpy).toHaveBeenCalled();
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Shared module "react" is aliased')
+      expect.stringContaining('Shared module "react" is aliased'),
     );
   });
 

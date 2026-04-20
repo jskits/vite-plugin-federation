@@ -11,7 +11,7 @@ import { getNormalizeModuleFederationOptions } from './normalizeModuleFederation
  */
 export function initVirtualModuleInfrastructure(
   root: string,
-  virtualModuleDir = '__mf__virtual'
+  virtualModuleDir = '__mf__virtual',
 ): void {
   const nodeModulesPath = join(root, 'node_modules');
   const virtualPackagePath = join(nodeModulesPath, virtualModuleDir);
@@ -23,7 +23,7 @@ export function initVirtualModuleInfrastructure(
     JSON.stringify({
       name: virtualModuleDir,
       main: 'empty.js',
-    })
+    }),
   );
 }
 
@@ -82,7 +82,7 @@ export function assertModuleFound(tag: string, str: string = ''): VirtualModule 
   const module = VirtualModule.findModule(tag, str);
   if (!module) {
     throw createModuleFederationError(
-      `Module Federation shared module '${str}' not found. Please ensure it's installed as a dependency in your package.json.`
+      `Module Federation shared module '${str}' not found. Please ensure it's installed as a dependency in your package.json.`,
     );
   }
   return module;
@@ -119,7 +119,7 @@ export default class VirtualModule {
       JSON.stringify({
         name: virtualModuleDir,
         main: 'empty.js',
-      })
+      }),
     );
   }
 

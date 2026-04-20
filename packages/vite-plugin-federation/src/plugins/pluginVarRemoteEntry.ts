@@ -1,4 +1,4 @@
-import { Plugin } from 'vite';
+import type { Plugin } from 'vite';
 import { findRemoteEntryFile } from '../utils/bundleHelpers';
 import { getNormalizeModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 import { createModuleFederationError, mfWarn } from '../utils/logger';
@@ -53,7 +53,7 @@ const VarRemoteEntry = (): Plugin[] => {
        * @param config - Vite config object
        * @param command - Current Vite command (serve/build)
        */
-      config(config, { command }) {
+      config(config) {
         if (!config.build) config.build = {};
       },
       configResolved(config) {
@@ -71,7 +71,7 @@ const VarRemoteEntry = (): Plugin[] => {
 
         if (!isValidName) {
           mfWarn(
-            `Provided remote name "${name}" is not valid for "var" remoteEntry type, thus it's placed in globalThis['${name}'].\nIt may cause problems, so you would better want to use valid var name (see https://www.w3schools.com/js/js_variables.asp).`
+            `Provided remote name "${name}" is not valid for "var" remoteEntry type, thus it's placed in globalThis['${name}'].\nIt may cause problems, so you would better want to use valid var name (see https://www.w3schools.com/js/js_variables.asp).`,
           );
         }
 
@@ -80,7 +80,7 @@ const VarRemoteEntry = (): Plugin[] => {
         if (!remoteEntryFile)
           throw createModuleFederationError(
             'MFV-005',
-            `Couldn't find a remoteEntry chunk file for ${mfOptions.filename}, can't generate varRemoteEntry file`
+            `Couldn't find a remoteEntry chunk file for ${mfOptions.filename}, can't generate varRemoteEntry file`,
           );
 
         this.emitFile({

@@ -58,7 +58,7 @@ export function serializeRuntimeOptions(options: Record<string, unknown>): strin
     if (val instanceof Map) {
       // Serialize Map entries into an array of [key, value] pairs
       const entries = Array.from(val.entries()).map(
-        ([k, v]) => `[${valueToCode(k)}, ${valueToCode(v)}]`
+        ([k, v]) => `[${valueToCode(k)}, ${valueToCode(v)}]`,
       );
       return `new Map([${entries.join(', ')}])`;
     }

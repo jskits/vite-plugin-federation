@@ -11,9 +11,7 @@ function getRemoteFormat(type?: string, format?: string): string {
   return 'esm';
 }
 
-export default function pluginOriginjsCompat(
-  options: NormalizedModuleFederationOptions
-): Plugin {
+export default function pluginOriginjsCompat(options: NormalizedModuleFederationOptions): Plugin {
   return {
     name: 'module-federation-originjs-compat',
     resolveId(id) {
@@ -35,7 +33,7 @@ export default function pluginOriginjsCompat(
             entryGlobalName: remote.entryGlobalName || remoteName,
             shareScope: remote.shareScope || 'default',
           },
-        ])
+        ]),
       );
 
       return `

@@ -1,4 +1,4 @@
-import { UserConfig } from 'vite';
+import type { UserConfig } from 'vite';
 
 export interface Command {
   command: string;
@@ -6,7 +6,7 @@ export interface Command {
 
 export default {
   name: 'normalizeOptimizeDeps',
-  config: (config: UserConfig, { command }: Command) => {
+  config: (config: UserConfig) => {
     let { optimizeDeps } = config;
     if (!optimizeDeps) {
       config.optimizeDeps = {};

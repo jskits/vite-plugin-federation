@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'pathe';
-import { Plugin } from 'vite';
+import type { Plugin } from 'vite';
 import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap';
 
 import {
@@ -9,7 +9,7 @@ import {
   sanitizeDevEntryPath,
 } from '../utils/htmlEntryUtils';
 import { mfWarn } from '../utils/logger';
-import { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
+import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 import { hasPackageDependency } from '../utils/packageUtils';
 
 interface AddEntryOptions {
@@ -142,7 +142,7 @@ const addEntry = ({
             /<head>/g,
             '<head><script type=\\"module\\" src=\\"' +
               sanitizeDevEntryPath(devEntryPath) +
-              '\\"></script>'
+              '\\"></script>',
           );
         }
       },
@@ -227,7 +227,7 @@ const addEntry = ({
               // Runtime code cannot be used in <script src="">
               mfWarn(
                 'renderBuiltUrl returned runtime code for HTML injection. ' +
-                  'Runtime code cannot be used in <script src="">. Falling back to base path.'
+                  'Runtime code cannot be used in <script src="">. Falling back to base path.',
               );
               return viteConfig.base + file;
             }
@@ -243,7 +243,7 @@ const addEntry = ({
         // Process each HTML file
         for (const fileName in bundle) {
           if (fileName.endsWith('.html')) {
-            let htmlAsset = bundle[fileName];
+            const htmlAsset = bundle[fileName];
             if (htmlAsset.type === 'chunk') return;
 
             const path = resolvePath(fileName);

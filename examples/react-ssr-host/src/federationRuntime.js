@@ -68,27 +68,25 @@ function createSharedScope(isServer) {
 }
 
 export function ensureBrowserFederation() {
-  browserRuntime ||=
-    createFederationInstance({
-      name: 'reactSsrHostClient',
-      remotes: [],
-      shared: createSharedScope(false),
-      plugins: [],
-      shareStrategy: 'loaded-first',
-    });
+  browserRuntime ||= createFederationInstance({
+    name: 'reactSsrHostClient',
+    remotes: [],
+    shared: createSharedScope(false),
+    plugins: [],
+    shareStrategy: 'loaded-first',
+  });
 
   return browserRuntime;
 }
 
 export function ensureServerFederation() {
-  serverRuntime ||=
-    createServerFederationInstance({
-      name: 'reactSsrHostServer',
-      remotes: [],
-      shared: createSharedScope(true),
-      plugins: [],
-      shareStrategy: 'loaded-first',
-    });
+  serverRuntime ||= createServerFederationInstance({
+    name: 'reactSsrHostServer',
+    remotes: [],
+    shared: createSharedScope(true),
+    plugins: [],
+    shareStrategy: 'loaded-first',
+  });
 
   return serverRuntime;
 }

@@ -64,7 +64,7 @@ describe('pluginProxyRemoteEntry', () => {
         url: '/remoteEntry.ssr.js?import',
       },
       res,
-      next
+      next,
     );
 
     expect(next).not.toHaveBeenCalled();
@@ -75,25 +75,23 @@ describe('pluginProxyRemoteEntry', () => {
     expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
     expect(res.end).toHaveBeenCalledWith(
       expect.stringContaining(
-        'const __vite_ssr_import_0__ = await import("http://127.0.0.1:4174/node_modules/.vite/deps/@module-federation_runtime.js?v=123&mf_target=node");'
-      )
+        'const __vite_ssr_import_0__ = await import("http://127.0.0.1:4174/node_modules/.vite/deps/@module-federation_runtime.js?v=123&mf_target=node");',
+      ),
     );
     expect(res.end).toHaveBeenCalledWith(
       expect.stringContaining(
-        'const entry = () => import("http://127.0.0.1:4174/@id/virtual:mf-exposes:remote?mf_target=node");'
-      )
+        'const entry = () => import("http://127.0.0.1:4174/@id/virtual:mf-exposes:remote?mf_target=node");',
+      ),
     );
     expect(res.end).toHaveBeenCalledWith(
-      expect.stringContaining('const metaUrl = import.meta.url;')
+      expect.stringContaining('const metaUrl = import.meta.url;'),
+    );
+    expect(res.end).toHaveBeenCalledWith(expect.stringContaining('export { init as init };'));
+    expect(res.end).toHaveBeenCalledWith(
+      expect.stringContaining('const __mf_export_0__ = __vite_ssr_import_0__.init;'),
     );
     expect(res.end).toHaveBeenCalledWith(
-      expect.stringContaining('export { init as init };')
-    );
-    expect(res.end).toHaveBeenCalledWith(
-      expect.stringContaining('const __mf_export_0__ = __vite_ssr_import_0__.init;')
-    );
-    expect(res.end).toHaveBeenCalledWith(
-      expect.stringContaining('export { __mf_export_0__ as runtimeInit };')
+      expect.stringContaining('export { __mf_export_0__ as runtimeInit };'),
     );
   });
 
@@ -150,13 +148,13 @@ describe('pluginProxyRemoteEntry', () => {
         url: '/@id/virtual:mf-exposes:remote?mf_target=node',
       },
       res,
-      next
+      next,
     );
 
     expect(next).not.toHaveBeenCalled();
     expect(transformRequest).toHaveBeenCalledWith('virtual:mf-exposes:remote', { ssr: true });
     expect(res.end).toHaveBeenCalledWith(
-      'export const component = () => import("http://127.0.0.1:4174/src/Button.tsx?mf_target=node");'
+      'export const component = () => import("http://127.0.0.1:4174/src/Button.tsx?mf_target=node");',
     );
   });
 
@@ -213,7 +211,7 @@ describe('pluginProxyRemoteEntry', () => {
         url: '/%40fs/repo/node_modules/pkg/index.js?mf_target=node',
       },
       res,
-      next
+      next,
     );
 
     expect(next).not.toHaveBeenCalled();
@@ -221,7 +219,7 @@ describe('pluginProxyRemoteEntry', () => {
       ssr: true,
     });
     expect(res.end).toHaveBeenCalledWith(
-      'export * from "http://127.0.0.1:4174/src/shared.js?mf_target=node";'
+      'export * from "http://127.0.0.1:4174/src/shared.js?mf_target=node";',
     );
   });
 
@@ -294,7 +292,7 @@ describe('pluginProxyRemoteEntry', () => {
         url: '/@id/@module-federation/runtime-core?mf_target=node',
       },
       res,
-      next
+      next,
     );
 
     expect(next).not.toHaveBeenCalled();
@@ -305,10 +303,10 @@ describe('pluginProxyRemoteEntry', () => {
       '/repo/node_modules/.pnpm/@module-federation/runtime-core/dist/index.js',
       {
         ssr: true,
-      }
+      },
     );
     expect(res.end).toHaveBeenCalledWith(
-      'const runtimeCore = await import("http://127.0.0.1:4174/@fs/repo/node_modules/.pnpm/react/index.js?mf_target=node");'
+      'const runtimeCore = await import("http://127.0.0.1:4174/@fs/repo/node_modules/.pnpm/react/index.js?mf_target=node");',
     );
   });
 
@@ -369,7 +367,7 @@ describe('pluginProxyRemoteEntry', () => {
         url: '/@id/@module-federation/runtime-core?mf_target=node',
       },
       res,
-      next
+      next,
     );
 
     expect(next).not.toHaveBeenCalled();
@@ -377,7 +375,7 @@ describe('pluginProxyRemoteEntry', () => {
       ssr: true,
     });
     expect(res.end).toHaveBeenCalledWith(
-      'const runtimeCore = await import("http://127.0.0.1:4174/@id/react?mf_target=node");'
+      'const runtimeCore = await import("http://127.0.0.1:4174/@id/react?mf_target=node");',
     );
   });
 
@@ -432,7 +430,7 @@ describe('pluginProxyRemoteEntry', () => {
         url: '/src/Button.css?mf_target=node',
       },
       res,
-      next
+      next,
     );
 
     expect(next).not.toHaveBeenCalled();

@@ -2,7 +2,7 @@
  * Dynamic shared modules, such as "react/" and "react-dom/", can only be parsed during the build process;
  * This plugin allows me to wait until all modules are built, and then expose them together.
  */
-import { Plugin } from 'vite';
+import type { Plugin } from 'vite';
 import { mfWarn } from '../utils/logger';
 
 let _resolve: any, _reject: any, _parseTimeout: any;
@@ -34,13 +34,13 @@ function resetIdleTimeout(timeout: number) {
   _parseTimeout = setTimeout(() => {
     mfWarn(
       `moduleParseIdleTimeout: no module activity for ${timeout}s, forcing resolve. ` +
-        'Some shared/remote dependencies may be missing. Consider increasing moduleParseIdleTimeout.'
+        'Some shared/remote dependencies may be missing. Consider increasing moduleParseIdleTimeout.',
     );
     _resolve(1);
   }, timeout * 1000);
 }
 
-let parsePromise = promise;
+const parsePromise = promise;
 let exposesParseEnd = false;
 
 const parseStartSet = new Set();

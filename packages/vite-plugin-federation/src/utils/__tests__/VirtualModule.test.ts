@@ -50,7 +50,7 @@ describe('assertModuleFound', () => {
     expect(() => {
       assertModuleFound(tag, str);
     }).toThrow(
-      `Module Federation shared module '${str}' not found. Please ensure it's installed as a dependency in your package.json.`
+      `Module Federation shared module '${str}' not found. Please ensure it's installed as a dependency in your package.json.`,
     );
   });
 });

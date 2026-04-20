@@ -99,7 +99,7 @@ export function removePathFromNpmPackage(packageString: string): string {
 
 export function getInstalledPackageJson(
   pkg: string,
-  opts?: { cwd?: string; packageName?: string }
+  opts?: { cwd?: string; packageName?: string },
 ): InstalledPackageJson | undefined {
   const cwd = opts?.cwd || getPackageDetectionCwd();
   const packageName = opts?.packageName || removePathFromNpmPackage(pkg);
@@ -126,11 +126,13 @@ export function getInstalledPackageJson(
           for (const entry of readdirSync(pnpmStoreDir, { withFileTypes: true })) {
             if (!entry.isDirectory()) continue;
             const candidate = tryReadPackageJson(
-              path.join(pnpmStoreDir, entry.name, 'node_modules', packageName, 'package.json')
+              path.join(pnpmStoreDir, entry.name, 'node_modules', packageName, 'package.json'),
             );
             if (candidate?.packageJson.name === packageName) return candidate;
           }
-        } catch {}
+        } catch {
+          continue;
+        }
       }
       if (currentDir === rootDir) break;
       currentDir = path.dirname(currentDir);
@@ -190,7 +192,7 @@ export function getInstalledPackageJson(
 
 export function getInstalledPackageEntry(
   pkg: string,
-  opts?: { cwd?: string; packageName?: string }
+  opts?: { cwd?: string; packageName?: string },
 ): string | undefined {
   const installed = getInstalledPackageJson(pkg, opts);
   if (!installed) return undefined;
@@ -229,7 +231,7 @@ export function getIsRolldown(ctx: unknown): boolean {
 
 export function hasPackageDependency(
   dependencyName: string,
-  cwd = packageDetectionCwd || process.cwd()
+  cwd = packageDetectionCwd || process.cwd(),
 ): boolean {
   const cacheKey = getDependencyCacheKey(cwd, dependencyName);
   const cached = dependencyPresenceCache.get(cacheKey);
@@ -237,7 +239,7 @@ export function hasPackageDependency(
 
   try {
     const packageJson = JSON.parse(
-      readFileSync(path.join(cwd, 'package.json'), 'utf8')
+      readFileSync(path.join(cwd, 'package.json'), 'utf8'),
     ) as PackageJsonDependencyGroups;
 
     const hasDependency = [
