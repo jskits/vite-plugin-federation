@@ -144,3 +144,6 @@ vite.config.ts.timestamp-*
 other1/
 other2/
 tech.md
+playwright-report/
+test-results/
+blob-report/

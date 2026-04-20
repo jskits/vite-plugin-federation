@@ -24,6 +24,7 @@
     "prepare": "husky",
     "release": "changeset publish",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter vite-plugin-federation test:e2e",
     "test:watch": "turbo run test:watch --parallel",
     "typecheck": "turbo run typecheck",
     "version-packages": "changeset version"
