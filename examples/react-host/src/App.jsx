@@ -8,7 +8,9 @@ const REMOTE_CARD_ID = 'reactRemote/Card';
 
 export default function App() {
   const [RemoteCard, setRemoteCard] = useState(null);
+  const [RemoteButtonOverride, setRemoteButtonOverride] = useState(null);
   const [cardRefreshCount, setCardRefreshCount] = useState(0);
+  const [buttonRefreshVersion, setButtonRefreshVersion] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -30,7 +32,23 @@ export default function App() {
     const handleRemoteExposeUpdate = async (event) => {
       const detail = event.detail;
 
-      if (detail?.hostRemote !== 'reactRemote' || detail?.expose !== './Card') {
+      if (detail?.hostRemote !== 'reactRemote') {
+        return;
+      }
+
+      if (detail.expose === './Button') {
+        await refreshRemote(detail.remoteRequestId || 'reactRemote/Button');
+        const buttonModule = await loadRemote(detail.remoteRequestId || 'reactRemote/Button');
+        if (!active) return;
+
+        startTransition(() => {
+          setRemoteButtonOverride(() => buttonModule.default ?? buttonModule);
+          setButtonRefreshVersion((count) => count + 1);
+        });
+        return;
+      }
+
+      if (detail.expose !== './Card') {
         return;
       }
 
@@ -59,9 +77,19 @@ export default function App() {
       <section className="host-grid">
         <article className="host-panel">
           <h2 style={{ marginTop: 0 }}>Static remote import</h2>
-          <Suspense fallback={<p>Loading remote button…</p>}>
-            <RemoteButton label="Loaded from reactRemote/Button" />
-          </Suspense>
+          {RemoteButtonOverride ? (
+            <RemoteButtonOverride
+              key={buttonRefreshVersion}
+              label="Loaded from reactRemote/Button"
+            />
+          ) : (
+            <Suspense fallback={<p>Loading remote button…</p>}>
+              <RemoteButton
+                key={buttonRefreshVersion}
+                label="Loaded from reactRemote/Button"
+              />
+            </Suspense>
+          )}
         </article>
 
         <article className="host-panel">
