@@ -84,6 +84,11 @@ shared package appears at different absolute paths between host and remote build
 `mf-stats.json` diagnostics include the flag so production incidents can distinguish exact,
 trailing-slash, and suffix-enabled shared rules.
 
+Runtime hosts created through `vite-plugin-federation/runtime` also install a shared diagnostics
+plugin. The runtime records registered shared providers, the active share scope, each async/sync
+`loadShare` decision, candidate versions, selected provider, fallback mode, and `MFV-003`
+diagnostics for shared misses or fallback selection.
+
 ## Browser Host Loading
 
 Use `loadRemoteFromManifest` when one remote module is needed immediately. It fetches the manifest,
@@ -268,6 +273,7 @@ Use `getFederationDebugInfo()` to inspect the active runtime. The snapshot inclu
 
 - Last remote load and last load error.
 - Registered runtime remotes and registered manifest remotes.
+- Registered shared providers, active share scope entries, and shared resolution graph entries.
 - Manifest cache entries with `manifestUrl`, `name`, `fetchedAt`, and `expiresAt`.
 - Manifest fetch history with `success`, `retry`, `failure`, and `cache-hit` entries.
 - Pending manifest requests and pending remote registrations.
@@ -277,6 +283,7 @@ Use `getFederationDebugInfo()` to inspect the active runtime. The snapshot inclu
 import { getFederationDebugInfo } from 'vite-plugin-federation/runtime';
 
 console.table(getFederationDebugInfo().runtime.manifestFetches);
+console.table(getFederationDebugInfo().runtime.sharedResolutionGraph);
 ```
 
 Browser runtimes also dispatch `vite-plugin-federation:debug` events after runtime mutations. The
@@ -286,6 +293,7 @@ devtools sidecar consumes the same event stream.
 
 Production hosts should handle these runtime error categories explicitly:
 
+- `MFV-003`: shared package miss, fallback selection, or strict shared resolution failure.
 - `MFV-004`: manifest fetch, manifest validation, or runtime remote load failure.
 - `MFV-005`: requested expose is missing from a manifest during asset collection.
 - `MFV-006`: Node target cannot find a usable SSR remote entry.

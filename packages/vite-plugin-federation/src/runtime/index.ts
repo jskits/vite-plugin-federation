@@ -6,8 +6,8 @@ import {
   loadRemote as loadRuntimeRemote,
   loadScript,
   loadScriptNode,
-  loadShare,
-  loadShareSync,
+  loadShare as loadRuntimeShare,
+  loadShareSync as loadRuntimeShareSync,
   preloadRemote as preloadRuntimeRemote,
   registerGlobalPlugins,
   registerPlugins as registerRuntimePlugins,
@@ -20,6 +20,8 @@ import type * as NodeVm from 'node:vm';
 import {
   createModuleFederationError,
   getModuleFederationDebugState,
+  mfErrorWithCode,
+  mfWarnWithCode,
   type ModuleFederationErrorCode,
 } from '../utils/logger';
 import { assertSupportedFederationManifestSchemaVersion } from '../utils/manifestProtocol';
@@ -32,6 +34,8 @@ const NODE_RUNTIME_ENTRY_LOADER_PLUGIN_NAME = 'vite-plugin-federation:node-entry
 const ABSOLUTE_URL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:/;
 const NODE_VM_IMPORT_GLOBAL_KEY = '__VITE_PLUGIN_FEDERATION_IMPORT_NODE_VM__';
 const MANIFEST_URL_RE = /(?:^|\/)(?:mf-)?manifest(?:\.[\w-]+)?\.json(?:$|[?#])/i;
+const SHARED_DIAGNOSTICS_PLUGIN_NAME = 'vite-plugin-federation:shared-diagnostics';
+const MAX_SHARED_RESOLUTION_EVENTS = 100;
 
 export type FederationRuntimeTarget = 'web' | 'node';
 
@@ -159,6 +163,62 @@ interface ManifestFetchLogEntry {
   timestamp: string;
 }
 
+type SharedMatchType =
+  | 'exact'
+  | 'package-root'
+  | 'trailing-slash-subpath'
+  | 'node-modules-suffix'
+  | 'unknown';
+
+type SharedResolutionStatus =
+  | 'registered'
+  | 'before-load'
+  | 'resolved'
+  | 'loaded'
+  | 'sync-loaded'
+  | 'fallback'
+  | 'miss'
+  | 'error';
+
+interface RuntimeSharedCandidateSnapshot {
+  eager?: boolean;
+  from?: string | null;
+  loaded: boolean;
+  loading: boolean;
+  provider: string | null;
+  requiredVersion?: false | string;
+  scope: string[];
+  singleton: boolean;
+  strategy?: string;
+  strictVersion: boolean;
+  useIn: string[];
+  version: string;
+}
+
+interface RuntimeSharedRegistrationSnapshot {
+  key: string;
+  versions: RuntimeSharedCandidateSnapshot[];
+}
+
+interface RuntimeSharedResolutionEntry {
+  candidates: RuntimeSharedCandidateSnapshot[];
+  consumer: string | null;
+  error?: string;
+  fallbackSource: 'host-only' | 'local-fallback' | 'none' | 'runtime-share' | 'unknown';
+  id: number;
+  matchType: SharedMatchType;
+  pkgName: string;
+  reason: string;
+  requestedVersion?: false | string;
+  selected: RuntimeSharedCandidateSnapshot | null;
+  shareScope: string[];
+  singleton: boolean;
+  status: SharedResolutionStatus;
+  strategy?: string;
+  strictVersion: boolean;
+  timestamp: string;
+}
+
 interface RuntimeDebugState {
   lastLoadError: {
     code: ModuleFederationErrorCode;
@@ -172,7 +232,10 @@ interface RuntimeDebugState {
   } | null;
   lastPreloadRemote: unknown[] | null;
   registeredRemotes: Array<Record<string, unknown>>;
+  registeredShared: RuntimeSharedRegistrationSnapshot[];
   registeredSharedKeys: string[];
+  sharedResolutionGraph: RuntimeSharedResolutionEntry[];
+  sharedResolutionSeq: number;
   manifestCache: Map<string, ManifestCacheEntry>;
   manifestFetches: ManifestFetchLogEntry[];
   manifestRequests: Map<string, Promise<FederationRemoteManifest>>;
@@ -206,10 +269,36 @@ interface FederationRuntimePluginLike {
 type FederationRuntimePlugins = NonNullable<UserOptions['plugins']>;
 const nodeRuntimeModuleCache = new Map<string, Promise<any>>();
 type NodeVmModule = typeof NodeVm;
+type RuntimeSharedLike = {
+  deps?: unknown;
+  eager?: unknown;
+  from?: unknown;
+  get?: unknown;
+  lib?: unknown;
+  loaded?: unknown;
+  loading?: unknown;
+  scope?: unknown;
+  shareConfig?: {
+    eager?: unknown;
+    import?: unknown;
+    requiredVersion?: unknown;
+    singleton?: unknown;
+    strictVersion?: unknown;
+  };
+  strategy?: unknown;
+  useIn?: unknown;
+  version?: unknown;
+};
+type RuntimeSharedOptionsLike = Record<string, RuntimeSharedLike | RuntimeSharedLike[]>;
+type RuntimeShareScopeMapLike = Record<string, Record<string, Record<string, RuntimeSharedLike>>>;
 type RuntimeInstanceWithInternals = ModuleFederation & {
   options?: {
+    name?: string;
     remotes?: Array<Record<string, unknown>>;
+    shared?: RuntimeSharedOptionsLike;
+    shareStrategy?: string;
   };
+  shareScopeMap?: RuntimeShareScopeMapLike;
 };
 
 async function importNodeVmModule(): Promise<NodeVmModule> {
@@ -233,6 +322,7 @@ type RuntimeDebugEventName =
   | 'create-instance'
   | 'register-remotes'
   | 'register-shared'
+  | 'shared-resolution'
   | 'load-remote'
   | 'refresh-remote'
   | 'load-error'
@@ -250,7 +340,10 @@ function getRuntimeDebugState(): RuntimeDebugState {
     lastLoadRemote: null,
     lastPreloadRemote: null,
     registeredRemotes: [],
+    registeredShared: [],
     registeredSharedKeys: [],
+    sharedResolutionGraph: [],
+    sharedResolutionSeq: 0,
     manifestCache: new Map(),
     manifestFetches: [],
     manifestRequests: new Map(),
@@ -259,6 +352,460 @@ function getRuntimeDebugState(): RuntimeDebugState {
   };
 
   return state[MODULE_FEDERATION_RUNTIME_DEBUG_SYMBOL];
+}
+
+function normalizeSharedScope(scope: unknown): string[] {
+  if (Array.isArray(scope)) {
+    return scope.filter((item): item is string => typeof item === 'string');
+  }
+  if (typeof scope === 'string') {
+    return [scope];
+  }
+  return ['default'];
+}
+
+function getPackageRootName(pkgName: string) {
+  if (pkgName.startsWith('@')) {
+    const [scope, name] = pkgName.split('/');
+    return scope && name ? `${scope}/${name}` : pkgName;
+  }
+  return pkgName.split('/')[0] || pkgName;
+}
+
+function inferSharedMatchType(
+  pkgName: string,
+  sharedOptions?: RuntimeSharedOptionsLike,
+): SharedMatchType {
+  if (!sharedOptions) return 'unknown';
+  if (Object.prototype.hasOwnProperty.call(sharedOptions, pkgName)) return 'exact';
+
+  const packageRoot = getPackageRootName(pkgName);
+  if (packageRoot !== pkgName && Object.prototype.hasOwnProperty.call(sharedOptions, packageRoot)) {
+    return 'package-root';
+  }
+  if (
+    packageRoot !== pkgName &&
+    Object.prototype.hasOwnProperty.call(sharedOptions, `${packageRoot}/`)
+  ) {
+    return 'trailing-slash-subpath';
+  }
+
+  return 'unknown';
+}
+
+function toRuntimeSharedCandidateSnapshot(
+  shared: RuntimeSharedLike | undefined,
+  fallbackVersion = '0',
+): RuntimeSharedCandidateSnapshot {
+  const shareConfig = shared?.shareConfig || {};
+  const version =
+    typeof shared?.version === 'string' || typeof shared?.version === 'number'
+      ? String(shared.version)
+      : fallbackVersion;
+  const from = typeof shared?.from === 'string' ? shared.from : null;
+  const scope = normalizeSharedScope(shared?.scope);
+  const useIn = Array.isArray(shared?.useIn)
+    ? shared.useIn.filter((item): item is string => typeof item === 'string')
+    : [];
+  const requiredVersion =
+    typeof shareConfig.requiredVersion === 'string' || shareConfig.requiredVersion === false
+      ? shareConfig.requiredVersion
+      : undefined;
+
+  return {
+    eager: Boolean(shared?.eager || shareConfig.eager),
+    from,
+    loaded: Boolean(shared?.loaded || typeof shared?.lib === 'function'),
+    loading: Boolean(shared?.loading),
+    provider: from,
+    requiredVersion,
+    scope,
+    singleton: shareConfig.singleton === true,
+    strategy: typeof shared?.strategy === 'string' ? shared.strategy : undefined,
+    strictVersion: shareConfig.strictVersion === true,
+    useIn,
+    version,
+  };
+}
+
+function snapshotSharedOptions(
+  sharedOptions?: RuntimeSharedOptionsLike,
+): RuntimeSharedRegistrationSnapshot[] {
+  if (!sharedOptions) return [];
+
+  return Object.entries(sharedOptions).map(([key, value]) => {
+    const values = Array.isArray(value) ? value : [value];
+    return {
+      key,
+      versions: values.map((shared) => toRuntimeSharedCandidateSnapshot(shared)),
+    };
+  });
+}
+
+function snapshotShareScopeMap(
+  shareScopeMap?: RuntimeShareScopeMapLike,
+): RuntimeSharedRegistrationSnapshot[] {
+  if (!shareScopeMap) return [];
+
+  const merged = new Map<string, RuntimeSharedCandidateSnapshot[]>();
+  for (const [scopeName, packages] of Object.entries(shareScopeMap)) {
+    for (const [pkgName, versions] of Object.entries(packages || {})) {
+      const snapshots = merged.get(pkgName) || [];
+      for (const [version, shared] of Object.entries(versions || {})) {
+        snapshots.push(
+          toRuntimeSharedCandidateSnapshot(
+            {
+              ...shared,
+              scope: shared.scope || [scopeName],
+              version: shared.version || version,
+            },
+            version,
+          ),
+        );
+      }
+      merged.set(pkgName, snapshots);
+    }
+  }
+
+  return [...merged.entries()].map(([key, versions]) => ({ key, versions }));
+}
+
+function getRuntimeConsumerName(runtimeInstance: RuntimeInstanceWithInternals | null) {
+  return runtimeInstance?.options?.name || runtimeInstance?.name || null;
+}
+
+function getRuntimeSharedCandidates(
+  pkgName: string,
+  runtimeInstance: RuntimeInstanceWithInternals | null,
+  shareScopes?: string[],
+) {
+  const shareScopeMap = runtimeInstance?.shareScopeMap;
+  if (!shareScopeMap) return [];
+
+  const candidates: RuntimeSharedCandidateSnapshot[] = [];
+  const scopeNames = shareScopes?.length ? shareScopes : Object.keys(shareScopeMap);
+  for (const scopeName of scopeNames) {
+    const versionMap = shareScopeMap[scopeName]?.[pkgName];
+    if (!versionMap) continue;
+    for (const [version, shared] of Object.entries(versionMap)) {
+      candidates.push(
+        toRuntimeSharedCandidateSnapshot(
+          {
+            ...shared,
+            scope: shared.scope || [scopeName],
+            version: shared.version || version,
+          },
+          version,
+        ),
+      );
+    }
+  }
+
+  return candidates;
+}
+
+function getSelectedSharedCandidate(
+  candidates: RuntimeSharedCandidateSnapshot[],
+  consumer: string | null,
+) {
+  return (
+    candidates.find((candidate) => consumer && candidate.useIn.includes(consumer)) ||
+    candidates.find((candidate) => candidate.loaded) ||
+    candidates.find((candidate) => candidate.loading) ||
+    null
+  );
+}
+
+function getRequestedShareConfig(
+  pkgName: string,
+  runtimeInstance: RuntimeInstanceWithInternals | null,
+  extraOptions?: unknown,
+) {
+  const sharedOptions = runtimeInstance?.options?.shared;
+  const optionsValue = sharedOptions?.[pkgName];
+  const optionsShared = Array.isArray(optionsValue) ? optionsValue[0] : optionsValue;
+  const customShareInfo =
+    extraOptions &&
+    typeof extraOptions === 'object' &&
+    'customShareInfo' in extraOptions &&
+    extraOptions.customShareInfo &&
+    typeof extraOptions.customShareInfo === 'object'
+      ? (extraOptions.customShareInfo as RuntimeSharedLike)
+      : undefined;
+  const mergedShareConfig = {
+    ...(optionsShared?.shareConfig || {}),
+    ...(customShareInfo?.shareConfig || {}),
+  };
+
+  return {
+    scope: normalizeSharedScope(customShareInfo?.scope || optionsShared?.scope),
+    shareConfig: mergedShareConfig,
+    strategy:
+      (typeof customShareInfo?.strategy === 'string' ? customShareInfo.strategy : undefined) ||
+      (typeof optionsShared?.strategy === 'string' ? optionsShared.strategy : undefined) ||
+      runtimeInstance?.options?.shareStrategy,
+  };
+}
+
+function pushSharedResolution(entry: Omit<RuntimeSharedResolutionEntry, 'id' | 'timestamp'>) {
+  const debugState = getRuntimeDebugState();
+  debugState.sharedResolutionSeq += 1;
+  debugState.sharedResolutionGraph.push({
+    ...entry,
+    id: debugState.sharedResolutionSeq,
+    timestamp: new Date().toISOString(),
+  });
+  if (debugState.sharedResolutionGraph.length > MAX_SHARED_RESOLUTION_EVENTS) {
+    debugState.sharedResolutionGraph.shift();
+  }
+}
+
+function recordSharedResolutionFromLoad(
+  pkgName: string,
+  extraOptions: unknown,
+  result: unknown,
+  mode: 'async' | 'sync',
+) {
+  const runtimeInstance = getRuntimeInstance() as RuntimeInstanceWithInternals | null;
+  const consumer = getRuntimeConsumerName(runtimeInstance);
+  const requested = getRequestedShareConfig(pkgName, runtimeInstance, extraOptions);
+  const candidates = getRuntimeSharedCandidates(pkgName, runtimeInstance, requested.scope);
+  const selected = getSelectedSharedCandidate(candidates, consumer);
+  const shareConfig = requested.shareConfig;
+  const isHostOnly = shareConfig && 'import' in shareConfig && shareConfig.import === false;
+  const status: SharedResolutionStatus =
+    result === false ? 'fallback' : mode === 'sync' ? 'sync-loaded' : 'loaded';
+
+  pushSharedResolution({
+    candidates,
+    consumer,
+    fallbackSource:
+      result === false ? (isHostOnly ? 'host-only' : 'local-fallback') : 'runtime-share',
+    matchType: inferSharedMatchType(pkgName, runtimeInstance?.options?.shared),
+    pkgName,
+    reason:
+      result === false
+        ? 'No registered shared provider matched; runtime returned false for local fallback.'
+        : selected
+          ? `Selected ${selected.version} from ${selected.provider || 'unknown provider'}.`
+          : 'Shared module loaded but selected provider could not be inferred from share scope.',
+    requestedVersion:
+      typeof shareConfig?.requiredVersion === 'string' || shareConfig?.requiredVersion === false
+        ? shareConfig.requiredVersion
+        : undefined,
+    selected,
+    shareScope: requested.scope,
+    singleton: shareConfig?.singleton === true,
+    status,
+    strategy: requested.strategy,
+    strictVersion: shareConfig?.strictVersion === true,
+  });
+
+  if (result === false) {
+    mfWarnWithCode(
+      'MFV-003',
+      `Shared module "${pkgName}" was not found in the registered share scope; local fallback will be used if available.`,
+      {
+        fallbackSource: isHostOnly ? 'host-only' : 'local-fallback',
+        pkgName,
+        requiredVersion: shareConfig?.requiredVersion,
+      },
+    );
+  }
+}
+
+function recordSharedResolutionError(pkgName: string, extraOptions: unknown, error: unknown) {
+  const runtimeInstance = getRuntimeInstance() as RuntimeInstanceWithInternals | null;
+  const requested = getRequestedShareConfig(pkgName, runtimeInstance, extraOptions);
+  const candidates = getRuntimeSharedCandidates(pkgName, runtimeInstance, requested.scope);
+  const shareConfig = requested.shareConfig;
+  const message = error instanceof Error ? error.message : String(error);
+
+  pushSharedResolution({
+    candidates,
+    consumer: getRuntimeConsumerName(runtimeInstance),
+    error: message,
+    fallbackSource: 'none',
+    matchType: inferSharedMatchType(pkgName, runtimeInstance?.options?.shared),
+    pkgName,
+    reason: `Shared module resolution failed: ${message}`,
+    requestedVersion:
+      typeof shareConfig?.requiredVersion === 'string' || shareConfig?.requiredVersion === false
+        ? shareConfig.requiredVersion
+        : undefined,
+    selected: null,
+    shareScope: requested.scope,
+    singleton: shareConfig?.singleton === true,
+    status: 'error',
+    strategy: requested.strategy,
+    strictVersion: shareConfig?.strictVersion === true,
+  });
+  mfErrorWithCode('MFV-003', `Shared module "${pkgName}" failed to resolve.`, {
+    error: message,
+    pkgName,
+    requiredVersion: shareConfig?.requiredVersion,
+  });
+}
+
+function createSharedDiagnosticsRuntimePlugin() {
+  return {
+    name: SHARED_DIAGNOSTICS_PLUGIN_NAME,
+    beforeRegisterShare(args: {
+      pkgName: string;
+      shared: RuntimeSharedLike;
+      origin: RuntimeInstanceWithInternals;
+    }) {
+      pushSharedResolution({
+        candidates: [toRuntimeSharedCandidateSnapshot(args.shared)],
+        consumer: getRuntimeConsumerName(args.origin),
+        fallbackSource: 'none',
+        matchType: inferSharedMatchType(args.pkgName, args.origin.options?.shared),
+        pkgName: args.pkgName,
+        reason: `Registered shared provider ${args.shared.from || args.origin.options?.name || 'unknown'} for ${args.pkgName}.`,
+        requestedVersion:
+          typeof args.shared.shareConfig?.requiredVersion === 'string' ||
+          args.shared.shareConfig?.requiredVersion === false
+            ? args.shared.shareConfig.requiredVersion
+            : undefined,
+        selected: null,
+        shareScope: normalizeSharedScope(args.shared.scope),
+        singleton: args.shared.shareConfig?.singleton === true,
+        status: 'registered',
+        strategy: typeof args.shared.strategy === 'string' ? args.shared.strategy : undefined,
+        strictVersion: args.shared.shareConfig?.strictVersion === true,
+      });
+      return args;
+    },
+    beforeLoadShare(args: {
+      pkgName: string;
+      shareInfo?: RuntimeSharedLike;
+      shared: RuntimeSharedOptionsLike;
+      origin: RuntimeInstanceWithInternals;
+    }) {
+      pushSharedResolution({
+        candidates: getRuntimeSharedCandidates(
+          args.pkgName,
+          args.origin,
+          normalizeSharedScope(args.shareInfo?.scope),
+        ),
+        consumer: getRuntimeConsumerName(args.origin),
+        fallbackSource: 'unknown',
+        matchType: inferSharedMatchType(args.pkgName, args.shared),
+        pkgName: args.pkgName,
+        reason: `Runtime started resolving shared module "${args.pkgName}".`,
+        requestedVersion:
+          typeof args.shareInfo?.shareConfig?.requiredVersion === 'string' ||
+          args.shareInfo?.shareConfig?.requiredVersion === false
+            ? args.shareInfo.shareConfig.requiredVersion
+            : undefined,
+        selected: null,
+        shareScope: normalizeSharedScope(args.shareInfo?.scope),
+        singleton: args.shareInfo?.shareConfig?.singleton === true,
+        status: 'before-load',
+        strategy:
+          typeof args.shareInfo?.strategy === 'string' ? args.shareInfo.strategy : undefined,
+        strictVersion: args.shareInfo?.shareConfig?.strictVersion === true,
+      });
+      return args;
+    },
+    resolveShare(args: {
+      pkgName: string;
+      resolver: () =>
+        | {
+            shared: RuntimeSharedLike;
+            useTreesShaking: boolean;
+          }
+        | undefined;
+      scope: string;
+      shareInfo: RuntimeSharedLike;
+      shareScopeMap: RuntimeShareScopeMapLike;
+      version: string;
+    }) {
+      try {
+        const resolved = args.resolver();
+        const candidates = getRuntimeSharedCandidates(args.pkgName, {
+          name: 'diagnostics',
+          options: { name: 'diagnostics', remotes: [], shared: {} },
+          shareScopeMap: args.shareScopeMap,
+        } as unknown as RuntimeInstanceWithInternals);
+        const selected = resolved?.shared
+          ? toRuntimeSharedCandidateSnapshot(resolved.shared, args.version)
+          : null;
+
+        pushSharedResolution({
+          candidates,
+          consumer: typeof args.shareInfo.from === 'string' ? args.shareInfo.from : null,
+          fallbackSource: selected ? 'runtime-share' : 'none',
+          matchType: 'exact',
+          pkgName: args.pkgName,
+          reason: selected
+            ? `Resolved ${args.pkgName} to ${selected.version} from ${selected.provider || 'unknown provider'}.`
+            : `No registered shared provider satisfied ${args.pkgName}.`,
+          requestedVersion:
+            typeof args.shareInfo.shareConfig?.requiredVersion === 'string' ||
+            args.shareInfo.shareConfig?.requiredVersion === false
+              ? args.shareInfo.shareConfig.requiredVersion
+              : undefined,
+          selected,
+          shareScope: [args.scope],
+          singleton: args.shareInfo.shareConfig?.singleton === true,
+          status: selected ? 'resolved' : 'miss',
+          strategy:
+            typeof args.shareInfo.strategy === 'string' ? args.shareInfo.strategy : undefined,
+          strictVersion: args.shareInfo.shareConfig?.strictVersion === true,
+        });
+
+        if (!selected) {
+          mfWarnWithCode('MFV-003', `No shared provider satisfied "${args.pkgName}".`, {
+            pkgName: args.pkgName,
+            requiredVersion: args.shareInfo.shareConfig?.requiredVersion,
+            scope: args.scope,
+          });
+        }
+
+        return {
+          ...args,
+          resolver: () => resolved,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const candidates = getRuntimeSharedCandidates(args.pkgName, {
+          name: 'diagnostics',
+          options: { name: 'diagnostics', remotes: [], shared: {} },
+          shareScopeMap: args.shareScopeMap,
+        } as unknown as RuntimeInstanceWithInternals);
+
+        pushSharedResolution({
+          candidates,
+          consumer: typeof args.shareInfo.from === 'string' ? args.shareInfo.from : null,
+          error: message,
+          fallbackSource: 'none',
+          matchType: 'exact',
+          pkgName: args.pkgName,
+          reason: `Shared provider resolution threw: ${message}`,
+          requestedVersion:
+            typeof args.shareInfo.shareConfig?.requiredVersion === 'string' ||
+            args.shareInfo.shareConfig?.requiredVersion === false
+              ? args.shareInfo.shareConfig.requiredVersion
+              : undefined,
+          selected: null,
+          shareScope: [args.scope],
+          singleton: args.shareInfo.shareConfig?.singleton === true,
+          status: 'error',
+          strategy:
+            typeof args.shareInfo.strategy === 'string' ? args.shareInfo.strategy : undefined,
+          strictVersion: args.shareInfo.shareConfig?.strictVersion === true,
+        });
+        mfErrorWithCode('MFV-003', `Shared provider resolution failed for "${args.pkgName}".`, {
+          error: message,
+          pkgName: args.pkgName,
+          requiredVersion: args.shareInfo.shareConfig?.requiredVersion,
+          scope: args.scope,
+        });
+        throw error;
+      }
+    },
+  };
 }
 
 function toNodeTargetUrl(origin: string, requestPath: string) {
@@ -410,8 +957,13 @@ function createNodeRuntimeEntryLoaderPlugin(): FederationRuntimePluginLike {
   };
 }
 
-function withNodeRuntimePlugins(options: UserOptions) {
+function withRuntimePlugins(options: UserOptions) {
   const plugins = [...(options.plugins || [])];
+  if (!plugins.some((plugin) => plugin?.name === SHARED_DIAGNOSTICS_PLUGIN_NAME)) {
+    plugins.push(
+      createSharedDiagnosticsRuntimePlugin() as unknown as FederationRuntimePlugins[number],
+    );
+  }
   if (
     typeof (globalThis as typeof globalThis & { window?: unknown }).window === 'undefined' &&
     !plugins.some((plugin) => plugin?.name === NODE_RUNTIME_ENTRY_LOADER_PLUGIN_NAME)
@@ -469,31 +1021,43 @@ function syncRegisteredRemoteDebugState() {
   debugState.registeredRemotes = remotes.map((remote) => ({ ...remote }));
 }
 
-export {
-  getRemoteEntry,
-  getRemoteInfo,
-  loadScript,
-  loadScriptNode,
-  loadShare,
-  loadShareSync,
-  registerGlobalPlugins,
-};
+function syncRegisteredSharedDebugState() {
+  const debugState = getRuntimeDebugState();
+  const runtimeInstance = getRuntimeInstance() as RuntimeInstanceWithInternals | null;
+  const sharedFromScope = snapshotShareScopeMap(runtimeInstance?.shareScopeMap);
+
+  if (sharedFromScope.length > 0) {
+    debugState.registeredShared = sharedFromScope;
+    debugState.registeredSharedKeys = sharedFromScope.map((shared) => shared.key);
+    return;
+  }
+
+  const sharedFromOptions = snapshotSharedOptions(runtimeInstance?.options?.shared);
+  if (sharedFromOptions.length > 0) {
+    debugState.registeredShared = sharedFromOptions;
+    debugState.registeredSharedKeys = sharedFromOptions.map((shared) => shared.key);
+  }
+}
+
+export { getRemoteEntry, getRemoteInfo, loadScript, loadScriptNode, registerGlobalPlugins };
 
 export function getInstance() {
   return getRuntimeInstance();
 }
 
 export function createFederationInstance(options: UserOptions) {
-  const instance = initRuntimeInstance(withNodeRuntimePlugins(options));
+  const instance = initRuntimeInstance(withRuntimePlugins(options));
+  syncRegisteredSharedDebugState();
   publishRuntimeDebugUpdate('create-instance');
   return instance;
 }
 
 export function createServerFederationInstance(options: UserOptions) {
   const instance = initRuntimeInstance({
-    ...withNodeRuntimePlugins(options),
+    ...withRuntimePlugins(options),
     inBrowser: false,
   } as UserOptions);
+  syncRegisteredSharedDebugState();
   publishRuntimeDebugUpdate('create-instance');
   return instance;
 }
@@ -561,9 +1125,41 @@ export function registerShared(...args: Parameters<ModuleFederation['registerSha
   const debugState = getRuntimeDebugState();
 
   debugState.registeredSharedKeys = shared ? Object.keys(shared) : [];
+  debugState.registeredShared = snapshotSharedOptions(shared as RuntimeSharedOptionsLike);
   const result = registerRuntimeShared(...args);
+  syncRegisteredSharedDebugState();
   publishRuntimeDebugUpdate('register-shared');
   return result;
+}
+
+export async function loadShare<T>(...args: Parameters<ModuleFederation['loadShare']>) {
+  const [pkgName, extraOptions] = args;
+
+  try {
+    const result = await loadRuntimeShare<T>(...args);
+    recordSharedResolutionFromLoad(pkgName, extraOptions, result, 'async');
+    publishRuntimeDebugUpdate('shared-resolution');
+    return result;
+  } catch (error) {
+    recordSharedResolutionError(pkgName, extraOptions, error);
+    publishRuntimeDebugUpdate('shared-resolution');
+    throw error;
+  }
+}
+
+export function loadShareSync<T>(...args: Parameters<ModuleFederation['loadShareSync']>) {
+  const [pkgName, extraOptions] = args;
+
+  try {
+    const result = loadRuntimeShareSync<T>(...args);
+    recordSharedResolutionFromLoad(pkgName, extraOptions, result, 'sync');
+    publishRuntimeDebugUpdate('shared-resolution');
+    return result;
+  } catch (error) {
+    recordSharedResolutionError(pkgName, extraOptions, error);
+    publishRuntimeDebugUpdate('shared-resolution');
+    throw error;
+  }
 }
 
 export async function loadRemote<T>(...args: Parameters<ModuleFederation['loadRemote']>) {
@@ -1536,7 +2132,10 @@ export function clearFederationRuntimeCaches() {
   debugState.lastLoadRemote = null;
   debugState.lastPreloadRemote = null;
   debugState.registeredRemotes = [];
+  debugState.registeredShared = [];
   debugState.registeredSharedKeys = [];
+  debugState.sharedResolutionGraph = [];
+  debugState.sharedResolutionSeq = 0;
   debugState.manifestCache.clear();
   debugState.manifestFetches = [];
   debugState.manifestRequests.clear();
@@ -1569,7 +2168,22 @@ export function getFederationDebugInfo() {
         (remote) => ({ ...remote }),
       ),
       registeredRemotes: debugState.registeredRemotes.map((remote) => ({ ...remote })),
+      registeredShared: debugState.registeredShared.map((shared) => ({
+        ...shared,
+        versions: shared.versions.map((version) => ({ ...version })),
+      })),
       registeredSharedKeys: [...debugState.registeredSharedKeys],
+      shareScope: snapshotShareScopeMap(
+        (getRuntimeInstance() as RuntimeInstanceWithInternals | null)?.shareScopeMap,
+      ).map((shared) => ({
+        ...shared,
+        versions: shared.versions.map((version) => ({ ...version })),
+      })),
+      sharedResolutionGraph: debugState.sharedResolutionGraph.map((entry) => ({
+        ...entry,
+        candidates: entry.candidates.map((candidate) => ({ ...candidate })),
+        selected: entry.selected ? { ...entry.selected } : null,
+      })),
     },
   };
 }

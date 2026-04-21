@@ -5,6 +5,8 @@ const {
   getInstanceMock,
   initMock,
   loadRemoteMock,
+  loadShareMock,
+  loadShareSyncMock,
   preloadRemoteMock,
   registerPluginsMock,
   registerRemotesMock,
@@ -16,6 +18,8 @@ const {
   getInstanceMock: vi.fn(() => ({ name: 'host', options: { name: 'host' } })),
   initMock: vi.fn((options) => ({ options })),
   loadRemoteMock: vi.fn(),
+  loadShareMock: vi.fn(),
+  loadShareSyncMock: vi.fn(),
   preloadRemoteMock: vi.fn(),
   registerPluginsMock: vi.fn(),
   registerRemotesMock: vi.fn(),
@@ -80,8 +84,8 @@ vi.mock('@module-federation/runtime', () => ({
   loadRemote: loadRemoteMock,
   loadScript: vi.fn(),
   loadScriptNode: vi.fn(),
-  loadShare: vi.fn(),
-  loadShareSync: vi.fn(),
+  loadShare: loadShareMock,
+  loadShareSync: loadShareSyncMock,
   preloadRemote: preloadRemoteMock,
   registerGlobalPlugins: vi.fn(),
   registerPlugins: registerPluginsMock,
@@ -100,6 +104,8 @@ import {
   getFederationDebugInfo,
   loadRemote,
   loadRemoteFromManifest,
+  loadShare,
+  loadShareSync,
   preloadRemote,
   registerManifestRemote,
   registerPlugins,
@@ -118,6 +124,8 @@ describe('runtime api', () => {
     getInstanceMock.mockClear();
     initMock.mockClear();
     loadRemoteMock.mockReset();
+    loadShareMock.mockReset();
+    loadShareSyncMock.mockReset();
     preloadRemoteMock.mockReset();
     registerPluginsMock.mockReset();
     registerRemotesMock.mockReset();
@@ -158,6 +166,187 @@ describe('runtime api', () => {
       name: 'remoteApp',
     });
     expect(debugInfo.runtime.registeredSharedKeys).toEqual(['react']);
+    expect(debugInfo.runtime.registeredShared[0]).toMatchObject({
+      key: 'react',
+      versions: [expect.objectContaining({ version: '19.0.0' })],
+    });
+  });
+
+  it('installs the shared diagnostics runtime plugin during instance creation', () => {
+    createFederationInstance({
+      name: 'host',
+      remotes: [],
+      shared: {},
+      plugins: [],
+      inBrowser: false,
+    });
+
+    const initOptions = initMock.mock.calls.at(-1)?.[0];
+    expect(initOptions.plugins).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'vite-plugin-federation:shared-diagnostics' }),
+      ]),
+    );
+  });
+
+  it('records shared resolution graph entries for async shared loads', async () => {
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        shared: {
+          react: [
+            {
+              from: 'host',
+              scope: ['default'],
+              shareConfig: {
+                requiredVersion: '^19.0.0',
+                singleton: true,
+                strictVersion: true,
+              },
+              strategy: 'loaded-first',
+              useIn: ['host'],
+              version: '19.0.0',
+            },
+          ],
+        },
+      },
+      shareScopeMap: {
+        default: {
+          react: {
+            '19.0.0': {
+              from: 'host',
+              loaded: true,
+              scope: ['default'],
+              shareConfig: {
+                requiredVersion: '^19.0.0',
+                singleton: true,
+                strictVersion: true,
+              },
+              strategy: 'loaded-first',
+              useIn: ['host'],
+              version: '19.0.0',
+            },
+          },
+        },
+      },
+    });
+    loadShareMock.mockResolvedValueOnce(() => ({ default: 'react' }));
+
+    await loadShare('react' as any);
+
+    expect(loadShareMock).toHaveBeenCalledWith('react');
+    expect(getFederationDebugInfo().runtime.sharedResolutionGraph.at(-1)).toMatchObject({
+      fallbackSource: 'runtime-share',
+      matchType: 'exact',
+      pkgName: 'react',
+      requestedVersion: '^19.0.0',
+      selected: expect.objectContaining({
+        from: 'host',
+        version: '19.0.0',
+      }),
+      singleton: true,
+      status: 'loaded',
+      strictVersion: true,
+    });
+  });
+
+  it('records MFV-003 diagnostics when shared resolution falls back locally', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        shared: {
+          vue: [
+            {
+              scope: ['default'],
+              shareConfig: {
+                requiredVersion: '^3.5.0',
+              },
+              version: '3.5.0',
+            },
+          ],
+        },
+      },
+      shareScopeMap: {
+        default: {},
+      },
+    });
+    loadShareMock.mockResolvedValueOnce(false);
+
+    await loadShare(
+      'vue' as any,
+      {
+        customShareInfo: {
+          shareConfig: {
+            requiredVersion: '^3.5.0',
+          },
+        },
+      } as any,
+    );
+
+    const debugInfo = getFederationDebugInfo();
+    expect(debugInfo.runtime.sharedResolutionGraph.at(-1)).toMatchObject({
+      fallbackSource: 'local-fallback',
+      pkgName: 'vue',
+      status: 'fallback',
+    });
+    expect(debugInfo.diagnostics.recentEvents.at(-1)).toMatchObject({
+      code: 'MFV-003',
+      level: 'warn',
+    });
+
+    warnSpy.mockRestore();
+  });
+
+  it('records shared resolution graph entries for sync shared loads', () => {
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        shared: {
+          pinia: [
+            {
+              from: 'host',
+              scope: ['default'],
+              shareConfig: {
+                requiredVersion: '^3.0.0',
+              },
+              useIn: ['host'],
+              version: '3.0.0',
+            },
+          ],
+        },
+      },
+      shareScopeMap: {
+        default: {
+          pinia: {
+            '3.0.0': {
+              from: 'host',
+              loaded: true,
+              scope: ['default'],
+              shareConfig: {
+                requiredVersion: '^3.0.0',
+              },
+              useIn: ['host'],
+              version: '3.0.0',
+            },
+          },
+        },
+      },
+    });
+    loadShareSyncMock.mockReturnValueOnce(() => ({ default: 'pinia' }));
+
+    loadShareSync('pinia' as any);
+
+    expect(getFederationDebugInfo().runtime.sharedResolutionGraph.at(-1)).toMatchObject({
+      pkgName: 'pinia',
+      selected: expect.objectContaining({
+        version: '3.0.0',
+      }),
+      status: 'sync-loaded',
+    });
   });
 
   it('refreshes registered runtime remotes with force enabled', async () => {

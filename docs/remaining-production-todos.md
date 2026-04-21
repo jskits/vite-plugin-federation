@@ -36,16 +36,22 @@ Current state:
 - `allowNodeModulesSuffixMatch` is normalized, passed to generated runtime share config, matched
   against pnpm/nested `node_modules` suffixes in the proxy path, and exposed in manifest
   diagnostics.
+- `vite-plugin-federation/runtime` installs a shared diagnostics runtime plugin and wraps
+  `loadShare`/`loadShareSync`.
+- `getFederationDebugInfo()` exposes registered shared providers, the active share scope, and a
+  shared resolution graph with candidate versions, selected provider, fallback source, and decision
+  reason.
+- `MFV-003` diagnostics are emitted for shared misses, local fallback selection, and strict shared
+  resolution failures observed by the runtime wrapper/plugin.
 
 Remaining work:
 
-- Build a real shared resolution graph that records exact match, package-root match, trailing-slash
-  subpath match, suffix match, and fallback mode.
 - Add deterministic version negotiation diagnostics for `loaded-first` and `version-first`.
-- Enforce or clearly report singleton conflicts instead of only passing `singleton` through.
-- Emit `MFV-003` diagnostics for shared misses, version mismatches, and fallback selection.
-- Add runtime debug output for shared provider, consumer, selected version, fallback source, and
-  decision reason.
+- Add semver-aware `MFV-003` diagnostics for non-strict version mismatches, not only strict
+  resolution failures.
+- Enforce or clearly report singleton conflicts with selected and rejected versions.
+- Extend generated internal `loadShare` paths with source-path annotations so suffix-match
+  decisions can be tied back to exact pnpm/symlinked file paths at runtime.
 - Validate `strictVersion` behavior under local fallback and host-only shared packages.
 - Add tests for React singleton mismatch, Vue subpath shared packages, pnpm symlinked packages, and
   workspace package aliases.
