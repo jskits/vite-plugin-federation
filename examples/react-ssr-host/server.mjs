@@ -2,7 +2,7 @@ import { readFile, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { collectFederationManifestExposeAssets } from 'vite-plugin-federation/runtime';
+import { collectFederationManifestPreloadLinks } from 'vite-plugin-federation/runtime';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.join(__dirname, 'dist', 'client');
@@ -62,19 +62,6 @@ function collectClientEntryAssets(manifest, entryKey, seen = new Set()) {
   return { css, js };
 }
 
-function collectRemoteExposeAssets(remoteManifest, remoteManifestUrl, exposePath) {
-  const assets = collectFederationManifestExposeAssets(
-    remoteManifestUrl,
-    remoteManifest,
-    exposePath,
-  );
-
-  return {
-    css: new Set(assets.css.all),
-    js: new Set(assets.js.sync),
-  };
-}
-
 async function serveStaticFile(reqPath, res) {
   const filePath = path.join(clientDir, reqPath);
   if (!filePath.startsWith(clientDir)) {
@@ -112,7 +99,11 @@ async function renderDocument() {
     Promise.resolve(collectClientEntryAssets(clientManifest, 'index.html')),
   ]);
 
-  const remoteAssets = collectRemoteExposeAssets(remoteManifest, remoteManifestUrl, './Button');
+  const remotePreloadLinks = collectFederationManifestPreloadLinks(
+    remoteManifestUrl,
+    remoteManifest,
+    './Button',
+  );
   const entry = clientManifest['index.html'];
 
   const clientCssLinks = [...clientAssets.css]
@@ -123,14 +114,16 @@ async function renderDocument() {
       (asset) => `<link rel="modulepreload" href="/${escapeHtml(clientManifest[asset].file)}" />`,
     )
     .join('\n');
-  const remoteCssLinks = [...remoteAssets.css]
-    .map(
-      (href) =>
-        `<link rel="stylesheet" data-mf-href="${escapeHtml(href)}" href="${escapeHtml(href)}" />`,
-    )
-    .join('\n');
-  const remotePreloadLinks = [...remoteAssets.js]
-    .map((href) => `<link rel="modulepreload" crossorigin href="${escapeHtml(href)}" />`)
+  const remoteAssetLinks = remotePreloadLinks
+    .map((link) => {
+      const href = escapeHtml(link.href);
+      if (link.rel === 'stylesheet') {
+        return `<link rel="stylesheet" data-mf-href="${href}" href="${href}" />`;
+      }
+
+      const crossorigin = link.crossorigin ? ` crossorigin="${escapeHtml(link.crossorigin)}"` : '';
+      return `<link rel="modulepreload"${crossorigin} href="${href}" />`;
+    })
     .join('\n');
 
   return `<!doctype html>
@@ -140,9 +133,8 @@ async function renderDocument() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>react-ssr-host</title>
     ${clientCssLinks}
-    ${remoteCssLinks}
+    ${remoteAssetLinks}
     ${clientPreloadLinks}
-    ${remotePreloadLinks}
   </head>
   <body>
     <div id="root">${appHtml}</div>

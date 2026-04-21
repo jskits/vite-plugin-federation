@@ -75,6 +75,24 @@ export interface FederationManifestResolvedExposeAssets {
   };
 }
 
+export interface FederationManifestPreloadLink {
+  assetType: 'css' | 'js';
+  crossorigin?: 'anonymous' | 'use-credentials';
+  expose: FederationManifestExpose;
+  exposePath: string;
+  href: string;
+  loading: 'async' | 'sync';
+  rel: 'modulepreload' | 'stylesheet';
+}
+
+export interface CollectFederationManifestPreloadLinksOptions {
+  crossorigin?: boolean | 'anonymous' | 'use-credentials';
+  includeAsyncCss?: boolean;
+  includeAsyncJs?: boolean;
+  includeCss?: boolean;
+  includeJs?: boolean;
+}
+
 export interface FederationRemoteManifest {
   id?: string;
   name: string;
@@ -705,6 +723,105 @@ export function collectFederationManifestExposeAssets(
     expose,
     js: resolveManifestAssetGroup(manifestUrl, manifest, expose.assets?.js),
   };
+}
+
+function normalizePreloadCrossorigin(
+  crossorigin: CollectFederationManifestPreloadLinksOptions['crossorigin'],
+): FederationManifestPreloadLink['crossorigin'] {
+  if (crossorigin === false) {
+    return undefined;
+  }
+  if (crossorigin === 'use-credentials') {
+    return crossorigin;
+  }
+  return 'anonymous';
+}
+
+function pushFederationManifestPreloadLink(
+  links: FederationManifestPreloadLink[],
+  seen: Set<string>,
+  link: FederationManifestPreloadLink,
+) {
+  const key = `${link.rel}:${link.href}`;
+  if (seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  links.push(link);
+}
+
+export function collectFederationManifestPreloadLinks(
+  manifestUrl: string,
+  manifest: FederationRemoteManifest,
+  exposePaths: string | string[],
+  options: CollectFederationManifestPreloadLinksOptions = {},
+): FederationManifestPreloadLink[] {
+  const links: FederationManifestPreloadLink[] = [];
+  const seen = new Set<string>();
+  const normalizedExposePaths = Array.isArray(exposePaths) ? exposePaths : [exposePaths];
+  const includeCss = options.includeCss !== false;
+  const includeJs = options.includeJs !== false;
+  const includeAsyncCss = options.includeAsyncCss !== false;
+  const includeAsyncJs = options.includeAsyncJs === true;
+  const crossorigin = normalizePreloadCrossorigin(options.crossorigin);
+
+  for (const exposePath of normalizedExposePaths) {
+    const assets = collectFederationManifestExposeAssets(manifestUrl, manifest, exposePath);
+
+    if (includeCss) {
+      for (const href of assets.css.sync) {
+        pushFederationManifestPreloadLink(links, seen, {
+          assetType: 'css',
+          expose: assets.expose,
+          exposePath,
+          href,
+          loading: 'sync',
+          rel: 'stylesheet',
+        });
+      }
+      if (includeAsyncCss) {
+        for (const href of assets.css.async) {
+          pushFederationManifestPreloadLink(links, seen, {
+            assetType: 'css',
+            expose: assets.expose,
+            exposePath,
+            href,
+            loading: 'async',
+            rel: 'stylesheet',
+          });
+        }
+      }
+    }
+
+    if (includeJs) {
+      for (const href of assets.js.sync) {
+        pushFederationManifestPreloadLink(links, seen, {
+          assetType: 'js',
+          ...(crossorigin ? { crossorigin } : {}),
+          expose: assets.expose,
+          exposePath,
+          href,
+          loading: 'sync',
+          rel: 'modulepreload',
+        });
+      }
+      if (includeAsyncJs) {
+        for (const href of assets.js.async) {
+          pushFederationManifestPreloadLink(links, seen, {
+            assetType: 'js',
+            ...(crossorigin ? { crossorigin } : {}),
+            expose: assets.expose,
+            exposePath,
+            href,
+            loading: 'async',
+            rel: 'modulepreload',
+          });
+        }
+      }
+    }
+  }
+
+  return links;
 }
 
 function appendEntryRefreshTimestamp(

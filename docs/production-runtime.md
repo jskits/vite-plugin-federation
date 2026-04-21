@@ -192,25 +192,33 @@ Node SSR currently relies on the VM module loader for remote ESM evaluation. Run
 ## SSR Asset Collection
 
 SSR HTML should include the CSS and synchronous JS assets declared for the rendered expose. Use
-`collectFederationManifestExposeAssets` instead of duplicating manifest URL resolution.
+`collectFederationManifestPreloadLinks` instead of duplicating manifest URL resolution or link
+deduplication.
 
 ```ts
 import {
-  collectFederationManifestExposeAssets,
+  collectFederationManifestPreloadLinks,
   fetchFederationManifest,
 } from 'vite-plugin-federation/runtime';
 
 const manifest = await fetchFederationManifest(manifestUrl, { cacheTtl: 30_000 });
-const assets = collectFederationManifestExposeAssets(manifestUrl, manifest, './Button');
+const links = collectFederationManifestPreloadLinks(manifestUrl, manifest, './Button');
 
-const cssLinks = assets.css.all.map((href) => `<link rel="stylesheet" href="${href}" />`);
-const jsPreloads = assets.js.sync.map(
-  (href) => `<link rel="modulepreload" crossorigin href="${href}" />`,
-);
+const linkTags = links.map((link) => {
+  if (link.rel === 'stylesheet') {
+    return `<link rel="stylesheet" href="${link.href}" />`;
+  }
+
+  const crossorigin = link.crossorigin ? ` crossorigin="${link.crossorigin}"` : '';
+  return `<link rel="modulepreload"${crossorigin} href="${link.href}" />`;
+});
 ```
 
 The helper resolves relative asset paths against `metaData.publicPath` when it is set and not
-`auto`; otherwise it resolves relative to the manifest URL.
+`auto`; otherwise it resolves relative to the manifest URL. By default it includes sync CSS, async
+CSS, and sync JS. Set `includeAsyncJs: true` when the host wants to eagerly modulepreload async JS
+chunks as well. Module preload links default to `crossorigin="anonymous"`; set
+`crossorigin: false` to omit the attribute.
 
 ## Observability
 

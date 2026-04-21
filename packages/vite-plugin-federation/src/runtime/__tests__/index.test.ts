@@ -92,6 +92,7 @@ vi.mock('@module-federation/runtime', () => ({
 import {
   clearFederationRuntimeCaches,
   collectFederationManifestExposeAssets,
+  collectFederationManifestPreloadLinks,
   createFederationInstance,
   createServerFederationInstance,
   fetchFederationManifest,
@@ -783,6 +784,145 @@ describe('runtime api', () => {
         sync: ['https://cdn.example/assets/Button.js'],
       },
     });
+  });
+
+  it('collects SSR-oriented preload links from federation manifests', () => {
+    const manifest = {
+      name: 'remoteApp',
+      metaData: {
+        publicPath: 'https://cdn.example/assets/',
+      },
+      exposes: [
+        {
+          name: 'Button',
+          path: './Button',
+          assets: {
+            css: {
+              sync: ['shared.css', 'Button.css'],
+              async: ['Button.async.css'],
+            },
+            js: {
+              sync: ['Button.js'],
+              async: ['Button.async.js'],
+            },
+          },
+        },
+        {
+          name: 'Card',
+          path: './Card',
+          assets: {
+            css: {
+              sync: ['shared.css'],
+            },
+            js: {
+              sync: ['Card.js'],
+            },
+          },
+        },
+      ],
+    } as any;
+
+    expect(
+      collectFederationManifestPreloadLinks('https://remote.example/mf-manifest.json', manifest, [
+        './Button',
+        './Card',
+      ]),
+    ).toEqual([
+      {
+        assetType: 'css',
+        expose: manifest.exposes[0],
+        exposePath: './Button',
+        href: 'https://cdn.example/assets/shared.css',
+        loading: 'sync',
+        rel: 'stylesheet',
+      },
+      {
+        assetType: 'css',
+        expose: manifest.exposes[0],
+        exposePath: './Button',
+        href: 'https://cdn.example/assets/Button.css',
+        loading: 'sync',
+        rel: 'stylesheet',
+      },
+      {
+        assetType: 'css',
+        expose: manifest.exposes[0],
+        exposePath: './Button',
+        href: 'https://cdn.example/assets/Button.async.css',
+        loading: 'async',
+        rel: 'stylesheet',
+      },
+      {
+        assetType: 'js',
+        crossorigin: 'anonymous',
+        expose: manifest.exposes[0],
+        exposePath: './Button',
+        href: 'https://cdn.example/assets/Button.js',
+        loading: 'sync',
+        rel: 'modulepreload',
+      },
+      {
+        assetType: 'js',
+        crossorigin: 'anonymous',
+        expose: manifest.exposes[1],
+        exposePath: './Card',
+        href: 'https://cdn.example/assets/Card.js',
+        loading: 'sync',
+        rel: 'modulepreload',
+      },
+    ]);
+  });
+
+  it('respects manifest preload link collection options', () => {
+    const manifest = {
+      name: 'remoteApp',
+      metaData: {},
+      exposes: [
+        {
+          name: 'Button',
+          path: './Button',
+          assets: {
+            css: {
+              sync: ['Button.css'],
+            },
+            js: {
+              sync: ['Button.js'],
+              async: ['Button.async.js'],
+            },
+          },
+        },
+      ],
+    } as any;
+
+    expect(
+      collectFederationManifestPreloadLinks(
+        'https://remote.example/nested/mf-manifest.json',
+        manifest,
+        'Button',
+        {
+          crossorigin: false,
+          includeAsyncJs: true,
+          includeCss: false,
+        },
+      ),
+    ).toEqual([
+      {
+        assetType: 'js',
+        expose: manifest.exposes[0],
+        exposePath: 'Button',
+        href: 'https://remote.example/nested/Button.js',
+        loading: 'sync',
+        rel: 'modulepreload',
+      },
+      {
+        assetType: 'js',
+        expose: manifest.exposes[0],
+        exposePath: 'Button',
+        href: 'https://remote.example/nested/Button.async.js',
+        loading: 'async',
+        rel: 'modulepreload',
+      },
+    ]);
   });
 
   it('throws a federation error when manifest expose assets are missing', () => {
