@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vite-plugin-federation.dev/schemas/mf-manifest.schema.json",
+  "title": "Vite Plugin Federation Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "id", "name", "metaData", "remotes"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "enum": ["1.0.0"]
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metaData": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "type", "buildInfo", "remoteEntry", "globalName", "pluginVersion"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "buildInfo": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["buildName", "buildVersion"],
+          "properties": {
+            "buildName": {
+              "type": "string"
+            },
+            "buildVersion": {
+              "type": "string"
+            }
+          }
+        },
+        "remoteEntry": {
+          "$ref": "#/$defs/remoteEntry"
+        },
+        "ssrRemoteEntry": {
+          "$ref": "#/$defs/remoteEntry"
+        },
+        "varRemoteEntry": {
+          "$ref": "#/$defs/remoteEntry"
+        },
+        "types": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "api": {
+              "type": "string"
+            }
+          }
+        },
+        "globalName": {
+          "type": "string"
+        },
+        "pluginVersion": {
+          "type": "string"
+        },
+        "publicPath": {
+          "type": "string"
+        },
+        "getPublicPath": {
+          "type": "string"
+        }
+      }
+    },
+    "shared": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/shared"
+      }
+    },
+    "remotes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/remote"
+      }
+    },
+    "exposes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/expose"
+      }
+    }
+  },
+  "$defs": {
+    "remoteEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "path", "type"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "assetGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["async", "sync"],
+      "properties": {
+        "async": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sync": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["js", "css"],
+      "properties": {
+        "js": {
+          "$ref": "#/$defs/assetGroup"
+        },
+        "css": {
+          "$ref": "#/$defs/assetGroup"
+        }
+      }
+    },
+    "shared": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "name", "singleton", "requiredVersion", "assets"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "singleton": {
+          "type": "boolean"
+        },
+        "requiredVersion": {
+          "type": "string"
+        },
+        "assets": {
+          "$ref": "#/$defs/assets"
+        }
+      }
+    },
+    "remote": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["federationContainerName", "moduleName", "alias", "entry"],
+      "properties": {
+        "federationContainerName": {
+          "type": "string"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "alias": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        }
+      }
+    },
+    "expose": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "name", "css", "assets", "path"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "css": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "mode": {
+              "type": "string"
+            }
+          }
+        },
+        "assets": {
+          "$ref": "#/$defs/assets"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

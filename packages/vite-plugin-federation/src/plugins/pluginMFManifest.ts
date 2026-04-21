@@ -4,6 +4,11 @@ import {
   getNormalizeModuleFederationOptions,
   getNormalizeShareItem,
 } from '../utils/normalizeModuleFederationOptions';
+import {
+  FEDERATION_DEBUG_SCHEMA_VERSION,
+  FEDERATION_MANIFEST_SCHEMA_VERSION,
+  FEDERATION_STATS_SCHEMA_VERSION,
+} from '../utils/manifestProtocol';
 import { getInstalledPackageEntry } from '../utils/packageUtils';
 import { getUsedRemotesMap, getUsedShares, inspectSharedImportSource } from '../virtualModules';
 
@@ -436,6 +441,7 @@ const Manifest = (): Plugin[] => {
       .filter(Boolean);
 
     return {
+      schemaVersion: FEDERATION_MANIFEST_SCHEMA_VERSION,
       id: name,
       name,
       metaData: {
@@ -474,6 +480,7 @@ const Manifest = (): Plugin[] => {
 
     return {
       ...baseManifest,
+      schemaVersion: FEDERATION_STATS_SCHEMA_VERSION,
       buildOutput: bundleSummary,
       diagnostics: generateBuildDiagnostics(bundle),
       ...(disableAssetsAnalyze ? {} : { assetAnalysis: preloadMap }),
@@ -488,6 +495,7 @@ const Manifest = (): Plugin[] => {
     const options = getNormalizeModuleFederationOptions();
 
     return {
+      schemaVersion: FEDERATION_DEBUG_SCHEMA_VERSION,
       generatedAt: new Date().toISOString(),
       manifestFile: mfManifestName,
       statsFile: mfManifestStatsName,

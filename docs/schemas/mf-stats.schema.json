@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vite-plugin-federation.dev/schemas/mf-stats.schema.json",
+  "title": "Vite Plugin Federation Stats",
+  "allOf": [
+    {
+      "$ref": "./mf-manifest.schema.json"
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "buildOutput", "diagnostics"],
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "enum": ["1.0.0"]
+        },
+        "buildOutput": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["fileName", "type", "isEntry"],
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "isEntry": {
+                "type": "boolean"
+              },
+              "size": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "assetAnalysis": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  ]
+}

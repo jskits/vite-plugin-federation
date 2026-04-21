@@ -461,6 +461,78 @@ describe('runtime api', () => {
     });
   });
 
+  it('accepts legacy and same-major manifest schema versions', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'legacyRemote',
+          metaData: {},
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'futureMinorRemote',
+          schemaVersion: '1.1.0',
+          metaData: {},
+        }),
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      fetchFederationManifest('http://remote.example/legacy-mf-manifest.json'),
+    ).resolves.toMatchObject({
+      name: 'legacyRemote',
+    });
+    await expect(
+      fetchFederationManifest('http://remote.example/future-minor-mf-manifest.json'),
+    ).resolves.toMatchObject({
+      name: 'futureMinorRemote',
+      schemaVersion: '1.1.0',
+    });
+  });
+
+  it('rejects unsupported manifest schema major versions', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        schemaVersion: '2.0.0',
+        metaData: {},
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchFederationManifest('http://remote.example/mf-manifest.json')).rejects.toThrow(
+      'unsupported schemaVersion "2.0.0"',
+    );
+  });
+
+  it('rejects invalid manifest schema version types', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        schemaVersion: 1,
+        metaData: {},
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchFederationManifest('http://remote.example/mf-manifest.json')).rejects.toThrow(
+      'unsupported schemaVersion 1',
+    );
+  });
+
   it('times out manifest fetches even when fetch ignores abort signals', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn(() => new Promise(() => {}));

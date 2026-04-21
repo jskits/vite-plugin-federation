@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import manifestPlugin from '../pluginMFManifest';
+import {
+  FEDERATION_DEBUG_SCHEMA_VERSION,
+  FEDERATION_MANIFEST_SCHEMA_VERSION,
+  FEDERATION_STATS_SCHEMA_VERSION,
+} from '../../utils/manifestProtocol';
 
 const {
   getNormalizeModuleFederationOptions,
@@ -59,6 +65,12 @@ function clearBuildEnv() {
   for (const key of BUILD_ENV_KEYS) {
     delete process.env[key];
   }
+}
+
+function readProtocolSchema(fileName: string) {
+  return JSON.parse(
+    readFileSync(new URL(`../../../../../docs/schemas/${fileName}`, import.meta.url), 'utf-8'),
+  );
 }
 
 const makeBundle = () => ({
@@ -172,6 +184,10 @@ describe('pluginMFManifest', () => {
     const stats = JSON.parse(emitted['mf-stats.json']);
     const debug = JSON.parse(emitted['mf-debug.json']);
 
+    expect(manifest.schemaVersion).toBe(FEDERATION_MANIFEST_SCHEMA_VERSION);
+    expect(stats.schemaVersion).toBe(FEDERATION_STATS_SCHEMA_VERSION);
+    expect(debug.schemaVersion).toBe(FEDERATION_DEBUG_SCHEMA_VERSION);
+    expect(debug.snapshot.schemaVersion).toBe(FEDERATION_MANIFEST_SCHEMA_VERSION);
     expect(manifest).toHaveProperty('metaData');
     expect(stats).toHaveProperty('buildOutput');
     expect(debug).toHaveProperty('snapshot');
@@ -225,6 +241,26 @@ describe('pluginMFManifest', () => {
       buildName: 'release-main',
       buildVersion: 'sha-123456',
     });
+  });
+
+  it('keeps emitted artifact schema versions aligned with committed schemas', async () => {
+    const emitted = await runGenerateBundleWithManifest(true);
+    const manifest = JSON.parse(emitted['mf-manifest.json']);
+    const stats = JSON.parse(emitted['mf-stats.json']);
+    const debug = JSON.parse(emitted['mf-debug.json']);
+
+    const manifestSchema = readProtocolSchema('mf-manifest.schema.json');
+    const statsSchema = readProtocolSchema('mf-stats.schema.json');
+    const debugSchema = readProtocolSchema('mf-debug.schema.json');
+    const statsSchemaProperties = statsSchema.allOf[1].properties;
+
+    expect(manifest.schemaVersion).toBe(manifestSchema.properties.schemaVersion.enum[0]);
+    expect(stats.schemaVersion).toBe(statsSchemaProperties.schemaVersion.enum[0]);
+    expect(debug.schemaVersion).toBe(debugSchema.properties.schemaVersion.enum[0]);
+    expect(manifestSchema.required).toEqual(
+      expect.arrayContaining(['schemaVersion', 'id', 'name', 'metaData', 'remotes']),
+    );
+    expect(debugSchema.properties.snapshot.$ref).toBe('./mf-manifest.schema.json');
   });
 
   it('emits companion stats file using manifest fileName suffix', async () => {

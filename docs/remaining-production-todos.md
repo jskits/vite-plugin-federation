@@ -137,15 +137,15 @@ Current state:
 - `mf-manifest.json`, `mf-stats.json`, and `mf-debug.json` are emitted.
 - Runtime validates a minimal manifest shape.
 - Build metadata and plugin version are traceable.
+- `schemaVersion` is emitted for manifest, stats, and debug artifacts.
+- JSON Schemas are committed under `docs/schemas`.
+- Runtime accepts missing legacy schema versions and same-major future versions, while rejecting
+  unsupported major versions.
 
 Remaining work:
 
-- Define a formal JSON Schema for `mf-manifest.json`.
-- Add an explicit `schemaVersion` field.
 - Define backward and forward compatibility rules.
-- Add schema validation tests for generated manifests.
 - Add runtime validation for required fields by target, while preserving compatibility.
-- Define a stable schema for `mf-stats.json` and `mf-debug.json`.
 - Add fixtures for schema compatibility tests.
 - Decide whether manifest should include integrity, content hash, or release id fields.
 - Document manifest hosting and cache rules as part of the protocol, not only runtime guidance.
@@ -159,9 +159,9 @@ Acceptance criteria:
 
 Suggested commits:
 
-- `feat: add manifest schema version`
-- `test: validate generated manifest schema`
-- `docs: publish manifest protocol schema`
+- `test: add manifest schema compatibility fixtures`
+- `feat: add target-specific manifest validation`
+- `feat: add manifest integrity metadata`
 
 ### 5. Compatibility Matrix
 

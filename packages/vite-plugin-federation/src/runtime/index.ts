@@ -22,6 +22,7 @@ import {
   getModuleFederationDebugState,
   type ModuleFederationErrorCode,
 } from '../utils/logger';
+import { assertSupportedFederationManifestSchemaVersion } from '../utils/manifestProtocol';
 
 const MODULE_FEDERATION_RUNTIME_DEBUG_SYMBOL = Symbol.for('vite-plugin-federation.runtime.debug');
 const NODE_TARGET_QUERY_KEY = 'mf_target';
@@ -96,6 +97,7 @@ export interface CollectFederationManifestPreloadLinksOptions {
 export interface FederationRemoteManifest {
   id?: string;
   name: string;
+  schemaVersion?: string;
   metaData: {
     name?: string;
     globalName?: string;
@@ -880,10 +882,19 @@ function validateManifest(manifestUrl: string, manifest: FederationRemoteManifes
     );
   }
 
-  if (!manifest.name || !manifest.metaData) {
+  assertSupportedFederationManifestSchemaVersion(manifestUrl, manifest.schemaVersion);
+
+  if (typeof manifest.name !== 'string' || !manifest.name || !manifest.metaData) {
     throw createModuleFederationError(
       'MFV-004',
       `Federation manifest "${manifestUrl}" is invalid: missing name or metaData.`,
+    );
+  }
+
+  if (typeof manifest.metaData !== 'object' || Array.isArray(manifest.metaData)) {
+    throw createModuleFederationError(
+      'MFV-004',
+      `Federation manifest "${manifestUrl}" is invalid: metaData must be an object.`,
     );
   }
 }

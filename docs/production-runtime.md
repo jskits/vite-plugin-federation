@@ -12,6 +12,9 @@ Remote applications should keep `manifest` enabled in the federation config. Bui
 - `mf-stats.json`: compatibility-oriented artifact summary for external tooling.
 - `mf-debug.json`: plugin diagnostics, normalized options, and manifest generation metadata.
 
+New artifacts include `schemaVersion: "1.0.0"`. See
+[manifest-protocol.md](manifest-protocol.md) for JSON Schemas and compatibility rules.
+
 The manifest `metaData.buildInfo` is generated from environment variables at build time. Preferred
 variables are checked first, then common CI provider variables are used, and local builds fall back
 to the remote name plus `local`.
