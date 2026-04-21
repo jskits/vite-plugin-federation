@@ -264,6 +264,90 @@ describe('runtime api', () => {
     warnSpy.mockRestore();
   });
 
+  it('records rejected singleton candidates for shared conflicts', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    createFederationInstance({
+      name: 'host',
+      remotes: [],
+      shared: {},
+      plugins: [],
+      inBrowser: false,
+    });
+    const initOptions = initMock.mock.calls.at(-1)?.[0];
+    const diagnosticsPlugin = initOptions.plugins.find(
+      (plugin: { name: string }) => plugin.name === 'vite-plugin-federation:shared-diagnostics',
+    );
+    const selectedShared = {
+      from: 'host',
+      loaded: true,
+      scope: ['default'],
+      shareConfig: {
+        requiredVersion: '^19.0.0',
+        singleton: true,
+      },
+      strategy: 'loaded-first',
+      useIn: ['host'],
+      version: '19.0.0',
+    };
+    const rejectedShared = {
+      from: 'remoteApp',
+      loaded: true,
+      scope: ['default'],
+      shareConfig: {
+        requiredVersion: '^18.0.0',
+        singleton: true,
+      },
+      strategy: 'loaded-first',
+      useIn: [],
+      version: '18.2.0',
+    };
+
+    diagnosticsPlugin.resolveShare({
+      pkgName: 'react',
+      resolver: () => ({
+        shared: selectedShared,
+        useTreesShaking: false,
+      }),
+      scope: 'default',
+      shareInfo: {
+        from: 'host',
+        scope: ['default'],
+        shareConfig: {
+          requiredVersion: '^19.0.0',
+          singleton: true,
+        },
+        strategy: 'loaded-first',
+        version: '19.0.0',
+      },
+      shareScopeMap: {
+        default: {
+          react: {
+            '18.2.0': rejectedShared,
+            '19.0.0': selectedShared,
+          },
+        },
+      },
+      version: '19.0.0',
+    });
+
+    const debugInfo = getFederationDebugInfo();
+    expect(debugInfo.runtime.sharedResolutionGraph.at(-1)).toMatchObject({
+      pkgName: 'react',
+      rejected: [expect.objectContaining({ provider: 'remoteApp', version: '18.2.0' })],
+      selected: expect.objectContaining({ provider: 'host', version: '19.0.0' }),
+      singleton: true,
+      status: 'resolved',
+      strategy: 'loaded-first',
+      versionSatisfied: true,
+    });
+    expect(debugInfo.diagnostics.recentEvents.at(-1)).toMatchObject({
+      code: 'MFV-003',
+      level: 'warn',
+    });
+
+    warnSpy.mockRestore();
+  });
+
   it('records shared resolution graph entries for async shared loads', async () => {
     getInstanceMock.mockReturnValue({
       name: 'host',

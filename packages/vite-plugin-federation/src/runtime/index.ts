@@ -210,6 +210,7 @@ interface RuntimeSharedResolutionEntry {
   pkgName: string;
   reason: string;
   requestedVersion?: false | string;
+  rejected: RuntimeSharedCandidateSnapshot[];
   selected: RuntimeSharedCandidateSnapshot | null;
   shareScope: string[];
   singleton: boolean;
@@ -659,6 +660,48 @@ function getSelectedSharedCandidate(
   );
 }
 
+function getRejectedSharedCandidates(
+  candidates: RuntimeSharedCandidateSnapshot[],
+  selected: RuntimeSharedCandidateSnapshot | null,
+) {
+  if (!selected) return [];
+  return candidates.filter(
+    (candidate) =>
+      candidate.version !== selected.version ||
+      candidate.provider !== selected.provider ||
+      candidate.scope.join(',') !== selected.scope.join(','),
+  );
+}
+
+function getDistinctRejectedVersions(rejected: RuntimeSharedCandidateSnapshot[]) {
+  return [...new Set(rejected.map((candidate) => candidate.version))].sort(
+    compareComparableVersions,
+  );
+}
+
+function warnSingletonConflict(
+  pkgName: string,
+  selected: RuntimeSharedCandidateSnapshot | null,
+  rejected: RuntimeSharedCandidateSnapshot[],
+  singleton: boolean,
+  scope: string[],
+) {
+  const rejectedVersions = getDistinctRejectedVersions(rejected);
+  if (!singleton || !selected || rejectedVersions.length === 0) return;
+
+  mfWarnWithCode(
+    'MFV-003',
+    `Shared singleton "${pkgName}" selected version "${selected.version}" and rejected ${rejectedVersions.join(', ')}.`,
+    {
+      pkgName,
+      rejectedVersions,
+      scope,
+      selectedProvider: selected.provider,
+      selectedVersion: selected.version,
+    },
+  );
+}
+
 function getRequestedShareConfig(
   pkgName: string,
   runtimeInstance: RuntimeInstanceWithInternals | null,
@@ -714,6 +757,7 @@ function recordSharedResolutionFromLoad(
   const requested = getRequestedShareConfig(pkgName, runtimeInstance, extraOptions);
   const candidates = getRuntimeSharedCandidates(pkgName, runtimeInstance, requested.scope);
   const selected = getSelectedSharedCandidate(candidates, consumer);
+  const rejected = getRejectedSharedCandidates(candidates, selected);
   const shareConfig = requested.shareConfig;
   const isHostOnly = shareConfig && 'import' in shareConfig && shareConfig.import === false;
   const status: SharedResolutionStatus =
@@ -738,6 +782,7 @@ function recordSharedResolutionFromLoad(
           ? `Selected ${selected.version} from ${selected.provider || 'unknown provider'}.`
           : 'Shared module loaded but selected provider could not be inferred from share scope.',
     requestedVersion,
+    rejected,
     selected,
     shareScope: requested.scope,
     singleton: shareConfig?.singleton === true,
@@ -746,6 +791,14 @@ function recordSharedResolutionFromLoad(
     strictVersion: shareConfig?.strictVersion === true,
     versionSatisfied,
   });
+
+  warnSingletonConflict(
+    pkgName,
+    selected,
+    rejected,
+    shareConfig?.singleton === true,
+    requested.scope,
+  );
 
   if (result === false) {
     mfWarnWithCode(
@@ -780,6 +833,7 @@ function recordSharedResolutionError(pkgName: string, extraOptions: unknown, err
     pkgName,
     reason: `Shared module resolution failed: ${message}`,
     requestedVersion,
+    rejected: [],
     selected: null,
     shareScope: requested.scope,
     singleton: shareConfig?.singleton === true,
@@ -815,6 +869,7 @@ function createSharedDiagnosticsRuntimePlugin() {
           args.shared.shareConfig?.requiredVersion === false
             ? args.shared.shareConfig.requiredVersion
             : undefined,
+        rejected: [],
         selected: null,
         shareScope: normalizeSharedScope(args.shared.scope),
         singleton: args.shared.shareConfig?.singleton === true,
@@ -847,6 +902,7 @@ function createSharedDiagnosticsRuntimePlugin() {
           args.shareInfo?.shareConfig?.requiredVersion === false
             ? args.shareInfo.shareConfig.requiredVersion
             : undefined,
+        rejected: [],
         selected: null,
         shareScope: normalizeSharedScope(args.shareInfo?.scope),
         singleton: args.shareInfo?.shareConfig?.singleton === true,
@@ -881,6 +937,7 @@ function createSharedDiagnosticsRuntimePlugin() {
         const selected = resolved?.shared
           ? toRuntimeSharedCandidateSnapshot(resolved.shared, args.version)
           : null;
+        const rejected = getRejectedSharedCandidates(candidates, selected);
         const requestedVersion =
           typeof args.shareInfo.shareConfig?.requiredVersion === 'string' ||
           args.shareInfo.shareConfig?.requiredVersion === false
@@ -898,9 +955,12 @@ function createSharedDiagnosticsRuntimePlugin() {
           reason: selected
             ? versionSatisfied === false
               ? `Resolved ${args.pkgName} to ${selected.version}, but it does not satisfy ${requestedVersion}.`
-              : `Resolved ${args.pkgName} to ${selected.version} from ${selected.provider || 'unknown provider'}.`
+              : rejected.length > 0 && args.shareInfo.shareConfig?.singleton === true
+                ? `Resolved singleton ${args.pkgName} to ${selected.version} and rejected ${getDistinctRejectedVersions(rejected).join(', ')}.`
+                : `Resolved ${args.pkgName} to ${selected.version} from ${selected.provider || 'unknown provider'}.`
             : `No registered shared provider satisfied ${args.pkgName}.`,
           requestedVersion,
+          rejected,
           selected,
           shareScope: [args.scope],
           singleton: args.shareInfo.shareConfig?.singleton === true,
@@ -914,6 +974,13 @@ function createSharedDiagnosticsRuntimePlugin() {
         warnSharedVersionMismatch(args.pkgName, selected, requestedVersion, strictVersion, [
           args.scope,
         ]);
+        warnSingletonConflict(
+          args.pkgName,
+          selected,
+          rejected,
+          args.shareInfo.shareConfig?.singleton === true,
+          [args.scope],
+        );
 
         if (!selected) {
           mfWarnWithCode('MFV-003', `No shared provider satisfied "${args.pkgName}".`, {
@@ -948,6 +1015,7 @@ function createSharedDiagnosticsRuntimePlugin() {
             args.shareInfo.shareConfig?.requiredVersion === false
               ? args.shareInfo.shareConfig.requiredVersion
               : undefined,
+          rejected: [],
           selected: null,
           shareScope: [args.scope],
           singleton: args.shareInfo.shareConfig?.singleton === true,
@@ -2343,6 +2411,7 @@ export function getFederationDebugInfo() {
       sharedResolutionGraph: debugState.sharedResolutionGraph.map((entry) => ({
         ...entry,
         candidates: entry.candidates.map((candidate) => ({ ...candidate })),
+        rejected: entry.rejected.map((candidate) => ({ ...candidate })),
         selected: entry.selected ? { ...entry.selected } : null,
       })),
     },

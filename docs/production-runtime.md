@@ -88,7 +88,8 @@ Runtime hosts created through `vite-plugin-federation/runtime` also install a sh
 plugin. The runtime records registered shared providers, the active share scope, each async/sync
 `loadShare` decision, candidate versions, selected provider, fallback mode, and `MFV-003`
 diagnostics for shared misses, fallback selection, and semver range mismatches. Each graph entry
-includes `versionSatisfied` when a selected provider can be compared to `requiredVersion`.
+includes `versionSatisfied` when a selected provider can be compared to `requiredVersion`, and
+singleton entries include rejected candidate versions when multiple providers are present.
 
 ## Browser Host Loading
 

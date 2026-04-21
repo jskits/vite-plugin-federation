@@ -45,12 +45,15 @@ Current state:
   mismatches, and strict shared resolution failures observed by the runtime wrapper/plugin.
 - Shared resolution graph entries include deterministic candidate ordering, selected strategy, and
   `versionSatisfied` for `requiredVersion` comparisons.
+- Singleton conflicts emit `MFV-003` with the selected provider/version and rejected candidate
+  versions.
 
 Remaining work:
 
 - Add e2e coverage for deterministic `loaded-first` and `version-first` negotiation in real
   host/remote builds.
-- Enforce or clearly report singleton conflicts with selected and rejected versions.
+- Decide whether singleton conflicts should remain diagnostic-only or become hard errors under an
+  explicit production strictness option.
 - Extend generated internal `loadShare` paths with source-path annotations so suffix-match
   decisions can be tied back to exact pnpm/symlinked file paths at runtime.
 - Validate `strictVersion` behavior under local fallback and host-only shared packages.
