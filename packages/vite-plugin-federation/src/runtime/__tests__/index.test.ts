@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   createInstanceMock,
@@ -91,9 +91,11 @@ vi.mock('@module-federation/runtime', () => ({
 
 import {
   clearFederationRuntimeCaches,
+  collectFederationManifestExposeAssets,
   createFederationInstance,
   createServerFederationInstance,
   fetchFederationManifest,
+  findFederationManifestExpose,
   getFederationDebugInfo,
   loadRemote,
   loadRemoteFromManifest,
@@ -108,6 +110,7 @@ import { clearModuleFederationDebugState } from '../../utils/logger';
 
 describe('runtime api', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     clearModuleFederationDebugState();
     clearFederationRuntimeCaches();
     createInstanceMock.mockClear();
@@ -124,6 +127,10 @@ describe('runtime api', () => {
       SourceTextModule: SourceTextModuleMock,
     }));
     delete (globalThis as any).__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('tracks registered remotes and shared keys in debug info', () => {
@@ -391,6 +398,151 @@ describe('runtime api', () => {
     expect(manifestA).toEqual(manifestB);
   });
 
+  it('retries retriable manifest fetch failures', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'remoteApp',
+          metaData: {
+            globalName: 'remoteApp',
+            remoteEntry: {
+              name: 'remoteEntry.js',
+              path: '',
+              type: 'module',
+            },
+          },
+        }),
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const manifest = await fetchFederationManifest('http://remote.example/mf-manifest.json', {
+      retries: 1,
+      retryDelay: 0,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(manifest.name).toBe('remoteApp');
+    expect(getFederationDebugInfo().runtime.manifestFetches.map((entry) => entry.status)).toEqual([
+      'retry',
+      'success',
+    ]);
+  });
+
+  it('does not retry non-retriable manifest fetch failures', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      fetchFederationManifest('http://remote.example/mf-manifest.json', {
+        retries: 3,
+        retryDelay: 0,
+      }),
+    ).rejects.toThrow('status 404');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getFederationDebugInfo().runtime.manifestFetches.at(-1)).toMatchObject({
+      status: 'failure',
+      statusCode: 404,
+    });
+  });
+
+  it('times out manifest fetches even when fetch ignores abort signals', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(() => new Promise(() => {}));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const manifestPromise = fetchFederationManifest('http://remote.example/mf-manifest.json', {
+      timeout: 100,
+    });
+    const expectation = expect(manifestPromise).rejects.toThrow(
+      'Timed out fetching federation manifest',
+    );
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expectation;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getFederationDebugInfo().runtime.manifestFetches.at(-1)).toMatchObject({
+      status: 'failure',
+    });
+  });
+
+  it('expires manifest cache entries using cacheTtl', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          globalName: 'remoteApp',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchFederationManifest('http://remote.example/mf-manifest.json', { cacheTtl: 1000 });
+    await fetchFederationManifest('http://remote.example/mf-manifest.json', { cacheTtl: 1000 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(new Date('2026-01-01T00:00:01.500Z'));
+    await fetchFederationManifest('http://remote.example/mf-manifest.json', { cacheTtl: 1000 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getFederationDebugInfo().runtime.manifestCache[0]).toMatchObject({
+      manifestUrl: 'http://remote.example/mf-manifest.json',
+      name: 'remoteApp',
+    });
+  });
+
+  it('can bypass the manifest response cache', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          globalName: 'remoteApp',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchFederationManifest('http://remote.example/mf-manifest.json', { cache: false });
+    await fetchFederationManifest('http://remote.example/mf-manifest.json', { cache: false });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getFederationDebugInfo().runtime.manifestCacheKeys).toEqual([]);
+  });
+
   it('registers manifest remotes with the node entry when target=node', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -580,6 +732,71 @@ describe('runtime api', () => {
     expect(registerRemotesMock).toHaveBeenCalledTimes(1);
     expect(loadRemoteMock).toHaveBeenCalledWith('remoteApp/Button', { from: 'runtime' });
     expect(result).toEqual({ default: 'button' });
+  });
+
+  it('resolves expose assets from federation manifests', () => {
+    const manifest = {
+      name: 'remoteApp',
+      metaData: {
+        publicPath: 'https://cdn.example/assets/',
+      },
+      exposes: [
+        {
+          name: 'Button',
+          path: './Button',
+          assets: {
+            css: {
+              sync: ['Button.css'],
+              async: ['Button.async.css'],
+            },
+            js: {
+              sync: ['Button.js'],
+              async: ['Button.async.js'],
+            },
+          },
+        },
+      ],
+    } as any;
+
+    expect(findFederationManifestExpose(manifest, 'Button')).toMatchObject({
+      path: './Button',
+    });
+
+    expect(
+      collectFederationManifestExposeAssets(
+        'https://remote.example/mf-manifest.json',
+        manifest,
+        './Button',
+      ),
+    ).toMatchObject({
+      css: {
+        all: [
+          'https://cdn.example/assets/Button.css',
+          'https://cdn.example/assets/Button.async.css',
+        ],
+        async: ['https://cdn.example/assets/Button.async.css'],
+        sync: ['https://cdn.example/assets/Button.css'],
+      },
+      js: {
+        all: ['https://cdn.example/assets/Button.js', 'https://cdn.example/assets/Button.async.js'],
+        async: ['https://cdn.example/assets/Button.async.js'],
+        sync: ['https://cdn.example/assets/Button.js'],
+      },
+    });
+  });
+
+  it('throws a federation error when manifest expose assets are missing', () => {
+    expect(() =>
+      collectFederationManifestExposeAssets(
+        'https://remote.example/mf-manifest.json',
+        {
+          name: 'remoteApp',
+          metaData: {},
+          exposes: [],
+        },
+        './Missing',
+      ),
+    ).toThrow('MFV-005');
   });
 
   it('publishes runtime debug snapshots to the devtools hook', () => {

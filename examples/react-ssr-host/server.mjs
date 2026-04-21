@@ -2,6 +2,7 @@ import { readFile, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { collectFederationManifestExposeAssets } from 'vite-plugin-federation/runtime';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.join(__dirname, 'dist', 'client');
@@ -61,32 +62,17 @@ function collectClientEntryAssets(manifest, entryKey, seen = new Set()) {
   return { css, js };
 }
 
-function resolveRemoteAssetUrl(remoteManifestUrl, remoteManifest, assetPath) {
-  const publicPath = remoteManifest.metaData?.publicPath;
-  if (publicPath && publicPath !== 'auto') {
-    return new URL(assetPath, new URL(publicPath, remoteManifestUrl)).toString();
-  }
-  return new URL(assetPath, remoteManifestUrl).toString();
-}
-
 function collectRemoteExposeAssets(remoteManifest, remoteManifestUrl, exposePath) {
-  const expose = remoteManifest.exposes?.find((item) => item.path === exposePath);
-  if (!expose) {
-    throw new Error(`Unable to find expose "${exposePath}" in remote manifest.`);
-  }
-
-  const css = new Set(
-    [...(expose.assets?.css?.sync || []), ...(expose.assets?.css?.async || [])].map((asset) =>
-      resolveRemoteAssetUrl(remoteManifestUrl, remoteManifest, asset),
-    ),
-  );
-  const js = new Set(
-    [...(expose.assets?.js?.sync || [])].map((asset) =>
-      resolveRemoteAssetUrl(remoteManifestUrl, remoteManifest, asset),
-    ),
+  const assets = collectFederationManifestExposeAssets(
+    remoteManifestUrl,
+    remoteManifest,
+    exposePath,
   );
 
-  return { css, js };
+  return {
+    css: new Set(assets.css.all),
+    js: new Set(assets.js.sync),
+  };
 }
 
 async function serveStaticFile(reqPath, res) {
