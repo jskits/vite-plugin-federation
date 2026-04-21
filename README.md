@@ -63,6 +63,15 @@ pnpm --filter example-react-ssr-host serve
 The SSR host example starts Node with `--experimental-vm-modules`, because the current
 Module Federation runtime uses the VM module loader for remote ESM evaluation on the server.
 
+## Production Runtime
+
+The plugin is manifest-first by default. Remote builds publish `mf-manifest.json`, `mf-stats.json`,
+and `mf-debug.json`; hosts can consume manifests through `vite-plugin-federation/runtime` with
+cache TTLs, retries, timeouts, SSR entry selection, asset preloading helpers, and debug snapshots.
+
+See [docs/production-runtime.md](docs/production-runtime.md) for the production loading contract,
+CI build metadata, SSR asset collection, and operational recommendations.
+
 ## Release Flow
 
 1. Run `pnpm changeset` after finishing development work.
@@ -73,5 +82,5 @@ Module Federation runtime uses the VM module loader for remote ESM evaluation on
 ## CI/CD
 
 - `.github/workflows/ci.yml` runs `pnpm check` on `push` and `pull_request`.
-- `.github/workflows/release.yml` uses Changesets to open a release PR or publish directly after pushes to `main`.
+- `.github/workflows/release.yml` is manual-only and uses Changesets to open a release PR or publish.
 - Configure `NPM_TOKEN` in the GitHub repository before enabling automated publishing.
