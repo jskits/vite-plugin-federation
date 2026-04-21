@@ -36,6 +36,7 @@
     "lint": "eslint .",
     "test": "vitest --config vitest.config.ts run",
     "test:e2e": "pnpm build && playwright test --config playwright.config.ts",
+    "test:e2e:ssr": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-react-ssr-host build && playwright test --config playwright.ssr.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },

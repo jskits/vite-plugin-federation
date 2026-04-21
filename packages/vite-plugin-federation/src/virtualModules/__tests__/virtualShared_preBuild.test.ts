@@ -427,6 +427,31 @@ describe('writeLoadShareModule', () => {
     );
   });
 
+  it('uses SSR provider fallback for React subpath shared modules in build output', () => {
+    const pkg = 'react/jsx-runtime';
+    const mockShareItem: ShareItem = {
+      name: pkg,
+      from: '',
+      version: '19.2.4',
+      shareConfig: {
+        singleton: true,
+        strictVersion: false,
+        requiredVersion: '^19.2.4',
+      },
+      scope: 'default',
+    };
+
+    writeLoadShareModule(pkg, mockShareItem, 'build', false);
+
+    const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
+
+    expect(generatedCode).toContain('const providerModulePromise = typeof window === "undefined"');
+    expect(generatedCode).toContain('import("/resolved/react/jsx-runtime")');
+    expect(generatedCode).toContain(
+      '? ((await providerModulePromise)?.default ?? await providerModulePromise)',
+    );
+  });
+
   it('falls back to parsing ESM exports when require() cannot load the shared package', () => {
     const pkg = 'mock-package-esm-only/stores';
     const mockShareItem: ShareItem = {

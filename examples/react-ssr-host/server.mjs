@@ -88,6 +88,40 @@ async function serveStaticFile(reqPath, res) {
   }
 }
 
+async function proxyRemoteAsset(reqPath, res) {
+  if (!reqPath.startsWith('assets/')) {
+    return false;
+  }
+
+  const remoteAssetUrl = new URL(reqPath, remoteManifestUrl);
+
+  try {
+    const response = await fetch(remoteAssetUrl);
+    if (!response.ok) {
+      return false;
+    }
+
+    const ext = path.extname(reqPath);
+    const contentLength = response.headers.get('content-length');
+    const headers = {
+      'Content-Type':
+        response.headers.get('content-type') || MIME_TYPES[ext] || 'application/octet-stream',
+      'Cache-Control':
+        response.headers.get('cache-control') || 'public, max-age=31536000, immutable',
+    };
+
+    if (contentLength) {
+      headers['Content-Length'] = contentLength;
+    }
+
+    res.writeHead(response.status, headers);
+    res.end(Buffer.from(await response.arrayBuffer()));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function renderDocument() {
   const [{ render }, clientManifest] = await Promise.all([
     import(pathToFileURL(serverEntryPath).href),
@@ -160,6 +194,8 @@ const server = http.createServer(async (req, res) => {
   if (pathname !== '/') {
     const served = await serveStaticFile(pathname.slice(1), res);
     if (served) return;
+    const proxied = await proxyRemoteAsset(pathname.slice(1), res);
+    if (proxied) return;
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not found');
     return;

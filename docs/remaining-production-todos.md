@@ -103,11 +103,11 @@ Current state:
 - `ssrRemoteEntry` is emitted and consumed.
 - React SSR host/remote example builds.
 - Manifest-driven asset/preload helper exists.
+- A dedicated SSR Playwright config validates manifest remote server rendering and browser
+  hydration.
 
 Remaining work:
 
-- Add an actual SSR e2e that starts remote preview, starts SSR host, requests HTML, and validates
-  server-rendered remote markup.
 - Validate hydration uses the same manifest URL and compatible share scope.
 - Validate React singleton sharing across server render and browser hydration.
 - Add tests for `ssr.external` and `ssr.noExternal` interactions.

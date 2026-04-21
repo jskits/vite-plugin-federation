@@ -268,6 +268,15 @@ function isWorkspaceFilePath(resolved: string | undefined): resolved is string {
   );
 }
 
+function isReactSharedPackage(pkg: string) {
+  return (
+    pkg === 'react' ||
+    pkg.startsWith('react/') ||
+    pkg === 'react-dom' ||
+    pkg.startsWith('react-dom/')
+  );
+}
+
 function tryResolveImportFromPackageRoot(pkg: string, root: string): string | undefined {
   try {
     const projectRequire = createRequire(new URL(`file://${path.join(root, 'package.json')}`));
@@ -461,7 +470,9 @@ export function writeLoadShareModule(
   // Normal path: package is installed locally, create full loadShare with prebuild fallback.
   const isVinext = hasPackageDependency('vinext');
   const isAstro = hasPackageDependency('astro');
-  const useSsrProviderFallback = (isVinext || isAstro) && command === 'build' && pkg === 'react';
+  const useSsrProviderFallback =
+    command === 'build' &&
+    (isReactSharedPackage(pkg) || ((isVinext || isAstro) && pkg === 'react'));
   const concreteSharedImportSource = getConcreteSharedImportSource(pkg, shareItem);
   const sharedImportSource = concreteSharedImportSource || getPreBuildLibImportId(pkg);
   const devImportSource = concreteSharedImportSource || pkg;

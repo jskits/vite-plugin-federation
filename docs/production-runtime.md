@@ -223,6 +223,12 @@ CSS, and sync JS. Set `includeAsyncJs: true` when the host wants to eagerly modu
 chunks as well. Module preload links default to `crossorigin="anonymous"`; set
 `crossorigin: false` to omit the attribute.
 
+If browser and remote assets are served from different origins, also account for root-relative
+dependencies emitted inside remote chunks. Either configure the remote so those preloads resolve to
+the remote origin, or proxy the relevant asset paths from the SSR host. The React SSR example proxies
+`/assets/*` to the origin that serves the remote manifest so hydration can reuse the same manifest
+URL without asset 404s.
+
 ## Observability
 
 Use `getFederationDebugInfo()` to inspect the active runtime. The snapshot includes:

@@ -51,6 +51,7 @@ Use the following commands:
 pnpm examples:build
 pnpm examples:dev
 pnpm examples:ssr:build
+pnpm --filter vite-plugin-federation test:e2e:ssr
 ```
 
 To verify the SSR path locally, start the remote preview first and then start the SSR host:
