@@ -840,6 +840,67 @@ function appendEntryRefreshTimestamp(
   return refreshedUrl.toString();
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function assertOptionalStringField(manifestUrl: string, fieldPath: string, value: unknown) {
+  if (typeof value === 'undefined') {
+    return;
+  }
+
+  if (typeof value !== 'string') {
+    throw createModuleFederationError(
+      'MFV-004',
+      `Federation manifest "${manifestUrl}" is invalid: ${fieldPath} must be a string when provided.`,
+    );
+  }
+}
+
+function validateManifestEntryField(
+  manifestUrl: string,
+  fieldPath: string,
+  entry: unknown,
+): asserts entry is FederationRemoteManifestEntry | undefined {
+  if (typeof entry === 'undefined') {
+    return;
+  }
+
+  if (!isObjectRecord(entry)) {
+    throw createModuleFederationError(
+      'MFV-004',
+      `Federation manifest "${manifestUrl}" is invalid: ${fieldPath} must be an object when provided.`,
+    );
+  }
+
+  assertOptionalStringField(manifestUrl, `${fieldPath}.name`, entry.name);
+  assertOptionalStringField(manifestUrl, `${fieldPath}.path`, entry.path);
+  assertOptionalStringField(manifestUrl, `${fieldPath}.type`, entry.type);
+}
+
+function isUsableManifestEntry(
+  entry: FederationRemoteManifestEntry | undefined,
+): entry is FederationRemoteManifestEntry & { name: string } {
+  return typeof entry?.name === 'string' && entry.name.length > 0;
+}
+
+function assertUsableManifestEntryForTarget(
+  manifestUrl: string,
+  target: FederationRuntimeTarget,
+  entry: FederationRemoteManifestEntry | undefined,
+  errorCode: ModuleFederationErrorCode,
+  description: string,
+) {
+  if (isUsableManifestEntry(entry)) {
+    return entry;
+  }
+
+  throw createModuleFederationError(
+    errorCode,
+    `Federation manifest "${manifestUrl}" does not declare a usable ${description} for target "${target}".`,
+  );
+}
+
 function getManifestEntryForTarget(
   manifestUrl: string,
   manifest: FederationRemoteManifest,
@@ -855,23 +916,23 @@ function getManifestEntryForTarget(
 
   if (target === 'node') {
     const nodeEntry = metaData.ssrRemoteEntry || metaData.remoteEntry;
-    if (!nodeEntry?.name) {
-      throw createModuleFederationError(
-        'MFV-006',
-        `Federation manifest "${manifestUrl}" does not declare a usable ssrRemoteEntry.`,
-      );
-    }
-    return nodeEntry;
+    return assertUsableManifestEntryForTarget(
+      manifestUrl,
+      target,
+      nodeEntry,
+      'MFV-006',
+      'ssrRemoteEntry or remoteEntry fallback',
+    );
   }
 
   const browserEntry = metaData.remoteEntry || metaData.ssrRemoteEntry;
-  if (!browserEntry?.name) {
-    throw createModuleFederationError(
-      'MFV-004',
-      `Federation manifest "${manifestUrl}" does not declare a usable remoteEntry.`,
-    );
-  }
-  return browserEntry;
+  return assertUsableManifestEntryForTarget(
+    manifestUrl,
+    target,
+    browserEntry,
+    'MFV-004',
+    'remoteEntry or ssrRemoteEntry fallback',
+  );
 }
 
 function validateManifest(manifestUrl: string, manifest: FederationRemoteManifest) {
@@ -891,12 +952,23 @@ function validateManifest(manifestUrl: string, manifest: FederationRemoteManifes
     );
   }
 
-  if (typeof manifest.metaData !== 'object' || Array.isArray(manifest.metaData)) {
+  if (!isObjectRecord(manifest.metaData)) {
     throw createModuleFederationError(
       'MFV-004',
       `Federation manifest "${manifestUrl}" is invalid: metaData must be an object.`,
     );
   }
+
+  assertOptionalStringField(manifestUrl, 'id', manifest.id);
+  assertOptionalStringField(manifestUrl, 'metaData.name', manifest.metaData.name);
+  assertOptionalStringField(manifestUrl, 'metaData.globalName', manifest.metaData.globalName);
+  assertOptionalStringField(manifestUrl, 'metaData.publicPath', manifest.metaData.publicPath);
+  validateManifestEntryField(manifestUrl, 'metaData.remoteEntry', manifest.metaData.remoteEntry);
+  validateManifestEntryField(
+    manifestUrl,
+    'metaData.ssrRemoteEntry',
+    manifest.metaData.ssrRemoteEntry,
+  );
 }
 
 function isManifestCacheEnabled(options: ManifestFetchOptions) {

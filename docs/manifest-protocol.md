@@ -27,6 +27,8 @@ Runtime compatibility rules:
 - Same-major versions are accepted, so `1.1.0` can be consumed by a `1.0.0` runtime.
 - Different major versions are rejected with `MFV-004`.
 - Non-string schema versions are rejected with `MFV-004`.
+- Malformed known fields are rejected with `MFV-004`.
+- Target-specific entry validation happens when a host registers a manifest remote.
 
 The JSON Schemas describe the exact emitted `1.0.0` shape. Runtime validation is intentionally more
 permissive than schema validation so hosts can consume older manifests and same-major future
@@ -50,6 +52,17 @@ Optional fields:
 `metaData.remoteEntry` is the browser entry. `metaData.ssrRemoteEntry` is the Node/SSR entry when
 available. Browser hosts prefer `remoteEntry`; Node hosts prefer `ssrRemoteEntry` and fall back to
 `remoteEntry` only when necessary.
+
+Runtime target validation:
+
+- `target: 'web'` requires a usable `metaData.remoteEntry.name`; `ssrRemoteEntry.name` is accepted
+  only as a compatibility fallback.
+- `target: 'node'` requires a usable `metaData.ssrRemoteEntry.name`; `remoteEntry.name` is accepted
+  as the legacy fallback when no SSR entry exists.
+- If `remoteEntry` or `ssrRemoteEntry` is present, `name`, `path`, and `type` must be strings when
+  provided.
+- A malformed SSR entry is reported as `MFV-006` for Node targets instead of silently falling back
+  to a browser entry.
 
 ## Compatibility Policy
 

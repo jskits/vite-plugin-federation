@@ -533,6 +533,48 @@ describe('runtime api', () => {
     );
   });
 
+  it('rejects malformed manifest entry fields during fetch validation', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: 42,
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchFederationManifest('http://remote.example/mf-manifest.json')).rejects.toThrow(
+      'metaData.remoteEntry.path must be a string',
+    );
+  });
+
+  it('reports missing target-specific manifest entries during registration', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {},
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      registerManifestRemote('remoteApp', 'http://remote.example/mf-manifest.json', {
+        target: 'web',
+      }),
+    ).rejects.toThrow('usable remoteEntry or ssrRemoteEntry fallback for target "web"');
+  });
+
   it('times out manifest fetches even when fetch ignores abort signals', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn(() => new Promise(() => {}));
@@ -614,6 +656,70 @@ describe('runtime api', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(getFederationDebugInfo().runtime.manifestCacheKeys).toEqual([]);
+  });
+
+  it('falls back to browser remoteEntry when target=node and ssrRemoteEntry is absent', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          globalName: 'remote-app',
+          publicPath: 'https://cdn.example/assets/',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await registerManifestRemote('catalog', 'https://remote.example/mf-manifest.json', {
+      target: 'node',
+    });
+
+    expect(registerRemotesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        alias: 'catalog',
+        entry: 'https://cdn.example/assets/remoteEntry.js',
+        entryGlobalName: 'remote-app',
+        name: 'remoteApp',
+      }),
+    ]);
+  });
+
+  it('rejects malformed ssrRemoteEntry before falling back for target=node', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          globalName: 'remote-app',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+          ssrRemoteEntry: {
+            path: 'server',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      registerManifestRemote('catalog', 'https://remote.example/mf-manifest.json', {
+        target: 'node',
+      }),
+    ).rejects.toThrow('usable ssrRemoteEntry or remoteEntry fallback for target "node"');
   });
 
   it('registers manifest remotes with the node entry when target=node', async () => {

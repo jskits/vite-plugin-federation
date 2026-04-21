@@ -141,11 +141,12 @@ Current state:
 - JSON Schemas are committed under `docs/schemas`.
 - Runtime accepts missing legacy schema versions and same-major future versions, while rejecting
   unsupported major versions.
+- Runtime validates malformed known manifest fields and enforces target-specific entry requirements
+  during manifest remote registration.
 
 Remaining work:
 
 - Define backward and forward compatibility rules.
-- Add runtime validation for required fields by target, while preserving compatibility.
 - Add fixtures for schema compatibility tests.
 - Decide whether manifest should include integrity, content hash, or release id fields.
 - Document manifest hosting and cache rules as part of the protocol, not only runtime guidance.
