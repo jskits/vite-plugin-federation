@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import manifestPlugin from '../pluginMFManifest';
 
@@ -43,6 +43,23 @@ vi.mock('../../virtualModules', () => ({
 vi.mock('../../utils/packageUtils', () => ({
   getInstalledPackageEntry,
 }));
+
+const BUILD_ENV_KEYS = [
+  'VITE_PLUGIN_FEDERATION_BUILD_VERSION',
+  'MF_BUILD_VERSION',
+  'GITHUB_SHA',
+  'VERCEL_GIT_COMMIT_SHA',
+  'VITE_PLUGIN_FEDERATION_BUILD_NAME',
+  'MF_BUILD_NAME',
+  'GITHUB_REF_NAME',
+  'VERCEL_GIT_COMMIT_REF',
+];
+
+function clearBuildEnv() {
+  for (const key of BUILD_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
 
 const makeBundle = () => ({
   'remoteEntry.js': {
@@ -141,6 +158,11 @@ async function runGenerateBundleWithManifest(
 describe('pluginMFManifest', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearBuildEnv();
+  });
+
+  afterEach(() => {
+    clearBuildEnv();
   });
 
   it('emits manifest and mf-stats artifacts by default', async () => {
@@ -156,7 +178,12 @@ describe('pluginMFManifest', () => {
     expect(stats).toHaveProperty('diagnostics');
     expect(debug).toHaveProperty('diagnostics');
     expect(debug.metaData.pluginName).toBe('vite-plugin-federation');
+    expect(debug.metaData.pluginVersion).toBe('0.0.0');
     expect(debug.capabilities.debugArtifacts).toBe(true);
+    expect(manifest.metaData.buildInfo).toEqual({
+      buildName: 'basicRemote',
+      buildVersion: 'local',
+    });
     expect(manifest.metaData.ssrRemoteEntry).toEqual({
       name: 'remoteEntry.ssr.js',
       path: '',
@@ -180,6 +207,24 @@ describe('pluginMFManifest', () => {
     expect(
       stats.buildOutput.find((chunk: any) => chunk.fileName === 'remoteEntry.js'),
     ).toBeTruthy();
+  });
+
+  it('uses environment build metadata in manifest artifacts', async () => {
+    process.env.VITE_PLUGIN_FEDERATION_BUILD_VERSION = 'sha-123456';
+    process.env.VITE_PLUGIN_FEDERATION_BUILD_NAME = 'release-main';
+
+    const emitted = await runGenerateBundleWithManifest(true);
+    const manifest = JSON.parse(emitted['mf-manifest.json']);
+    const debug = JSON.parse(emitted['mf-debug.json']);
+
+    expect(manifest.metaData.buildInfo).toEqual({
+      buildName: 'release-main',
+      buildVersion: 'sha-123456',
+    });
+    expect(debug.snapshot.metaData.buildInfo).toEqual({
+      buildName: 'release-main',
+      buildVersion: 'sha-123456',
+    });
   });
 
   it('emits companion stats file using manifest fileName suffix', async () => {

@@ -21,6 +21,40 @@ import {
 } from '../utils/cssModuleHelpers';
 import { resolvePublicPath } from '../utils/publicPath';
 
+declare const __VITE_PLUGIN_FEDERATION_VERSION__: string | undefined;
+
+const PLUGIN_VERSION =
+  typeof __VITE_PLUGIN_FEDERATION_VERSION__ === 'string'
+    ? __VITE_PLUGIN_FEDERATION_VERSION__
+    : '0.0.0';
+
+function getFirstEnvValue(keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function getBuildInfo(name: string) {
+  return {
+    buildVersion:
+      getFirstEnvValue([
+        'VITE_PLUGIN_FEDERATION_BUILD_VERSION',
+        'MF_BUILD_VERSION',
+        'GITHUB_SHA',
+        'VERCEL_GIT_COMMIT_SHA',
+      ]) || 'local',
+    buildName:
+      getFirstEnvValue([
+        'VITE_PLUGIN_FEDERATION_BUILD_NAME',
+        'MF_BUILD_NAME',
+        'GITHUB_REF_NAME',
+        'VERCEL_GIT_COMMIT_REF',
+      ]) || name,
+  };
+}
+
 const Manifest = (): Plugin[] => {
   const mfOptions = getNormalizeModuleFederationOptions();
   const { name, filename, getPublicPath, manifest: manifestOptions, varFilename } = mfOptions;
@@ -138,7 +172,7 @@ const Manifest = (): Plugin[] => {
                 metaData: {
                   name: name,
                   type: 'app',
-                  buildInfo: { buildVersion: '1.0.0', buildName: name },
+                  buildInfo: getBuildInfo(name),
                   remoteEntry: {
                     name: getEffectiveRemoteEntryFile(),
                     path: '',
@@ -158,7 +192,7 @@ const Manifest = (): Plugin[] => {
                     : undefined,
                   types: getTypesMetadata(mfOptions),
                   globalName: name,
-                  pluginVersion: '0.2.5',
+                  pluginVersion: PLUGIN_VERSION,
                   publicPath: getDevRequestPublicPath(req),
                 },
               }),
@@ -407,16 +441,13 @@ const Manifest = (): Plugin[] => {
       metaData: {
         name,
         type: 'app',
-        buildInfo: {
-          buildVersion: '1.0.0',
-          buildName: name,
-        },
+        buildInfo: getBuildInfo(name),
         remoteEntry,
         ssrRemoteEntry,
         varRemoteEntry,
         types: getTypesMetadata(options),
         globalName: name,
-        pluginVersion: '0.2.5',
+        pluginVersion: PLUGIN_VERSION,
         ...(getPublicPath ? { getPublicPath } : { publicPath }),
       },
       ...(disableAssetsAnalyze ? {} : { shared }),
@@ -462,7 +493,7 @@ const Manifest = (): Plugin[] => {
       statsFile: mfManifestStatsName,
       metaData: {
         pluginName: 'vite-plugin-federation',
-        pluginVersion: '0.2.5',
+        pluginVersion: PLUGIN_VERSION,
       },
       options: {
         bundleAllCSS: options.bundleAllCSS,
