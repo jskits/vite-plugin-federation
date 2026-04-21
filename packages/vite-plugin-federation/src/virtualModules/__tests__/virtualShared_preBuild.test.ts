@@ -452,6 +452,28 @@ describe('writeLoadShareModule', () => {
     );
   });
 
+  it('passes allowNodeModulesSuffixMatch through generated runtime share config', () => {
+    const pkg = 'react';
+    const mockShareItem: ShareItem = {
+      name: pkg,
+      from: '',
+      version: '19.2.4',
+      shareConfig: {
+        allowNodeModulesSuffixMatch: true,
+        singleton: true,
+        strictVersion: false,
+        requiredVersion: '^19.2.4',
+      },
+      scope: 'default',
+    };
+
+    writeLoadShareModule(pkg, mockShareItem, 'build', false);
+
+    const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
+
+    expect(generatedCode).toContain('allowNodeModulesSuffixMatch: true');
+  });
+
   it('falls back to parsing ESM exports when require() cannot load the shared package', () => {
     const pkg = 'mock-package-esm-only/stores';
     const mockShareItem: ShareItem = {

@@ -452,6 +452,7 @@ const Manifest = (): Plugin[] => {
           version: shareItem.version,
           singleton: shareItem.shareConfig.singleton,
           requiredVersion: shareItem.shareConfig.requiredVersion,
+          allowNodeModulesSuffixMatch: shareItem.shareConfig.allowNodeModulesSuffixMatch === true,
           assets: {
             js: {
               async: assets.js.async,
@@ -656,6 +657,7 @@ const Manifest = (): Plugin[] => {
           importDisabled: shareItem.shareConfig.import === false,
           key: shareKey,
           matchType: isPrefixMatch ? 'prefix' : 'exact',
+          allowNodeModulesSuffixMatch: shareItem.shareConfig.allowNodeModulesSuffixMatch === true,
           requiredVersion: shareItem.shareConfig.requiredVersion,
           resolutionRoot: sharedImportInspection.resolutionRoot,
           resolutionSource: sharedImportInspection.resolutionSource,

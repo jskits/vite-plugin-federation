@@ -194,6 +194,9 @@
         "requiredVersion": {
           "type": "string"
         },
+        "allowNodeModulesSuffixMatch": {
+          "type": "boolean"
+        },
         "assets": {
           "$ref": "#/$defs/assets"
         }

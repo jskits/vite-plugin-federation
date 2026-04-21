@@ -33,11 +33,12 @@ Current state:
 - `singleton`, `requiredVersion`, and `strictVersion` are present in generated share metadata.
 - Local fallback and `import: false` paths exist.
 - Several shared prebuild and subpath tests exist.
+- `allowNodeModulesSuffixMatch` is normalized, passed to generated runtime share config, matched
+  against pnpm/nested `node_modules` suffixes in the proxy path, and exposed in manifest
+  diagnostics.
 
 Remaining work:
 
-- Implement full `allowNodeModulesSuffixMatch` support for pnpm, symlinked workspaces, and nested
-  `node_modules` layouts.
 - Build a real shared resolution graph that records exact match, package-root match, trailing-slash
   subpath match, suffix match, and fallback mode.
 - Add deterministic version negotiation diagnostics for `loaded-first` and `version-first`.

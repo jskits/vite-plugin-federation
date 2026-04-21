@@ -56,6 +56,34 @@ If the manifest and remote assets are on a different origin, configure CORS for 
 and ESM assets. Browser hosts need the manifest, remote entries, shared chunks, CSS, and dynamic
 imports to be reachable from the host origin.
 
+## Shared Resolution
+
+Use exact shared keys for package roots and trailing-slash keys for subpaths:
+
+```ts
+federation({
+  name: 'remote',
+  shared: {
+    react: {
+      singleton: true,
+      requiredVersion: '^19.2.4',
+      allowNodeModulesSuffixMatch: true,
+    },
+    'react/': {
+      singleton: true,
+      requiredVersion: '^19.2.4',
+      allowNodeModulesSuffixMatch: true,
+    },
+  },
+});
+```
+
+`allowNodeModulesSuffixMatch` lets resolved ids from pnpm, nested `node_modules`, and symlinked
+workspace layouts match by the path segment after the final `node_modules/`. This is useful when a
+shared package appears at different absolute paths between host and remote builds. Generated
+`mf-stats.json` diagnostics include the flag so production incidents can distinguish exact,
+trailing-slash, and suffix-enabled shared rules.
+
 ## Browser Host Loading
 
 Use `loadRemoteFromManifest` when one remote module is needed immediately. It fetches the manifest,

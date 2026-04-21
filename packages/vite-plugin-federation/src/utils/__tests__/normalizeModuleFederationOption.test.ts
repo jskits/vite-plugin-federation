@@ -1,6 +1,11 @@
 import { vi } from 'vitest';
 import type { ModuleFederationOptions } from '../normalizeModuleFederationOptions';
-import { normalizeModuleFederationOptions } from '../normalizeModuleFederationOptions';
+import {
+  findNodeModulesSuffixSharedMatch,
+  getNodeModulesSuffixShareRequest,
+  getNormalizeShareItem,
+  normalizeModuleFederationOptions,
+} from '../normalizeModuleFederationOptions';
 
 const { mfErrorSpy, mfWarnSpy } = vi.hoisted(() => ({
   mfErrorSpy: vi.fn(),
@@ -346,6 +351,46 @@ describe('normalizeModuleFederationOption', () => {
           strictVersion: false,
         },
       });
+    });
+
+    it('normalizes allowNodeModulesSuffixMatch and matches pnpm node_modules suffixes', () => {
+      const shared = normalizeModuleFederationOptions({
+        ...minimalOptions,
+        shared: {
+          react: {
+            singleton: true,
+            allowNodeModulesSuffixMatch: true,
+          },
+          vue: {
+            singleton: true,
+          },
+        },
+      }).shared;
+
+      expect(shared.react.shareConfig.allowNodeModulesSuffixMatch).toBe(true);
+      expect(shared.vue.shareConfig.allowNodeModulesSuffixMatch).toBeUndefined();
+      expect(
+        findNodeModulesSuffixSharedMatch(
+          '/repo/node_modules/.pnpm/react@19.2.4/node_modules/react/index.js',
+          shared,
+        ),
+      ).toEqual({
+        key: 'react',
+        request: 'react',
+      });
+      expect(
+        getNormalizeShareItem('/repo/node_modules/.pnpm/react@19.2.4/node_modules/react/index.js')
+          ?.name,
+      ).toBe('react');
+    });
+
+    it('normalizes suffix share requests for nested subpaths', () => {
+      expect(
+        getNodeModulesSuffixShareRequest(
+          '/repo/node_modules/.pnpm/react@19.2.4/node_modules/react/jsx-runtime.js',
+          'react/',
+        ),
+      ).toBe('react/jsx-runtime');
     });
   });
 

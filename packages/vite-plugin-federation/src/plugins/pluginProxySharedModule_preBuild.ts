@@ -3,7 +3,11 @@ import path from 'pathe';
 import type { Plugin, ResolvedConfig, UserConfig } from 'vite';
 import { mfWarn } from '../utils/logger';
 import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap';
-import type { NormalizedShared, ShareItem } from '../utils/normalizeModuleFederationOptions';
+import {
+  findNodeModulesSuffixSharedMatch,
+  type NormalizedShared,
+  type ShareItem,
+} from '../utils/normalizeModuleFederationOptions';
 import {
   getIsRolldown,
   getPackageDetectionCwd,
@@ -95,20 +99,23 @@ export function proxySharedModule(options: {
   const getProxyableSharedKeys = () =>
     Object.keys(shared).filter((key) => !(useDirectReactImport && key === 'react'));
   const findMatchingSharedKey = (source: string) => {
-    let prefixMatch: { key: string; proxyable: boolean } | undefined;
+    let prefixMatch: { key: string; proxyable: boolean; request: string } | undefined;
 
     for (const key of getProxyableSharedKeys()) {
       const keyBase = key.endsWith('/') ? key.slice(0, -1) : key;
       if (source === keyBase) {
-        return { key, proxyable: true };
+        return { key, proxyable: true, request: source };
       }
 
       if (key.endsWith('/') && source.startsWith(`${keyBase}/`)) {
-        prefixMatch ||= { key, proxyable: true };
+        prefixMatch ||= { key, proxyable: true, request: source };
       }
     }
 
-    return prefixMatch;
+    if (prefixMatch) return prefixMatch;
+
+    const suffixMatch = findNodeModulesSuffixSharedMatch(source, shared);
+    return suffixMatch ? { ...suffixMatch, proxyable: true } : undefined;
   };
 
   return [
@@ -171,12 +178,13 @@ export function proxySharedModule(options: {
         if (!matchedShared?.proxyable) return;
 
         const shareItem = shared[matchedShared.key];
-        const loadSharePath = getLoadShareModulePath(source, isRolldown, _command);
-        writeLoadShareModule(source, shareItem, _command, isRolldown);
+        const shareRequest = matchedShared.request;
+        const loadSharePath = getLoadShareModulePath(shareRequest, isRolldown, _command);
+        writeLoadShareModule(shareRequest, shareItem, _command, isRolldown);
         if (shareItem.shareConfig.import !== false) {
-          writePreBuildLibPath(source, shareItem);
+          writePreBuildLibPath(shareRequest, shareItem);
         }
-        addUsedShares(source);
+        addUsedShares(shareRequest);
         writeLocalSharedImportMap();
         return (this as any).resolve(loadSharePath, importer, { skipSelf: true });
       },

@@ -45,6 +45,19 @@ function escapeGeneratedStringLiteral(value: string): string {
   });
 }
 
+function getGeneratedShareConfigProperties(shareItem: ShareItem) {
+  return [
+    `singleton: ${shareItem.shareConfig.singleton}`,
+    `strictVersion: ${shareItem.shareConfig.strictVersion}`,
+    `requiredVersion: ${JSON.stringify(shareItem.shareConfig.requiredVersion)}`,
+    shareItem.shareConfig.allowNodeModulesSuffixMatch
+      ? 'allowNodeModulesSuffixMatch: true'
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(',\n        ');
+}
+
 function isValidJsIdentifier(name: string): boolean {
   return /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u.test(name);
 }
@@ -454,9 +467,7 @@ export function writeLoadShareModule(
     ${importLine}
     const res = initPromise.then(runtime => runtime.loadShare(${escapeGeneratedStringLiteral(pkg)}, {
       customShareInfo: {shareConfig:{
-        singleton: ${shareItem.shareConfig.singleton},
-        strictVersion: ${shareItem.shareConfig.strictVersion},
-        requiredVersion: ${JSON.stringify(shareItem.shareConfig.requiredVersion)}
+        ${getGeneratedShareConfigProperties(shareItem)}
       }}
     }))
     const exportModule = ${awaitOrPlaceholder}res.then((factory) => (typeof factory === "function" ? factory() : factory))
@@ -519,9 +530,7 @@ export function writeLoadShareModule(
     }
     const res = initPromise.then(runtime => runtime.loadShare(${escapeGeneratedStringLiteral(pkg)}, {
       customShareInfo: {shareConfig:{
-        singleton: ${shareItem.shareConfig.singleton},
-        strictVersion: ${shareItem.shareConfig.strictVersion},
-        requiredVersion: ${JSON.stringify(shareItem.shareConfig.requiredVersion)}
+        ${getGeneratedShareConfigProperties(shareItem)}
       }}
     }))
     const exportModule = ${

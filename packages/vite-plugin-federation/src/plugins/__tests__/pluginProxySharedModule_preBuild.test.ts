@@ -240,6 +240,45 @@ describe('pluginProxySharedModule_preBuild', () => {
     });
   }
 
+  it('proxies pnpm resolved shared ids when allowNodeModulesSuffixMatch is enabled', async () => {
+    hasPackageDependencyMock.mockReturnValue(false);
+    const shared = makeShared();
+    shared.react.shareConfig.allowNodeModulesSuffixMatch = true;
+
+    const { proxyPlugin } = createServeProxyPlugin(shared);
+    const resolution = await proxyPlugin.resolveId?.call(
+      {
+        meta: {},
+        resolve: async (id: string) => ({ id: `/resolved/${id}` }),
+      },
+      '/repo/node_modules/.pnpm/react@19.2.4/node_modules/react/index.js',
+      '/src/main.ts',
+    );
+
+    expect(resolution).toEqual({ id: expect.stringContaining('/resolved/') });
+    expect(preBuildShareItemMap.has('react')).toBe(true);
+  });
+
+  it('proxies pnpm resolved shared subpaths through trailing-slash shares', async () => {
+    hasPackageDependencyMock.mockReturnValue(false);
+    const shared = makeShared();
+    shared['react/'].shareConfig.allowNodeModulesSuffixMatch = true;
+    delete shared.react;
+
+    const { proxyPlugin } = createServeProxyPlugin(shared);
+    const resolution = await proxyPlugin.resolveId?.call(
+      {
+        meta: {},
+        resolve: async (id: string) => ({ id: `/resolved/${id}` }),
+      },
+      '/repo/node_modules/.pnpm/react@19.2.4/node_modules/react/jsx-runtime.js',
+      '/src/main.ts',
+    );
+
+    expect(resolution).toEqual({ id: expect.stringContaining('/resolved/') });
+    expect(preBuildShareItemMap.has('react/jsx-runtime')).toBe(true);
+  });
+
   it('skips prebuild for import: false shared deps in configResolved', () => {
     hasPackageDependencyMock.mockReturnValue(false);
 

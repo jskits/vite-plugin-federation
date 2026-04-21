@@ -140,6 +140,7 @@ async function runGenerateBundleWithManifest(
     return {
       version: sharedConfig.version || '1.0.0',
       shareConfig: {
+        allowNodeModulesSuffixMatch: sharedConfig.allowNodeModulesSuffixMatch,
         import: sharedConfig.import,
         requiredVersion: sharedConfig.requiredVersion || '*',
         singleton: sharedConfig.singleton || false,
@@ -568,6 +569,7 @@ describe('pluginMFManifest', () => {
     const emitted = await runGenerateBundleWithManifest(true, {
       shared: {
         react: {
+          allowNodeModulesSuffixMatch: true,
           import: '/workspace/packages/react/index.js',
           requiredVersion: '^19.0.0',
           singleton: true,
@@ -595,6 +597,10 @@ describe('pluginMFManifest', () => {
     const stats = JSON.parse(emitted['mf-stats.json']);
     const debug = JSON.parse(emitted['mf-debug.json']);
 
+    expect(stats.shared.find((share: any) => share.name === 'react')).toMatchObject({
+      allowNodeModulesSuffixMatch: true,
+    });
+
     expect(stats.diagnostics.remoteAliases).toEqual([
       expect.objectContaining({
         alias: 'scheduler',
@@ -605,6 +611,7 @@ describe('pluginMFManifest', () => {
     expect(stats.diagnostics.sharedResolution).toEqual([
       expect.objectContaining({
         key: 'react',
+        allowNodeModulesSuffixMatch: true,
         fallbackMode: 'concrete-import',
         matchType: 'exact',
         resolutionSource: 'configured-import',

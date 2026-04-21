@@ -59,6 +59,7 @@ const INTERNAL_NAME_PREFIX = '__mfe_internal__';
 const currentPackageRequire = createRequire(import.meta.url);
 type ShareImportOption = string | false | undefined;
 type ShareConfigWithImport = SharedConfig & {
+  allowNodeModulesSuffixMatch?: boolean;
   import?: ShareImportOption;
 };
 
@@ -257,6 +258,67 @@ function inferVersionFromRequiredVersion(requiredVersion?: string): string | und
   return match?.[0];
 }
 
+export function getNodeModulesPackageSuffix(value: string): string | undefined {
+  const normalized = value.replace(/\\/g, '/');
+  const marker = '/node_modules/';
+  const index = normalized.lastIndexOf(marker);
+  if (index < 0) return undefined;
+  const suffix = normalized
+    .slice(index + marker.length)
+    .replace(/^\.pnpm\/[^/]+\/node_modules\//, '');
+  return suffix || undefined;
+}
+
+function getSharedKeyBase(sharedKey: string) {
+  return sharedKey.endsWith('/') ? sharedKey.slice(0, -1) : sharedKey;
+}
+
+function stripResolvedJsSuffix(value: string) {
+  if (/^index\.(?:[cm]js|js|jsx|ts|tsx|mts|cts)$/i.test(value)) {
+    return '';
+  }
+
+  return value
+    .replace(/\/index\.(?:[cm]js|js|jsx|ts|tsx|mts|cts)$/i, '')
+    .replace(/\.(?:[cm]js|js|jsx|ts|tsx|mts|cts)$/i, '');
+}
+
+export function isNodeModulesSuffixSharedMatch(source: string, sharedKey: string) {
+  const sourceSuffix = getNodeModulesPackageSuffix(source);
+  if (!sourceSuffix) return false;
+
+  const sharedSuffix = getNodeModulesPackageSuffix(sharedKey) || getSharedKeyBase(sharedKey);
+  return sourceSuffix === sharedSuffix || sourceSuffix.startsWith(`${sharedSuffix}/`);
+}
+
+export function getNodeModulesSuffixShareRequest(source: string, sharedKey: string) {
+  const sourceSuffix = getNodeModulesPackageSuffix(source);
+  const sharedSuffix = getNodeModulesPackageSuffix(sharedKey) || getSharedKeyBase(sharedKey);
+  if (!sourceSuffix || sourceSuffix === sharedSuffix) {
+    return sharedSuffix;
+  }
+
+  const subpath = sourceSuffix.slice(sharedSuffix.length + 1);
+  const normalizedSubpath = stripResolvedJsSuffix(subpath);
+  return normalizedSubpath ? `${sharedSuffix}/${normalizedSubpath}` : sharedSuffix;
+}
+
+export function findNodeModulesSuffixSharedMatch(source: string, shared: NormalizedShared) {
+  for (const [sharedKey, shareItem] of Object.entries(shared)) {
+    if (
+      shareItem.shareConfig.allowNodeModulesSuffixMatch &&
+      isNodeModulesSuffixSharedMatch(source, sharedKey)
+    ) {
+      return {
+        key: sharedKey,
+        request: getNodeModulesSuffixShareRequest(source, sharedKey),
+      };
+    }
+  }
+
+  return undefined;
+}
+
 function getLitExportSubpathShares(sharedName: string): string[] {
   if (sharedName !== 'lit') return [];
 
@@ -281,6 +343,7 @@ function normalizeShareItem(
         singleton?: boolean;
         requiredVersion?: string;
         strictVersion?: boolean;
+        allowNodeModulesSuffixMatch?: boolean;
       },
 ): ShareItem {
   let version: string | undefined;
@@ -337,6 +400,7 @@ function normalizeShareItem(
       singleton: shareItem.singleton || false,
       requiredVersion: shareItem.requiredVersion || (version ? `^${version}` : '*'),
       strictVersion: !!shareItem.strictVersion,
+      ...(shareItem.allowNodeModulesSuffixMatch ? { allowNodeModulesSuffixMatch: true } : {}),
     },
   };
 }
@@ -354,6 +418,7 @@ function normalizeShared(
             singleton?: boolean;
             requiredVersion?: string;
             strictVersion?: boolean;
+            allowNodeModulesSuffixMatch?: boolean;
           }
       >
     | undefined,
@@ -470,6 +535,7 @@ export type ModuleFederationOptions = {
             singleton?: boolean;
             requiredVersion?: string;
             strictVersion?: boolean;
+            allowNodeModulesSuffixMatch?: boolean;
             import?: ShareImportOption;
           }
       >
@@ -605,10 +671,12 @@ export function getNormalizeModuleFederationOptions() {
 
 export function getNormalizeShareItem(key: string) {
   const options = getNormalizeModuleFederationOptions();
+  const suffixMatch = findNodeModulesSuffixSharedMatch(key, options.shared);
   const shareItem =
     options.shared[key] ||
     options.shared[removePathFromNpmPackage(key)] ||
-    options.shared[removePathFromNpmPackage(key) + '/'];
+    options.shared[removePathFromNpmPackage(key) + '/'] ||
+    (suffixMatch ? options.shared[suffixMatch.key] : undefined);
   return shareItem;
 }
 
