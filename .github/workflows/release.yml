@@ -1,12 +1,19 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish, for example v0.0.2'
+        required: true
+        type: string
 
 permissions:
   contents: write
   id-token: write
-  pull-requests: write
 
 jobs:
   release:
@@ -17,6 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -33,13 +41,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Version or publish packages
-        uses: changesets/action@v1
-        with:
-          commit: 'chore: release packages'
-          title: 'chore: release packages'
-          publish: pnpm release
-          version: pnpm version-packages
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const tag = process.env.RELEASE_TAG;
+          const packageJson = JSON.parse(
+            fs.readFileSync('packages/vite-plugin-federation/package.json', 'utf8'),
+          );
+
+          if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(tag)) {
+            throw new Error(`Release tag must be semver-like and start with "v": ${tag}`);
+          }
+
+          const expectedTag = `v${packageJson.version}`;
+          if (tag !== expectedTag) {
+            throw new Error(`Release tag ${tag} does not match package version ${expectedTag}`);
+          }
+
+          console.log(`Publishing ${packageJson.name}@${packageJson.version}`);
+          NODE
+
+      - name: Publish package
+        run: pnpm release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
