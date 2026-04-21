@@ -87,7 +87,8 @@ trailing-slash, and suffix-enabled shared rules.
 Runtime hosts created through `vite-plugin-federation/runtime` also install a shared diagnostics
 plugin. The runtime records registered shared providers, the active share scope, each async/sync
 `loadShare` decision, candidate versions, selected provider, fallback mode, and `MFV-003`
-diagnostics for shared misses or fallback selection.
+diagnostics for shared misses, fallback selection, and semver range mismatches. Each graph entry
+includes `versionSatisfied` when a selected provider can be compared to `requiredVersion`.
 
 ## Browser Host Loading
 

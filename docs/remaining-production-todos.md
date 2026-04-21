@@ -41,14 +41,15 @@ Current state:
 - `getFederationDebugInfo()` exposes registered shared providers, the active share scope, and a
   shared resolution graph with candidate versions, selected provider, fallback source, and decision
   reason.
-- `MFV-003` diagnostics are emitted for shared misses, local fallback selection, and strict shared
-  resolution failures observed by the runtime wrapper/plugin.
+- `MFV-003` diagnostics are emitted for shared misses, local fallback selection, semver range
+  mismatches, and strict shared resolution failures observed by the runtime wrapper/plugin.
+- Shared resolution graph entries include deterministic candidate ordering, selected strategy, and
+  `versionSatisfied` for `requiredVersion` comparisons.
 
 Remaining work:
 
-- Add deterministic version negotiation diagnostics for `loaded-first` and `version-first`.
-- Add semver-aware `MFV-003` diagnostics for non-strict version mismatches, not only strict
-  resolution failures.
+- Add e2e coverage for deterministic `loaded-first` and `version-first` negotiation in real
+  host/remote builds.
 - Enforce or clearly report singleton conflicts with selected and rejected versions.
 - Extend generated internal `loadShare` paths with source-path annotations so suffix-match
   decisions can be tied back to exact pnpm/symlinked file paths at runtime.

@@ -217,6 +217,7 @@ interface RuntimeSharedResolutionEntry {
   strategy?: string;
   strictVersion: boolean;
   timestamp: string;
+  versionSatisfied?: boolean;
 }
 
 interface RuntimeDebugState {
@@ -372,6 +373,143 @@ function getPackageRootName(pkgName: string) {
   return pkgName.split('/')[0] || pkgName;
 }
 
+function parseComparableVersion(version: string) {
+  const normalized = version.trim().replace(/^v/, '').split('-')[0];
+  const match = normalized.match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  if (!match) return undefined;
+
+  return [Number(match[1]), Number(match[2] || 0), Number(match[3] || 0)] as const;
+}
+
+function compareComparableVersions(a: string, b: string) {
+  const versionA = parseComparableVersion(a);
+  const versionB = parseComparableVersion(b);
+  if (!versionA || !versionB) return a.localeCompare(b);
+
+  for (let index = 0; index < 3; index += 1) {
+    const diff = versionA[index] - versionB[index];
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function isComparableVersionGreaterThanOrEqual(version: string, minimum: string) {
+  return compareComparableVersions(version, minimum) >= 0;
+}
+
+function isComparableVersionLessThan(version: string, maximum: string) {
+  return compareComparableVersions(version, maximum) < 0;
+}
+
+function getCaretUpperBound(version: string) {
+  const parsed = parseComparableVersion(version);
+  if (!parsed) return undefined;
+  const [major, minor, patch] = parsed;
+  if (major > 0) return `${major + 1}.0.0`;
+  if (minor > 0) return `0.${minor + 1}.0`;
+  return `0.0.${patch + 1}`;
+}
+
+function getTildeUpperBound(version: string) {
+  const parsed = parseComparableVersion(version);
+  if (!parsed) return undefined;
+  const [major, minor] = parsed;
+  return `${major}.${minor + 1}.0`;
+}
+
+function satisfiesComparator(version: string, comparator: string) {
+  const trimmed = comparator.trim();
+  if (!trimmed || trimmed === '*' || trimmed.toLowerCase() === 'x') return true;
+
+  const operatorMatch = trimmed.match(/^(>=|<=|>|<|=)?\s*(.+)$/);
+  if (!operatorMatch) return false;
+  const operator = operatorMatch[1] || '=';
+  const expected = operatorMatch[2].trim();
+  if (!parseComparableVersion(version) || !parseComparableVersion(expected)) {
+    return version === expected;
+  }
+
+  if (operator === '>=') return compareComparableVersions(version, expected) >= 0;
+  if (operator === '<=') return compareComparableVersions(version, expected) <= 0;
+  if (operator === '>') return compareComparableVersions(version, expected) > 0;
+  if (operator === '<') return compareComparableVersions(version, expected) < 0;
+  return compareComparableVersions(version, expected) === 0;
+}
+
+function satisfiesSharedVersionRange(version: string, range: false | string | undefined) {
+  if (range === undefined || range === false || range === '*' || range.trim() === '') return true;
+
+  return range.split('||').some((rangePart) => {
+    const trimmedRange = rangePart.trim();
+    if (!trimmedRange) return true;
+
+    if (trimmedRange.startsWith('^')) {
+      const minimum = trimmedRange.slice(1).trim();
+      const maximum = getCaretUpperBound(minimum);
+      return (
+        Boolean(maximum) &&
+        isComparableVersionGreaterThanOrEqual(version, minimum) &&
+        isComparableVersionLessThan(version, maximum as string)
+      );
+    }
+
+    if (trimmedRange.startsWith('~')) {
+      const minimum = trimmedRange.slice(1).trim();
+      const maximum = getTildeUpperBound(minimum);
+      return (
+        Boolean(maximum) &&
+        isComparableVersionGreaterThanOrEqual(version, minimum) &&
+        isComparableVersionLessThan(version, maximum as string)
+      );
+    }
+
+    return trimmedRange
+      .split(/\s+/)
+      .every((comparator) => satisfiesComparator(version, comparator));
+  });
+}
+
+function sortSharedCandidates(candidates: RuntimeSharedCandidateSnapshot[]) {
+  return [...candidates].sort((a, b) => {
+    const versionDiff = compareComparableVersions(a.version, b.version);
+    if (versionDiff !== 0) return versionDiff;
+    return (a.provider || '').localeCompare(b.provider || '');
+  });
+}
+
+function getSharedVersionSatisfied(
+  selected: RuntimeSharedCandidateSnapshot | null,
+  requiredVersion: false | string | undefined,
+) {
+  if (!selected || requiredVersion === undefined || requiredVersion === false) return undefined;
+  return satisfiesSharedVersionRange(selected.version, requiredVersion);
+}
+
+function warnSharedVersionMismatch(
+  pkgName: string,
+  selected: RuntimeSharedCandidateSnapshot | null,
+  requiredVersion: false | string | undefined,
+  strictVersion: boolean,
+  scope: string[],
+) {
+  if (!selected || requiredVersion === undefined || requiredVersion === false) return;
+  if (satisfiesSharedVersionRange(selected.version, requiredVersion)) return;
+
+  const log = strictVersion ? mfErrorWithCode : mfWarnWithCode;
+  log(
+    'MFV-003',
+    `Shared module "${pkgName}" selected version "${selected.version}" from "${selected.provider || 'unknown provider'}" does not satisfy requiredVersion "${requiredVersion}".`,
+    {
+      pkgName,
+      provider: selected.provider,
+      requiredVersion,
+      scope,
+      selectedVersion: selected.version,
+      strictVersion,
+    },
+  );
+}
+
 function inferSharedMatchType(
   pkgName: string,
   sharedOptions?: RuntimeSharedOptionsLike,
@@ -437,7 +575,9 @@ function snapshotSharedOptions(
     const values = Array.isArray(value) ? value : [value];
     return {
       key,
-      versions: values.map((shared) => toRuntimeSharedCandidateSnapshot(shared)),
+      versions: sortSharedCandidates(
+        values.map((shared) => toRuntimeSharedCandidateSnapshot(shared)),
+      ),
     };
   });
 }
@@ -467,7 +607,10 @@ function snapshotShareScopeMap(
     }
   }
 
-  return [...merged.entries()].map(([key, versions]) => ({ key, versions }));
+  return [...merged.entries()].map(([key, versions]) => ({
+    key,
+    versions: sortSharedCandidates(versions),
+  }));
 }
 
 function getRuntimeConsumerName(runtimeInstance: RuntimeInstanceWithInternals | null) {
@@ -501,7 +644,7 @@ function getRuntimeSharedCandidates(
     }
   }
 
-  return candidates;
+  return sortSharedCandidates(candidates);
 }
 
 function getSelectedSharedCandidate(
@@ -575,6 +718,11 @@ function recordSharedResolutionFromLoad(
   const isHostOnly = shareConfig && 'import' in shareConfig && shareConfig.import === false;
   const status: SharedResolutionStatus =
     result === false ? 'fallback' : mode === 'sync' ? 'sync-loaded' : 'loaded';
+  const requestedVersion =
+    typeof shareConfig?.requiredVersion === 'string' || shareConfig?.requiredVersion === false
+      ? shareConfig.requiredVersion
+      : undefined;
+  const versionSatisfied = getSharedVersionSatisfied(selected, requestedVersion);
 
   pushSharedResolution({
     candidates,
@@ -589,16 +737,14 @@ function recordSharedResolutionFromLoad(
         : selected
           ? `Selected ${selected.version} from ${selected.provider || 'unknown provider'}.`
           : 'Shared module loaded but selected provider could not be inferred from share scope.',
-    requestedVersion:
-      typeof shareConfig?.requiredVersion === 'string' || shareConfig?.requiredVersion === false
-        ? shareConfig.requiredVersion
-        : undefined,
+    requestedVersion,
     selected,
     shareScope: requested.scope,
     singleton: shareConfig?.singleton === true,
     status,
     strategy: requested.strategy,
     strictVersion: shareConfig?.strictVersion === true,
+    versionSatisfied,
   });
 
   if (result === false) {
@@ -620,6 +766,10 @@ function recordSharedResolutionError(pkgName: string, extraOptions: unknown, err
   const candidates = getRuntimeSharedCandidates(pkgName, runtimeInstance, requested.scope);
   const shareConfig = requested.shareConfig;
   const message = error instanceof Error ? error.message : String(error);
+  const requestedVersion =
+    typeof shareConfig?.requiredVersion === 'string' || shareConfig?.requiredVersion === false
+      ? shareConfig.requiredVersion
+      : undefined;
 
   pushSharedResolution({
     candidates,
@@ -629,16 +779,14 @@ function recordSharedResolutionError(pkgName: string, extraOptions: unknown, err
     matchType: inferSharedMatchType(pkgName, runtimeInstance?.options?.shared),
     pkgName,
     reason: `Shared module resolution failed: ${message}`,
-    requestedVersion:
-      typeof shareConfig?.requiredVersion === 'string' || shareConfig?.requiredVersion === false
-        ? shareConfig.requiredVersion
-        : undefined,
+    requestedVersion,
     selected: null,
     shareScope: requested.scope,
     singleton: shareConfig?.singleton === true,
     status: 'error',
     strategy: requested.strategy,
     strictVersion: shareConfig?.strictVersion === true,
+    versionSatisfied: undefined,
   });
   mfErrorWithCode('MFV-003', `Shared module "${pkgName}" failed to resolve.`, {
     error: message,
@@ -673,6 +821,7 @@ function createSharedDiagnosticsRuntimePlugin() {
         status: 'registered',
         strategy: typeof args.shared.strategy === 'string' ? args.shared.strategy : undefined,
         strictVersion: args.shared.shareConfig?.strictVersion === true,
+        versionSatisfied: undefined,
       });
       return args;
     },
@@ -705,6 +854,7 @@ function createSharedDiagnosticsRuntimePlugin() {
         strategy:
           typeof args.shareInfo?.strategy === 'string' ? args.shareInfo.strategy : undefined,
         strictVersion: args.shareInfo?.shareConfig?.strictVersion === true,
+        versionSatisfied: undefined,
       });
       return args;
     },
@@ -731,6 +881,13 @@ function createSharedDiagnosticsRuntimePlugin() {
         const selected = resolved?.shared
           ? toRuntimeSharedCandidateSnapshot(resolved.shared, args.version)
           : null;
+        const requestedVersion =
+          typeof args.shareInfo.shareConfig?.requiredVersion === 'string' ||
+          args.shareInfo.shareConfig?.requiredVersion === false
+            ? args.shareInfo.shareConfig.requiredVersion
+            : undefined;
+        const strictVersion = args.shareInfo.shareConfig?.strictVersion === true;
+        const versionSatisfied = getSharedVersionSatisfied(selected, requestedVersion);
 
         pushSharedResolution({
           candidates,
@@ -739,21 +896,24 @@ function createSharedDiagnosticsRuntimePlugin() {
           matchType: 'exact',
           pkgName: args.pkgName,
           reason: selected
-            ? `Resolved ${args.pkgName} to ${selected.version} from ${selected.provider || 'unknown provider'}.`
+            ? versionSatisfied === false
+              ? `Resolved ${args.pkgName} to ${selected.version}, but it does not satisfy ${requestedVersion}.`
+              : `Resolved ${args.pkgName} to ${selected.version} from ${selected.provider || 'unknown provider'}.`
             : `No registered shared provider satisfied ${args.pkgName}.`,
-          requestedVersion:
-            typeof args.shareInfo.shareConfig?.requiredVersion === 'string' ||
-            args.shareInfo.shareConfig?.requiredVersion === false
-              ? args.shareInfo.shareConfig.requiredVersion
-              : undefined,
+          requestedVersion,
           selected,
           shareScope: [args.scope],
           singleton: args.shareInfo.shareConfig?.singleton === true,
           status: selected ? 'resolved' : 'miss',
           strategy:
             typeof args.shareInfo.strategy === 'string' ? args.shareInfo.strategy : undefined,
-          strictVersion: args.shareInfo.shareConfig?.strictVersion === true,
+          strictVersion,
+          versionSatisfied,
         });
+
+        warnSharedVersionMismatch(args.pkgName, selected, requestedVersion, strictVersion, [
+          args.scope,
+        ]);
 
         if (!selected) {
           mfWarnWithCode('MFV-003', `No shared provider satisfied "${args.pkgName}".`, {
@@ -795,6 +955,7 @@ function createSharedDiagnosticsRuntimePlugin() {
           strategy:
             typeof args.shareInfo.strategy === 'string' ? args.shareInfo.strategy : undefined,
           strictVersion: args.shareInfo.shareConfig?.strictVersion === true,
+          versionSatisfied: undefined,
         });
         mfErrorWithCode('MFV-003', `Shared provider resolution failed for "${args.pkgName}".`, {
           error: message,
