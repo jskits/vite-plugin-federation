@@ -57,6 +57,12 @@ Optional fields:
 available. Browser hosts prefer `remoteEntry`; Node hosts prefer `ssrRemoteEntry` and fall back to
 `remoteEntry` only when necessary.
 
+Generated entries can include `integrity` and `contentHash`. `integrity` uses the Subresource
+Integrity format for the emitted entry file, and `contentHash` is a SHA-256 hex digest for
+deployment tooling. Generated manifests also include a top-level `release` object and
+`metaData.buildInfo.releaseId`; set `VITE_PLUGIN_FEDERATION_RELEASE_ID` or `MF_RELEASE_ID` in CI
+when the release id should differ from the default `buildName:buildVersion` value.
+
 Runtime target validation:
 
 - `target: 'web'` requires a usable `metaData.remoteEntry.name`; `ssrRemoteEntry.name` is accepted

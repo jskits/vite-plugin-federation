@@ -1,17 +1,25 @@
 {
   "id": "legacyRemote",
   "name": "legacyRemote",
+  "release": {
+    "id": "legacyRemote:legacy-build",
+    "buildName": "legacy",
+    "buildVersion": "legacy-build"
+  },
   "metaData": {
     "name": "legacyRemote",
     "type": "app",
     "buildInfo": {
       "buildName": "legacy",
-      "buildVersion": "legacy-build"
+      "buildVersion": "legacy-build",
+      "releaseId": "legacyRemote:legacy-build"
     },
     "remoteEntry": {
       "name": "remoteEntry.js",
       "path": "",
-      "type": "module"
+      "type": "module",
+      "integrity": "sha384-legacyRemoteEntryIntegrity",
+      "contentHash": "7777777777777777777777777777777777777777777777777777777777777777"
     },
     "globalName": "legacyRemote",
     "pluginVersion": "0.0.0",

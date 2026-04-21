@@ -2,17 +2,25 @@
   "schemaVersion": "1.1.0",
   "id": "futureMinorRemote",
   "name": "futureMinorRemote",
+  "release": {
+    "id": "futureMinorRemote:future-minor-build",
+    "buildName": "future-minor",
+    "buildVersion": "future-minor-build"
+  },
   "metaData": {
     "name": "futureMinorRemote",
     "type": "app",
     "buildInfo": {
       "buildName": "future-minor",
-      "buildVersion": "future-minor-build"
+      "buildVersion": "future-minor-build",
+      "releaseId": "futureMinorRemote:future-minor-build"
     },
     "remoteEntry": {
       "name": "remoteEntry.js",
       "path": "",
-      "type": "module"
+      "type": "module",
+      "integrity": "sha384-futureMinorRemoteEntryIntegrity",
+      "contentHash": "8888888888888888888888888888888888888888888888888888888888888888"
     },
     "globalName": "futureMinorRemote",
     "pluginVersion": "0.0.3",

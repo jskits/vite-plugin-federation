@@ -145,11 +145,12 @@ Current state:
   during manifest remote registration.
 - Schema compatibility fixtures cover exact `1.0.0`, legacy, same-major, and future-major manifest
   cases.
+- Generated manifests include `release.id`, `metaData.buildInfo.releaseId`, and entry-level
+  `integrity`/`contentHash` metadata for remote entries.
 
 Remaining work:
 
 - Define backward and forward compatibility rules.
-- Decide whether manifest should include integrity, content hash, or release id fields.
 - Document manifest hosting and cache rules as part of the protocol, not only runtime guidance.
 
 Acceptance criteria:

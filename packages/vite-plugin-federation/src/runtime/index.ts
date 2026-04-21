@@ -36,6 +36,8 @@ const MANIFEST_URL_RE = /(?:^|\/)(?:mf-)?manifest(?:\.[\w-]+)?\.json(?:$|[?#])/i
 export type FederationRuntimeTarget = 'web' | 'node';
 
 export interface FederationRemoteManifestEntry {
+  contentHash?: string;
+  integrity?: string;
   name?: string;
   path?: string;
   type?: string;
@@ -97,8 +99,18 @@ export interface CollectFederationManifestPreloadLinksOptions {
 export interface FederationRemoteManifest {
   id?: string;
   name: string;
+  release?: {
+    buildName?: string;
+    buildVersion?: string;
+    id?: string;
+  };
   schemaVersion?: string;
   metaData: {
+    buildInfo?: {
+      buildName?: string;
+      buildVersion?: string;
+      releaseId?: string;
+    };
     name?: string;
     globalName?: string;
     publicPath?: string;
@@ -857,6 +869,21 @@ function assertOptionalStringField(manifestUrl: string, fieldPath: string, value
   }
 }
 
+function assertOptionalObjectField(manifestUrl: string, fieldPath: string, value: unknown) {
+  if (typeof value === 'undefined') {
+    return undefined;
+  }
+
+  if (!isObjectRecord(value)) {
+    throw createModuleFederationError(
+      'MFV-004',
+      `Federation manifest "${manifestUrl}" is invalid: ${fieldPath} must be an object when provided.`,
+    );
+  }
+
+  return value;
+}
+
 function validateManifestEntryField(
   manifestUrl: string,
   fieldPath: string,
@@ -876,6 +903,8 @@ function validateManifestEntryField(
   assertOptionalStringField(manifestUrl, `${fieldPath}.name`, entry.name);
   assertOptionalStringField(manifestUrl, `${fieldPath}.path`, entry.path);
   assertOptionalStringField(manifestUrl, `${fieldPath}.type`, entry.type);
+  assertOptionalStringField(manifestUrl, `${fieldPath}.integrity`, entry.integrity);
+  assertOptionalStringField(manifestUrl, `${fieldPath}.contentHash`, entry.contentHash);
 }
 
 function isUsableManifestEntry(
@@ -960,9 +989,25 @@ function validateManifest(manifestUrl: string, manifest: FederationRemoteManifes
   }
 
   assertOptionalStringField(manifestUrl, 'id', manifest.id);
+  const release = assertOptionalObjectField(manifestUrl, 'release', manifest.release);
+  assertOptionalStringField(manifestUrl, 'release.id', release?.id);
+  assertOptionalStringField(manifestUrl, 'release.buildName', release?.buildName);
+  assertOptionalStringField(manifestUrl, 'release.buildVersion', release?.buildVersion);
   assertOptionalStringField(manifestUrl, 'metaData.name', manifest.metaData.name);
   assertOptionalStringField(manifestUrl, 'metaData.globalName', manifest.metaData.globalName);
   assertOptionalStringField(manifestUrl, 'metaData.publicPath', manifest.metaData.publicPath);
+  const buildInfo = assertOptionalObjectField(
+    manifestUrl,
+    'metaData.buildInfo',
+    manifest.metaData.buildInfo,
+  );
+  assertOptionalStringField(manifestUrl, 'metaData.buildInfo.buildName', buildInfo?.buildName);
+  assertOptionalStringField(
+    manifestUrl,
+    'metaData.buildInfo.buildVersion',
+    buildInfo?.buildVersion,
+  );
+  assertOptionalStringField(manifestUrl, 'metaData.buildInfo.releaseId', buildInfo?.releaseId);
   validateManifestEntryField(manifestUrl, 'metaData.remoteEntry', manifest.metaData.remoteEntry);
   validateManifestEntryField(
     manifestUrl,

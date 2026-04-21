@@ -59,6 +59,10 @@ const BUILD_ENV_KEYS = [
   'MF_BUILD_NAME',
   'GITHUB_REF_NAME',
   'VERCEL_GIT_COMMIT_REF',
+  'VITE_PLUGIN_FEDERATION_RELEASE_ID',
+  'MF_RELEASE_ID',
+  'GITHUB_RUN_ID',
+  'VERCEL_DEPLOYMENT_ID',
 ];
 
 function clearBuildEnv() {
@@ -199,12 +203,26 @@ describe('pluginMFManifest', () => {
     expect(manifest.metaData.buildInfo).toEqual({
       buildName: 'basicRemote',
       buildVersion: 'local',
+      releaseId: 'basicRemote:local',
     });
+    expect(manifest.release).toEqual({
+      id: 'basicRemote:local',
+      buildName: 'basicRemote',
+      buildVersion: 'local',
+    });
+    expect(manifest.metaData.remoteEntry.integrity).toMatch(/^sha384-/);
+    expect(manifest.metaData.remoteEntry.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.metaData.ssrRemoteEntry).toEqual({
       name: 'remoteEntry.ssr.js',
       path: '',
       type: 'module',
+      integrity: expect.stringMatching(/^sha384-/),
+      contentHash: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
+    expect(stats.metaData.remoteEntry.integrity).toBe(manifest.metaData.remoteEntry.integrity);
+    expect(debug.snapshot.metaData.remoteEntry.integrity).toBe(
+      manifest.metaData.remoteEntry.integrity,
+    );
     expect(manifest.metaData.types).toEqual({
       path: '',
       name: '@mf-types.zip',
@@ -228,6 +246,7 @@ describe('pluginMFManifest', () => {
   it('uses environment build metadata in manifest artifacts', async () => {
     process.env.VITE_PLUGIN_FEDERATION_BUILD_VERSION = 'sha-123456';
     process.env.VITE_PLUGIN_FEDERATION_BUILD_NAME = 'release-main';
+    process.env.VITE_PLUGIN_FEDERATION_RELEASE_ID = 'release-main@sha-123456';
 
     const emitted = await runGenerateBundleWithManifest(true);
     const manifest = JSON.parse(emitted['mf-manifest.json']);
@@ -236,10 +255,17 @@ describe('pluginMFManifest', () => {
     expect(manifest.metaData.buildInfo).toEqual({
       buildName: 'release-main',
       buildVersion: 'sha-123456',
+      releaseId: 'release-main@sha-123456',
+    });
+    expect(manifest.release).toEqual({
+      id: 'release-main@sha-123456',
+      buildName: 'release-main',
+      buildVersion: 'sha-123456',
     });
     expect(debug.snapshot.metaData.buildInfo).toEqual({
       buildName: 'release-main',
       buildVersion: 'sha-123456',
+      releaseId: 'release-main@sha-123456',
     });
   });
 

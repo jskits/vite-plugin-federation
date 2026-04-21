@@ -33,6 +33,11 @@ Supported build metadata variables:
 The emitted `pluginVersion` is injected from the package version during the package build, so
 published artifacts can be traced back to the plugin version that generated them.
 
+Generated manifests also include `release.id`, `metaData.buildInfo.releaseId`, and entry-level
+`integrity`/`contentHash` metadata for `remoteEntry` and `ssrRemoteEntry` when those files are in
+the build output. Set `VITE_PLUGIN_FEDERATION_RELEASE_ID` or `MF_RELEASE_ID` in CI for a stable
+application release id; otherwise it defaults to `buildName:buildVersion`.
+
 ## Manifest Hosting Rules
 
 Host `mf-manifest.json` with a short cache TTL or `no-cache`, because hosts use it as the deployment

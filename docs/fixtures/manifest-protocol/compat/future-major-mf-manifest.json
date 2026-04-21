@@ -2,17 +2,25 @@
   "schemaVersion": "2.0.0",
   "id": "futureMajorRemote",
   "name": "futureMajorRemote",
+  "release": {
+    "id": "futureMajorRemote:future-major-build",
+    "buildName": "future-major",
+    "buildVersion": "future-major-build"
+  },
   "metaData": {
     "name": "futureMajorRemote",
     "type": "app",
     "buildInfo": {
       "buildName": "future-major",
-      "buildVersion": "future-major-build"
+      "buildVersion": "future-major-build",
+      "releaseId": "futureMajorRemote:future-major-build"
     },
     "remoteEntry": {
       "name": "remoteEntry.js",
       "path": "",
-      "type": "module"
+      "type": "module",
+      "integrity": "sha384-futureMajorRemoteEntryIntegrity",
+      "contentHash": "9999999999999999999999999999999999999999999999999999999999999999"
     },
     "globalName": "futureMajorRemote",
     "pluginVersion": "0.0.3",

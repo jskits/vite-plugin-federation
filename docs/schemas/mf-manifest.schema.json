@@ -40,6 +40,9 @@
             },
             "buildVersion": {
               "type": "string"
+            },
+            "releaseId": {
+              "type": "string"
             }
           }
         },
@@ -98,6 +101,22 @@
       "items": {
         "$ref": "#/$defs/expose"
       }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "buildName": {
+          "type": "string"
+        },
+        "buildVersion": {
+          "type": "string"
+        }
+      }
     }
   },
   "$defs": {
@@ -113,6 +132,12 @@
           "type": "string"
         },
         "type": {
+          "type": "string"
+        },
+        "integrity": {
+          "type": "string"
+        },
+        "contentHash": {
           "type": "string"
         }
       }

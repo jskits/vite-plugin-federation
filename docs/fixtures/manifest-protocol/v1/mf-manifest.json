@@ -2,22 +2,32 @@
   "schemaVersion": "1.0.0",
   "id": "catalogRemote",
   "name": "catalogRemote",
+  "release": {
+    "id": "catalogRemote:abc1234",
+    "buildName": "main",
+    "buildVersion": "abc1234"
+  },
   "metaData": {
     "name": "catalogRemote",
     "type": "app",
     "buildInfo": {
       "buildName": "main",
-      "buildVersion": "abc1234"
+      "buildVersion": "abc1234",
+      "releaseId": "catalogRemote:abc1234"
     },
     "remoteEntry": {
       "name": "remoteEntry.js",
       "path": "",
-      "type": "module"
+      "type": "module",
+      "integrity": "sha384-manifestRemoteEntryIntegrity",
+      "contentHash": "1111111111111111111111111111111111111111111111111111111111111111"
     },
     "ssrRemoteEntry": {
       "name": "remoteEntry.ssr.js",
       "path": "server",
-      "type": "module"
+      "type": "module",
+      "integrity": "sha384-manifestSsrRemoteEntryIntegrity",
+      "contentHash": "2222222222222222222222222222222222222222222222222222222222222222"
     },
     "types": {
       "path": "",

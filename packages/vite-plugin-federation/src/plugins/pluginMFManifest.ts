@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import * as path from 'pathe';
 import type { Plugin } from 'vite';
 import {
@@ -32,6 +33,7 @@ const PLUGIN_VERSION =
   typeof __VITE_PLUGIN_FEDERATION_VERSION__ === 'string'
     ? __VITE_PLUGIN_FEDERATION_VERSION__
     : '0.0.0';
+const INTEGRITY_ALGORITHM = 'sha384';
 
 function getFirstEnvValue(keys: string[]) {
   for (const key of keys) {
@@ -42,21 +44,65 @@ function getFirstEnvValue(keys: string[]) {
 }
 
 function getBuildInfo(name: string) {
+  const buildVersion =
+    getFirstEnvValue([
+      'VITE_PLUGIN_FEDERATION_BUILD_VERSION',
+      'MF_BUILD_VERSION',
+      'GITHUB_SHA',
+      'VERCEL_GIT_COMMIT_SHA',
+    ]) || 'local';
+  const buildName =
+    getFirstEnvValue([
+      'VITE_PLUGIN_FEDERATION_BUILD_NAME',
+      'MF_BUILD_NAME',
+      'GITHUB_REF_NAME',
+      'VERCEL_GIT_COMMIT_REF',
+    ]) || name;
+
   return {
-    buildVersion:
+    buildVersion,
+    buildName,
+    releaseId:
       getFirstEnvValue([
-        'VITE_PLUGIN_FEDERATION_BUILD_VERSION',
-        'MF_BUILD_VERSION',
-        'GITHUB_SHA',
-        'VERCEL_GIT_COMMIT_SHA',
-      ]) || 'local',
-    buildName:
-      getFirstEnvValue([
-        'VITE_PLUGIN_FEDERATION_BUILD_NAME',
-        'MF_BUILD_NAME',
-        'GITHUB_REF_NAME',
-        'VERCEL_GIT_COMMIT_REF',
-      ]) || name,
+        'VITE_PLUGIN_FEDERATION_RELEASE_ID',
+        'MF_RELEASE_ID',
+        'GITHUB_RUN_ID',
+        'VERCEL_DEPLOYMENT_ID',
+      ]) || `${buildName}:${buildVersion}`,
+  };
+}
+
+function getBundleArtifactSource(
+  bundle: Record<string, { [key: string]: any }> | undefined,
+  fileName: string,
+) {
+  const chunkOrAsset = bundle?.[fileName];
+  if (!chunkOrAsset) {
+    return undefined;
+  }
+  if (typeof chunkOrAsset.code === 'string') {
+    return chunkOrAsset.code;
+  }
+  if (typeof chunkOrAsset.source === 'string' || chunkOrAsset.source instanceof Uint8Array) {
+    return chunkOrAsset.source;
+  }
+  return undefined;
+}
+
+function createArtifactIntegrity(
+  bundle: Record<string, { [key: string]: any }> | undefined,
+  fileName: string,
+) {
+  const source = getBundleArtifactSource(bundle, fileName);
+  if (!source) {
+    return {};
+  }
+
+  return {
+    contentHash: createHash('sha256').update(source).digest('hex'),
+    integrity: `${INTEGRITY_ALGORITHM}-${createHash(INTEGRITY_ALGORITHM)
+      .update(source)
+      .digest('base64')}`,
   };
 }
 
@@ -326,7 +372,7 @@ const Manifest = (): Plugin[] => {
         this.emitFile({
           type: 'asset',
           fileName: mfManifestName,
-          source: JSON.stringify(generateMFManifest(filesMap, disableAssetsAnalyze)),
+          source: JSON.stringify(generateMFManifest(filesMap, disableAssetsAnalyze, bundle)),
         });
 
         if (mfManifestStatsName) {
@@ -353,25 +399,33 @@ const Manifest = (): Plugin[] => {
    * @param preloadMap - Map of module assets to include
    * @returns Complete manifest object
    */
-  function generateMFManifest(preloadMap: PreloadMap, disableAssetsAnalyze = false) {
+  function generateMFManifest(
+    preloadMap: PreloadMap,
+    disableAssetsAnalyze = false,
+    bundle?: Record<string, { [key: string]: any }>,
+  ) {
     const options = getNormalizeModuleFederationOptions();
     const { name, varFilename } = options;
+    const buildInfo = getBuildInfo(name);
     const remoteEntry = {
       name: getEffectiveRemoteEntryFile(),
       path: '',
       type: 'module',
+      ...createArtifactIntegrity(bundle, getEffectiveRemoteEntryFile()),
     };
     const ssrRemoteEntry = {
       name: getEffectiveSsrRemoteEntryFile(),
       path: '',
       type: 'module',
+      ...createArtifactIntegrity(bundle, getEffectiveSsrRemoteEntryFile()),
     };
 
     const varRemoteEntry = varFilename
       ? {
           name: varFilename,
           path: '',
-          type: 'module',
+          type: 'var',
+          ...createArtifactIntegrity(bundle, varFilename),
         }
       : undefined;
 
@@ -444,10 +498,15 @@ const Manifest = (): Plugin[] => {
       schemaVersion: FEDERATION_MANIFEST_SCHEMA_VERSION,
       id: name,
       name,
+      release: {
+        id: buildInfo.releaseId,
+        buildName: buildInfo.buildName,
+        buildVersion: buildInfo.buildVersion,
+      },
       metaData: {
         name,
         type: 'app',
-        buildInfo: getBuildInfo(name),
+        buildInfo,
         remoteEntry,
         ssrRemoteEntry,
         varRemoteEntry,
@@ -467,7 +526,7 @@ const Manifest = (): Plugin[] => {
     bundle: Record<string, { [key: string]: any }>,
     disableAssetsAnalyze = false,
   ) {
-    const baseManifest = generateMFManifest(preloadMap, disableAssetsAnalyze);
+    const baseManifest = generateMFManifest(preloadMap, disableAssetsAnalyze, bundle);
     const bundleSummary = Object.entries(bundle).map(([fileName, chunkOrAsset]) => ({
       fileName,
       type: chunkOrAsset.type,
@@ -545,7 +604,7 @@ const Manifest = (): Plugin[] => {
         name,
       })),
       diagnostics: generateBuildDiagnostics(bundle),
-      snapshot: generateMFManifest(preloadMap, disableAssetsAnalyze),
+      snapshot: generateMFManifest(preloadMap, disableAssetsAnalyze, bundle),
     };
   }
 
