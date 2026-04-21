@@ -76,8 +76,75 @@ Runtime target validation:
 
 ## Compatibility Policy
 
-Patch and minor changes within major version `1` must be additive. Required field removals, field
-type changes, or semantic changes require a new major schema version.
+Patch and minor changes within major version `1` must be additive.
+
+Backward-compatible changes:
+
+- Adding optional top-level fields.
+- Adding optional fields to `metaData`, entries, `shared`, `remotes`, `exposes`, stats, or debug
+  artifacts.
+- Adding new diagnostic fields or capability flags.
+- Adding new enum-like string values when older runtimes can ignore them safely.
+
+Forward-compatible runtime behavior:
+
+- A `1.0.0` runtime accepts missing `schemaVersion` as a legacy manifest.
+- A `1.0.0` runtime accepts `1.x.y` manifests when required runtime fields are still usable.
+- A `1.0.0` runtime rejects `2.x.y` manifests because required fields or semantics may have
+  changed.
+- Exact JSON Schema validation remains stricter than runtime validation and is intended for
+  deployment pipelines and external tooling.
+
+Breaking changes that require a new major schema version:
+
+- Removing required fields from generated artifacts.
+- Changing the type or meaning of an existing field.
+- Changing URL resolution semantics for `remoteEntry`, `ssrRemoteEntry`, or asset paths.
+- Requiring hosts to use a different target-selection or share-scope behavior.
+
+Schema fixture policy:
+
+- Every schema version should have exact artifact fixtures.
+- Legacy and future-version fixtures should remain in the suite to prevent accidental compatibility
+  regressions.
+- A schema major bump must add new fixtures before changing runtime acceptance logic.
+
+## Hosting And Cache Rules
+
+The manifest is the deployment coordination artifact. It should be served with `no-cache`,
+`max-age=0, must-revalidate`, or another short revalidation policy. Hosts may cache it in memory
+with runtime `cacheTtl`, but CDNs should not make stale manifests difficult to invalidate.
+
+Recommended headers:
+
+```text
+mf-manifest.json      Cache-Control: no-cache
+mf-stats.json         Cache-Control: no-cache
+mf-debug.json         Cache-Control: no-cache
+remoteEntry*.js       Cache-Control: public, max-age=31536000, immutable
+assets/*              Cache-Control: public, max-age=31536000, immutable
+@mf-types*            Cache-Control: public, max-age=31536000, immutable
+```
+
+Hosting requirements:
+
+- The manifest URL must be stable for a deployed remote environment.
+- Entry and asset files referenced by a manifest must remain available for at least as long as any
+  host can cache that manifest.
+- Cross-origin hosts need CORS for manifest JSON, ESM entries, chunks, CSS, and type artifacts.
+- `publicPath: "auto"` keeps asset URLs relative to the manifest URL; an explicit `publicPath`
+  should be absolute or resolvable from the manifest URL.
+- Deployments should publish manifest, stats, debug, entries, assets, and type artifacts
+  atomically. If atomic publishing is unavailable, publish immutable assets first and the manifest
+  last.
+
+Rollback guidance:
+
+- Roll back by restoring the previous manifest after confirming its referenced immutable assets are
+  still hosted.
+- Do not mutate files referenced by an already published manifest; publish a new manifest instead.
+- Keep `release.id` and `contentHash` in logs so production incidents can identify the exact remote
+  build.
 
 Hosts should:
 

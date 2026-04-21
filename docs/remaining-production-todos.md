@@ -147,11 +147,13 @@ Current state:
   cases.
 - Generated manifests include `release.id`, `metaData.buildInfo.releaseId`, and entry-level
   `integrity`/`contentHash` metadata for remote entries.
+- Backward/forward compatibility rules and manifest hosting/cache rules are documented as part of
+  the manifest protocol.
 
 Remaining work:
 
-- Define backward and forward compatibility rules.
-- Document manifest hosting and cache rules as part of the protocol, not only runtime guidance.
+- Add optional runtime integrity verification for manifest-declared assets if the production
+  security model requires browser-side enforcement.
 
 Acceptance criteria:
 
