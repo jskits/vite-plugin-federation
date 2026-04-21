@@ -47,6 +47,9 @@ Current state:
   `versionSatisfied` for `requiredVersion` comparisons.
 - Singleton conflicts emit `MFV-003` with the selected provider/version and rejected candidate
   versions.
+- Generated shared wrappers throw an actionable host-only error when `import: false` is configured
+  and no host provider is available, and normal shared wrappers fall back to the local prebuild
+  source when runtime share resolution returns `false`.
 
 Remaining work:
 
@@ -56,7 +59,8 @@ Remaining work:
   explicit production strictness option.
 - Extend generated internal `loadShare` paths with source-path annotations so suffix-match
   decisions can be tied back to exact pnpm/symlinked file paths at runtime.
-- Validate `strictVersion` behavior under local fallback and host-only shared packages.
+- Add browser/e2e coverage for `strictVersion` behavior under local fallback and host-only shared
+  packages.
 - Add tests for React singleton mismatch, Vue subpath shared packages, pnpm symlinked packages, and
   workspace package aliases.
 

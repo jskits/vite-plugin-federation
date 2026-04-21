@@ -577,6 +577,59 @@ describe('writeLoadShareModule', () => {
     expect(generatedCode).toContain('export default exportModule');
   });
 
+  it('throws an actionable error when an import: false shared module is missing from host', () => {
+    const pkg = 'host-only-dep';
+    const mockShareItem: ShareItem = {
+      name: pkg,
+      from: '',
+      version: undefined,
+      shareConfig: {
+        import: false,
+        singleton: true,
+        strictVersion: true,
+        requiredVersion: '^1.2.3',
+      },
+      scope: 'default',
+    };
+
+    writeLoadShareModule(pkg, mockShareItem, 'build', false);
+
+    expect(writeSyncSpy).toHaveBeenCalled();
+    const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
+
+    expect(generatedCode).toContain('function resolveHostProvidedShare(factory)');
+    expect(generatedCode).toContain('if (factory === false)');
+    expect(generatedCode).toContain('must be provided by the host because import: false');
+    expect(generatedCode).toContain('requiredVersion=^1.2.3, strictVersion=true');
+    expect(generatedCode).toContain('strictVersion: true');
+  });
+
+  it('falls back to the local shared source when runtime share resolution returns false', () => {
+    const pkg = 'mock-package-with-reserved';
+    const mockShareItem: ShareItem = {
+      name: pkg,
+      from: '',
+      version: '1.0.0',
+      shareConfig: {
+        singleton: true,
+        strictVersion: true,
+        requiredVersion: '^1.0.0',
+      },
+      scope: 'default',
+    };
+
+    writeLoadShareModule(pkg, mockShareItem, 'build', false);
+
+    expect(writeSyncSpy).toHaveBeenCalled();
+    const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
+
+    expect(generatedCode).toContain('async function resolveShareFactory(factory)');
+    expect(generatedCode).toContain('if (factory === false)');
+    expect(generatedCode).toContain('const fallbackModule = await import("mock-import-id")');
+    expect(generatedCode).toContain('return fallbackModule.default ?? fallbackModule');
+    expect(generatedCode).toContain('strictVersion: true');
+  });
+
   it('generates named re-exports for import: false when package is installed as devDependency', () => {
     // mock-package-with-reserved is resolvable in the test mock setup
     const pkg = 'mock-package-with-reserved';

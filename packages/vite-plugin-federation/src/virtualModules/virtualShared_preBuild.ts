@@ -58,6 +58,15 @@ function getGeneratedShareConfigProperties(shareItem: ShareItem) {
     .join(',\n        ');
 }
 
+function getHostOnlySharedErrorMessage(pkg: string, shareItem: ShareItem) {
+  return (
+    `[Module Federation] Shared module "${pkg}" must be provided by the host because import: false is configured.` +
+    ` requiredVersion=${String(shareItem.shareConfig.requiredVersion)}, strictVersion=${String(
+      shareItem.shareConfig.strictVersion,
+    )}`
+  );
+}
+
 function isValidJsIdentifier(name: string): boolean {
   return /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u.test(name);
 }
@@ -465,12 +474,18 @@ export function writeLoadShareModule(
     loadShareCacheMap[pkg].writeSync(
       `
     ${importLine}
+    function resolveHostProvidedShare(factory) {
+      if (factory === false) {
+        throw new Error(${escapeGeneratedStringLiteral(getHostOnlySharedErrorMessage(pkg, shareItem))})
+      }
+      return typeof factory === "function" ? factory() : factory
+    }
     const res = initPromise.then(runtime => runtime.loadShare(${escapeGeneratedStringLiteral(pkg)}, {
       customShareInfo: {shareConfig:{
         ${getGeneratedShareConfigProperties(shareItem)}
       }}
     }))
-    const exportModule = ${awaitOrPlaceholder}res.then((factory) => (typeof factory === "function" ? factory() : factory))
+    const exportModule = ${awaitOrPlaceholder}res.then(resolveHostProvidedShare)
     ${exportLine}
   `,
       true,
@@ -521,6 +536,13 @@ export function writeLoadShareModule(
     ${prebuildImportLine}
     ${devDynamicImportLine}
     ${importLine}
+    async function resolveShareFactory(factory) {
+      if (factory === false) {
+        const fallbackModule = await import(${escapeGeneratedStringLiteral(sharedImportSource)})
+        return fallbackModule.default ?? fallbackModule
+      }
+      return typeof factory === "function" ? factory() : factory
+    }
     ${
       useSsrProviderFallback
         ? `const providerModulePromise = typeof window === "undefined"
@@ -537,8 +559,8 @@ export function writeLoadShareModule(
       useSsrProviderFallback
         ? `(typeof window === "undefined"
       ? ((await providerModulePromise)?.default ?? await providerModulePromise)
-      : ${awaitOrPlaceholder}res.then((factory) => (typeof factory === "function" ? factory() : factory)))`
-        : `${awaitOrPlaceholder}res.then((factory) => (typeof factory === "function" ? factory() : factory))`
+      : ${awaitOrPlaceholder}res.then(resolveShareFactory))`
+        : `${awaitOrPlaceholder}res.then(resolveShareFactory)`
     }
     ${exportLine}
   `,

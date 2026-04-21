@@ -91,6 +91,11 @@ diagnostics for shared misses, fallback selection, and semver range mismatches. 
 includes `versionSatisfied` when a selected provider can be compared to `requiredVersion`, and
 singleton entries include rejected candidate versions when multiple providers are present.
 
+For generated shared wrappers, `import: false` is treated as host-only: if the host does not provide
+the package, the wrapper throws an explicit error that includes `requiredVersion` and
+`strictVersion`. Non-host-only wrappers use the local prebuild source as a fallback when the runtime
+cannot find a registered provider.
+
 ## Browser Host Loading
 
 Use `loadRemoteFromManifest` when one remote module is needed immediately. It fetches the manifest,
