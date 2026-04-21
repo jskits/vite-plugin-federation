@@ -17,6 +17,10 @@ JSON Schemas are committed in:
 - [mf-stats.schema.json](schemas/mf-stats.schema.json)
 - [mf-debug.schema.json](schemas/mf-debug.schema.json)
 
+Compatibility fixtures are committed in [fixtures/manifest-protocol](fixtures/manifest-protocol).
+The test suite validates the exact `1.0.0` fixtures against these schemas and checks the runtime
+compatibility policy for legacy, same-major, and next-major manifest fixtures.
+
 ## Schema Version
 
 All new artifacts include a top-level `schemaVersion` field. The current version is `1.0.0`.

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.1.0",
+  "id": "futureMinorRemote",
+  "name": "futureMinorRemote",
+  "metaData": {
+    "name": "futureMinorRemote",
+    "type": "app",
+    "buildInfo": {
+      "buildName": "future-minor",
+      "buildVersion": "future-minor-build"
+    },
+    "remoteEntry": {
+      "name": "remoteEntry.js",
+      "path": "",
+      "type": "module"
+    },
+    "globalName": "futureMinorRemote",
+    "pluginVersion": "0.0.3",
+    "publicPath": "/"
+  },
+  "remotes": []
+}

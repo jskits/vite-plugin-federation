@@ -143,11 +143,12 @@ Current state:
   unsupported major versions.
 - Runtime validates malformed known manifest fields and enforces target-specific entry requirements
   during manifest remote registration.
+- Schema compatibility fixtures cover exact `1.0.0`, legacy, same-major, and future-major manifest
+  cases.
 
 Remaining work:
 
 - Define backward and forward compatibility rules.
-- Add fixtures for schema compatibility tests.
 - Decide whether manifest should include integrity, content hash, or release id fields.
 - Document manifest hosting and cache rules as part of the protocol, not only runtime guidance.
 

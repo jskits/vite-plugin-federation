@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "2.0.0",
+  "id": "futureMajorRemote",
+  "name": "futureMajorRemote",
+  "metaData": {
+    "name": "futureMajorRemote",
+    "type": "app",
+    "buildInfo": {
+      "buildName": "future-major",
+      "buildVersion": "future-major-build"
+    },
+    "remoteEntry": {
+      "name": "remoteEntry.js",
+      "path": "",
+      "type": "module"
+    },
+    "globalName": "futureMajorRemote",
+    "pluginVersion": "0.0.3",
+    "publicPath": "/"
+  },
+  "remotes": []
+}

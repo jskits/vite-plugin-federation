@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "catalogRemote",
+  "name": "catalogRemote",
+  "metaData": {
+    "name": "catalogRemote",
+    "type": "app",
+    "buildInfo": {
+      "buildName": "main",
+      "buildVersion": "abc1234"
+    },
+    "remoteEntry": {
+      "name": "remoteEntry.js",
+      "path": "",
+      "type": "module"
+    },
+    "ssrRemoteEntry": {
+      "name": "remoteEntry.ssr.js",
+      "path": "server",
+      "type": "module"
+    },
+    "types": {
+      "path": "",
+      "name": "@mf-types.zip",
+      "api": "@mf-types.d.ts"
+    },
+    "globalName": "catalogRemote",
+    "pluginVersion": "0.0.3",
+    "publicPath": "https://cdn.example.com/catalog/"
+  },
+  "shared": [
+    {
+      "id": "catalogRemote:react",
+      "name": "react",
+      "version": "19.2.4",
+      "singleton": true,
+      "requiredVersion": "^19.2.4",
+      "assets": {
+        "js": {
+          "async": [],
+          "sync": ["assets/react.js"]
+        },
+        "css": {
+          "async": [],
+          "sync": []
+        }
+      }
+    }
+  ],
+  "remotes": [],
+  "exposes": [
+    {
+      "id": "catalogRemote:Button",
+      "name": "Button",
+      "css": {
+        "mode": "head"
+      },
+      "assets": {
+        "js": {
+          "async": [],
+          "sync": ["assets/Button.js"]
+        },
+        "css": {
+          "async": [],
+          "sync": ["assets/Button.css"]
+        }
+      },
+      "path": "./Button"
+    }
+  ],
+  "buildOutput": [
+    {
+      "fileName": "remoteEntry.js",
+      "type": "chunk",
+      "isEntry": true,
+      "size": 5120
+    },
+    {
+      "fileName": "assets/Button.css",
+      "type": "asset",
+      "isEntry": false,
+      "size": 128
+    }
+  ],
+  "diagnostics": {
+    "controlChunks": [],
+    "remoteAliases": []
+  },
+  "assetAnalysis": {
+    "./src/Button.tsx": {
+      "js": {
+        "sync": ["assets/Button.js"],
+        "async": []
+      },
+      "css": {
+        "sync": ["assets/Button.css"],
+        "async": []
+      }
+    }
+  }
+}

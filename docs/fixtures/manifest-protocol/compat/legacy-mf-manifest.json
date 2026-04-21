@@ -1,0 +1,21 @@
+{
+  "id": "legacyRemote",
+  "name": "legacyRemote",
+  "metaData": {
+    "name": "legacyRemote",
+    "type": "app",
+    "buildInfo": {
+      "buildName": "legacy",
+      "buildVersion": "legacy-build"
+    },
+    "remoteEntry": {
+      "name": "remoteEntry.js",
+      "path": "",
+      "type": "module"
+    },
+    "globalName": "legacyRemote",
+    "pluginVersion": "0.0.0",
+    "publicPath": "/"
+  },
+  "remotes": []
+}
