@@ -310,6 +310,29 @@ const logDtsError = (error: unknown, dtsOptions?: NormalizedModuleFederationOpti
   mfError(error);
 };
 
+export const shouldAbortDtsBuildError = (
+  dtsOptions: moduleFederationPlugin.PluginDtsOptions | false,
+  phase: 'consumeTypes' | 'generateTypes',
+): boolean => {
+  if (typeof dtsOptions !== 'object' || !dtsOptions) {
+    return false;
+  }
+
+  const phaseOptions = dtsOptions[phase];
+  return typeof phaseOptions === 'object' && phaseOptions?.abortOnError === true;
+};
+
+const handleBuildDtsError = (
+  error: unknown,
+  dtsOptions: moduleFederationPlugin.PluginDtsOptions | false,
+  phase: 'consumeTypes' | 'generateTypes',
+): void => {
+  logDtsError(error, dtsOptions);
+  if (shouldAbortDtsBuildError(dtsOptions, phase)) {
+    throw error;
+  }
+};
+
 export default function pluginDts(options: NormalizedModuleFederationOptions): Plugin[] {
   if (options.dts === false) {
     return [];
@@ -512,7 +535,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
           pluginOptions: dtsModuleFederationConfig,
         });
       } catch (error) {
-        logDtsError(error, normalizedDtsOptions);
+        handleBuildDtsError(error, normalizedDtsOptions, 'consumeTypes');
         return;
       }
 
@@ -521,7 +544,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
           await applyManifestRemoteTypeUrls(consumeOptions.host, options);
           await consumeTypesAPI(consumeOptions);
         } catch (error) {
-          logDtsError(error, normalizedDtsOptions);
+          handleBuildDtsError(error, normalizedDtsOptions, 'consumeTypes');
         }
       }
 
@@ -534,7 +557,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
           pluginOptions: dtsModuleFederationConfig,
         });
       } catch (error) {
-        logDtsError(error, normalizedDtsOptions);
+        handleBuildDtsError(error, normalizedDtsOptions, 'generateTypes');
         return;
       }
 
@@ -545,7 +568,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
       try {
         await generateTypesAPI({ dtsManagerOptions: generateOptions });
       } catch (error) {
-        logDtsError(error, normalizedDtsOptions);
+        handleBuildDtsError(error, normalizedDtsOptions, 'generateTypes');
       }
     },
   };

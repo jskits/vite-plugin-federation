@@ -4,6 +4,7 @@ import { normalizeModuleFederationOptions } from '../../utils/normalizeModuleFed
 import pluginDts, {
   applyManifestRemoteTypeUrls,
   resolveManifestRemoteTypeUrls,
+  shouldAbortDtsBuildError,
 } from '../pluginDts';
 
 describe('pluginDts build', () => {
@@ -153,5 +154,28 @@ describe('pluginDts build', () => {
         zip: 'https://types.example.com/another.zip',
       },
     });
+  });
+
+  it('honors scoped abortOnError only for the failing dts build phase', () => {
+    const dtsOptions = {
+      consumeTypes: {
+        abortOnError: true,
+      },
+      generateTypes: {
+        abortOnError: false,
+      },
+    };
+
+    expect(shouldAbortDtsBuildError(dtsOptions, 'consumeTypes')).toBe(true);
+    expect(shouldAbortDtsBuildError(dtsOptions, 'generateTypes')).toBe(false);
+    expect(
+      shouldAbortDtsBuildError(
+        {
+          consumeTypes: true,
+          generateTypes: true,
+        },
+        'generateTypes',
+      ),
+    ).toBe(false);
   });
 });
