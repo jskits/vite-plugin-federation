@@ -94,6 +94,22 @@ vi.mock('../virtualShared_preBuild', () => {
         : pkg === 'transitive-no-override'
           ? '/workspace/packages/transitive-no-override/dist/index.js'
           : `virtual:prebuild:${pkg}`,
+    inspectSharedImportSource: (
+      pkg: string,
+      shareItem?: { shareConfig?: { import?: string | false } },
+    ) => ({
+      concreteImportSource:
+        typeof shareItem?.shareConfig?.import === 'string' ? shareItem.shareConfig.import : null,
+      resolutionRoot: '/workspace',
+      resolvedPackageEntry:
+        typeof shareItem?.shareConfig?.import === 'string'
+          ? shareItem.shareConfig.import
+          : pkg === 'transitive-no-override'
+            ? '/workspace/packages/transitive-no-override/dist/index.js'
+            : `/workspace/node_modules/${pkg}/index.js`,
+      resolutionSource:
+        typeof shareItem?.shareConfig?.import === 'string' ? 'configured-import' : 'project-root',
+    }),
   };
 });
 
@@ -174,6 +190,8 @@ describe('virtualRemoteEntry', () => {
     const code = mod.generateLocalSharedImportMap();
 
     expect(code).toContain('let pkg = await import("/abs/custom-import.js");');
+    expect(code).toContain('sourcePath: "/abs/custom-import.js"');
+    expect(code).toContain('resolvedImportSource: "/abs/custom-import.js"');
     expect(code).not.toContain('virtual:prebuild:custom-import');
   });
 
@@ -189,6 +207,12 @@ describe('virtualRemoteEntry', () => {
 
     expect(code).toContain(
       'let pkg = await import("/workspace/packages/transitive-no-override/dist/index.js");',
+    );
+    expect(code).toContain(
+      'sourcePath: "/workspace/packages/transitive-no-override/dist/index.js"',
+    );
+    expect(code).toContain(
+      'resolvedImportSource: "/workspace/packages/transitive-no-override/dist/index.js"',
     );
     expect(code).not.toContain('virtual:prebuild:transitive-no-override');
   });

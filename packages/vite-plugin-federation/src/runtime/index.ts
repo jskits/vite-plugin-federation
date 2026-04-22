@@ -187,8 +187,10 @@ interface RuntimeSharedCandidateSnapshot {
   loading: boolean;
   provider: string | null;
   requiredVersion?: false | string;
+  resolvedImportSource?: string | null;
   scope: string[];
   singleton: boolean;
+  sourcePath?: string | null;
   strategy?: string;
   strictSingleton: boolean;
   strictVersion: boolean;
@@ -210,6 +212,8 @@ interface RuntimeSharedResolutionEntry {
   matchType: SharedMatchType;
   pkgName: string;
   reason: string;
+  requestedResolvedImportSource?: string | null;
+  requestedSourcePath?: string | null;
   requestedVersion?: false | string;
   rejected: RuntimeSharedCandidateSnapshot[];
   selected: RuntimeSharedCandidateSnapshot | null;
@@ -289,7 +293,9 @@ type RuntimeSharedLike = {
     singleton?: unknown;
     strictSingleton?: unknown;
     strictVersion?: unknown;
+    resolvedImportSource?: unknown;
   };
+  sourcePath?: unknown;
   strategy?: unknown;
   useIn?: unknown;
   version?: unknown;
@@ -561,8 +567,13 @@ function toRuntimeSharedCandidateSnapshot(
     loading: Boolean(shared?.loading),
     provider: from,
     requiredVersion,
+    resolvedImportSource:
+      typeof shareConfig.resolvedImportSource === 'string'
+        ? shareConfig.resolvedImportSource
+        : null,
     scope,
     singleton: shareConfig.singleton === true,
+    sourcePath: typeof shared?.sourcePath === 'string' ? shared.sourcePath : null,
     strategy: typeof shared?.strategy === 'string' ? shared.strategy : undefined,
     strictSingleton: shareConfig.strictSingleton === true,
     strictVersion: shareConfig.strictVersion === true,
@@ -722,7 +733,9 @@ function getRequestedShareConfig(
 ) {
   const sharedOptions = runtimeInstance?.options?.shared;
   const optionsValue = sharedOptions?.[pkgName];
-  const optionsShared = Array.isArray(optionsValue) ? optionsValue[0] : optionsValue;
+  const optionsShared = (Array.isArray(optionsValue) ? optionsValue[0] : optionsValue) as
+    | RuntimeSharedLike
+    | undefined;
   const customShareInfo =
     extraOptions &&
     typeof extraOptions === 'object' &&
@@ -735,10 +748,22 @@ function getRequestedShareConfig(
     ...(optionsShared?.shareConfig || {}),
     ...(customShareInfo?.shareConfig || {}),
   };
+  const sourcePath =
+    typeof customShareInfo?.sourcePath === 'string'
+      ? customShareInfo.sourcePath
+      : typeof optionsShared?.sourcePath === 'string'
+        ? optionsShared.sourcePath
+        : null;
+  const resolvedImportSource =
+    typeof mergedShareConfig.resolvedImportSource === 'string'
+      ? mergedShareConfig.resolvedImportSource
+      : null;
 
   return {
+    resolvedImportSource,
     scope: normalizeSharedScope(customShareInfo?.scope || optionsShared?.scope),
     shareConfig: mergedShareConfig,
+    sourcePath,
     strategy:
       (typeof customShareInfo?.strategy === 'string' ? customShareInfo.strategy : undefined) ||
       (typeof optionsShared?.strategy === 'string' ? optionsShared.strategy : undefined) ||
@@ -794,6 +819,8 @@ function recordSharedResolutionFromLoad(
         : selected
           ? `Selected ${selected.version} from ${selected.provider || 'unknown provider'}.`
           : 'Shared module loaded but selected provider could not be inferred from share scope.',
+    requestedResolvedImportSource: requested.resolvedImportSource,
+    requestedSourcePath: requested.sourcePath,
     requestedVersion,
     rejected,
     selected,
@@ -847,6 +874,8 @@ function recordSharedResolutionError(pkgName: string, extraOptions: unknown, err
     matchType: inferSharedMatchType(pkgName, runtimeInstance?.options?.shared),
     pkgName,
     reason: `Shared module resolution failed: ${message}`,
+    requestedResolvedImportSource: requested.resolvedImportSource,
+    requestedSourcePath: requested.sourcePath,
     requestedVersion,
     rejected: [],
     selected: null,
@@ -914,6 +943,12 @@ function createSharedDiagnosticsRuntimePlugin() {
         matchType: inferSharedMatchType(args.pkgName, args.shared),
         pkgName: args.pkgName,
         reason: `Runtime started resolving shared module "${args.pkgName}".`,
+        requestedResolvedImportSource:
+          typeof args.shareInfo?.shareConfig?.resolvedImportSource === 'string'
+            ? args.shareInfo.shareConfig.resolvedImportSource
+            : null,
+        requestedSourcePath:
+          typeof args.shareInfo?.sourcePath === 'string' ? args.shareInfo.sourcePath : null,
         requestedVersion:
           typeof args.shareInfo?.shareConfig?.requiredVersion === 'string' ||
           args.shareInfo?.shareConfig?.requiredVersion === false
@@ -977,6 +1012,12 @@ function createSharedDiagnosticsRuntimePlugin() {
                 ? `Resolved singleton ${args.pkgName} to ${selected.version} and rejected ${getDistinctRejectedVersions(rejected).join(', ')}.`
                 : `Resolved ${args.pkgName} to ${selected.version} from ${selected.provider || 'unknown provider'}.`
             : `No registered shared provider satisfied ${args.pkgName}.`,
+          requestedResolvedImportSource:
+            typeof args.shareInfo.shareConfig?.resolvedImportSource === 'string'
+              ? args.shareInfo.shareConfig.resolvedImportSource
+              : null,
+          requestedSourcePath:
+            typeof args.shareInfo.sourcePath === 'string' ? args.shareInfo.sourcePath : null,
           requestedVersion,
           rejected,
           selected,
@@ -1034,6 +1075,12 @@ function createSharedDiagnosticsRuntimePlugin() {
           matchType: 'exact',
           pkgName: args.pkgName,
           reason: `Shared provider resolution threw: ${message}`,
+          requestedResolvedImportSource:
+            typeof args.shareInfo.shareConfig?.resolvedImportSource === 'string'
+              ? args.shareInfo.shareConfig.resolvedImportSource
+              : null,
+          requestedSourcePath:
+            typeof args.shareInfo.sourcePath === 'string' ? args.shareInfo.sourcePath : null,
           requestedVersion:
             typeof args.shareInfo.shareConfig?.requiredVersion === 'string' ||
             args.shareInfo.shareConfig?.requiredVersion === false

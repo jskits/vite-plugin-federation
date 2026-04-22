@@ -24,6 +24,7 @@ import {
   getConcreteSharedImportSource,
   getLocalProviderImportPath,
   getSharedImportSource,
+  inspectSharedImportSource,
 } from './virtualShared_preBuild';
 
 const usedShares: Set<string> = new Set();
@@ -51,14 +52,20 @@ export function generateLocalSharedImportMap() {
   const useDirectReactImport = isVinext || isAstro;
   const options = getNormalizeModuleFederationOptions();
 
-  const getPackagePath = (pkg: string, shareItem: ShareItem) => {
-    if (useDirectReactImport && pkg === 'react') return 'react';
+  const getPackageResolution = (pkg: string, shareItem: ShareItem) => {
+    const localProviderPath = getLocalProviderImportPath(pkg);
+    const sourceInspection = inspectSharedImportSource(pkg, shareItem);
+    const importPath =
+      useDirectReactImport && pkg === 'react'
+        ? 'react'
+        : getConcreteSharedImportSource(pkg, shareItem) ||
+          localProviderPath ||
+          getSharedImportSource(pkg, shareItem);
 
-    return (
-      getConcreteSharedImportSource(pkg, shareItem) ||
-      getLocalProviderImportPath(pkg) ||
-      getSharedImportSource(pkg, shareItem)
-    );
+    return {
+      importPath,
+      sourcePath: localProviderPath || sourceInspection.resolvedPackageEntry || importPath,
+    };
   };
 
   return `
@@ -68,17 +75,20 @@ export function generateLocalSharedImportMap() {
         .sort()
         .map((pkg) => {
           const shareItem = getNormalizeShareItem(pkg);
+          if (!shareItem) return null;
+          const packageResolution = getPackageResolution(pkg, shareItem);
           return `
         ${JSON.stringify(pkg)}: async () => {
           ${
             shareItem?.shareConfig.import === false
               ? `throw new Error(\`[Module Federation] Shared module '\${${JSON.stringify(pkg)}}' must be provided by host\`);`
-              : `let pkg = await import(${JSON.stringify(getPackagePath(pkg, shareItem))});
+              : `let pkg = await import(${JSON.stringify(packageResolution.importPath)});
             return pkg;`
           }
         }
       `;
         })
+        .filter((x) => x !== null)
         .join(',')}
     }
       const usedShared = {
@@ -87,6 +97,10 @@ export function generateLocalSharedImportMap() {
         .map((key) => {
           const shareItem = getNormalizeShareItem(key);
           if (!shareItem) return null;
+          const packageResolution =
+            shareItem.shareConfig.import === false
+              ? undefined
+              : getPackageResolution(key, shareItem);
           return `
           ${JSON.stringify(key)}: {
             name: ${JSON.stringify(key)},
@@ -94,6 +108,11 @@ export function generateLocalSharedImportMap() {
             scope: [${JSON.stringify(shareItem.scope)}],
             loaded: false,
             from: ${JSON.stringify(options.internalName)},
+            ${
+              packageResolution?.sourcePath
+                ? `sourcePath: ${JSON.stringify(packageResolution.sourcePath)},`
+                : ''
+            }
             async get () {
               if (${shareItem.shareConfig.import === false}) {
                 throw new Error(\`[Module Federation] Shared module '\${${JSON.stringify(key)}}' must be provided by host\`);
@@ -118,6 +137,11 @@ export function generateLocalSharedImportMap() {
               requiredVersion: ${JSON.stringify(shareItem.shareConfig.requiredVersion)},
               ${shareItem.shareConfig.strictSingleton ? 'strictSingleton: true,' : ''}
               ${shareItem.shareConfig.import === false ? 'import: false,' : ''}
+              ${
+                packageResolution?.importPath
+                  ? `resolvedImportSource: ${JSON.stringify(packageResolution.importPath)},`
+                  : ''
+              }
             }
           }
         `;

@@ -398,6 +398,8 @@ describe('writeLoadShareModule', () => {
 
     expect(generatedCode).toContain('import "/abs/pkg-b/dist/index.js";');
     expect(generatedCode).toContain('export * from "/abs/pkg-b/dist/index.js"');
+    expect(generatedCode).toContain('sourcePath: "/abs/pkg-b/dist/index.js"');
+    expect(generatedCode).toContain('resolvedImportSource: "/abs/pkg-b/dist/index.js"');
     expect(generatedCode).not.toContain('import "mock-import-id";');
   });
 
@@ -630,6 +632,8 @@ describe('writeLoadShareModule', () => {
     expect(generatedCode).toContain('return fallbackModule.default ?? fallbackModule');
     expect(generatedCode).toContain('strictSingleton: true');
     expect(generatedCode).toContain('strictVersion: true');
+    expect(generatedCode).toContain('sourcePath: "/resolved/mock-package-with-reserved"');
+    expect(generatedCode).toContain('resolvedImportSource: "/resolved/mock-package-with-reserved"');
   });
 
   it('generates named re-exports for import: false when package is installed as devDependency', () => {
@@ -718,6 +722,8 @@ describe('writeLoadShareModule', () => {
 
     expect(generatedCode).toContain('import "/repo/packages/pkg-b/dist/index.js";');
     expect(generatedCode).toContain('export * from "/repo/packages/pkg-b/dist/index.js"');
+    expect(generatedCode).toContain('sourcePath: "/repo/packages/pkg-b/dist/index.js"');
+    expect(generatedCode).toContain('resolvedImportSource: "/repo/packages/pkg-b/dist/index.js"');
     expect(generatedCode).not.toContain('import "mock-import-id";');
   });
 

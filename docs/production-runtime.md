@@ -91,6 +91,9 @@ plugin. The runtime records registered shared providers, the active share scope,
 diagnostics for shared misses, fallback selection, and semver range mismatches. Each graph entry
 includes `versionSatisfied` when a selected provider can be compared to `requiredVersion`, and
 singleton entries include rejected candidate versions when multiple providers are present.
+Generated local providers and internal `loadShare` requests also carry `sourcePath` and
+`resolvedImportSource` annotations, so `getFederationDebugInfo()` can tie a shared decision back to
+the exact local import id or resolved pnpm/workspace file path.
 By default singleton conflicts are diagnostics only. Set `strictSingleton: true` on a shared
 package to upgrade those conflicts to an `MFV-003` runtime error while still recording the selected
 and rejected providers in `getFederationDebugInfo()`.

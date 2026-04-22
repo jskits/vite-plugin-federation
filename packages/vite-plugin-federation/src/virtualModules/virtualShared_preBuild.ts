@@ -45,7 +45,12 @@ function escapeGeneratedStringLiteral(value: string): string {
   });
 }
 
-function getGeneratedShareConfigProperties(shareItem: ShareItem) {
+function getGeneratedShareConfigProperties(
+  shareItem: ShareItem,
+  annotations?: {
+    resolvedImportSource?: string;
+  },
+) {
   return [
     `singleton: ${shareItem.shareConfig.singleton}`,
     `strictVersion: ${shareItem.shareConfig.strictVersion}`,
@@ -53,6 +58,9 @@ function getGeneratedShareConfigProperties(shareItem: ShareItem) {
     shareItem.shareConfig.strictSingleton ? 'strictSingleton: true' : undefined,
     shareItem.shareConfig.allowNodeModulesSuffixMatch
       ? 'allowNodeModulesSuffixMatch: true'
+      : undefined,
+    annotations?.resolvedImportSource
+      ? `resolvedImportSource: ${escapeGeneratedStringLiteral(annotations.resolvedImportSource)}`
       : undefined,
   ]
     .filter(Boolean)
@@ -500,7 +508,8 @@ export function writeLoadShareModule(
   const useSsrProviderFallback =
     command === 'build' &&
     (isReactSharedPackage(pkg) || ((isVinext || isAstro) && pkg === 'react'));
-  const concreteSharedImportSource = getConcreteSharedImportSource(pkg, shareItem);
+  const sharedSourceInspection = inspectSharedImportSource(pkg, shareItem);
+  const concreteSharedImportSource = sharedSourceInspection.concreteImportSource || undefined;
   const sharedImportSource = concreteSharedImportSource || getPreBuildLibImportId(pkg);
   const devImportSource = concreteSharedImportSource || pkg;
   const localProviderPath = getLocalProviderImportPath(pkg);
@@ -531,6 +540,8 @@ export function writeLoadShareModule(
     : command !== 'build' && !skipServePrebuildWarmup
       ? `;() => import(${escapeGeneratedStringLiteral(devImportSource)}).catch(() => {});`
       : '';
+  const providerSourcePath =
+    localProviderPath || sharedSourceInspection.resolvedPackageEntry || providerImportId;
 
   loadShareCacheMap[pkg].writeSync(
     `
@@ -552,8 +563,12 @@ export function writeLoadShareModule(
         : ''
     }
     const res = initPromise.then(runtime => runtime.loadShare(${escapeGeneratedStringLiteral(pkg)}, {
-      customShareInfo: {shareConfig:{
-        ${getGeneratedShareConfigProperties(shareItem)}
+      customShareInfo: {
+        sourcePath: ${escapeGeneratedStringLiteral(providerSourcePath)},
+        shareConfig:{
+        ${getGeneratedShareConfigProperties(shareItem, {
+          resolvedImportSource: providerImportId,
+        })}
       }}
     }))
     const exportModule = ${

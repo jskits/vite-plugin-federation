@@ -153,7 +153,15 @@ describe('runtime api', () => {
 
     registerRemotes([{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js' }] as any);
     registerShared({
-      react: [{ version: '19.0.0' }],
+      react: [
+        {
+          sourcePath: '/repo/node_modules/react/index.js',
+          version: '19.0.0',
+          shareConfig: {
+            resolvedImportSource: 'virtual:prebuild:react',
+          },
+        },
+      ],
     } as any);
     registerPlugins([] as any);
 
@@ -168,7 +176,13 @@ describe('runtime api', () => {
     expect(debugInfo.runtime.registeredSharedKeys).toEqual(['react']);
     expect(debugInfo.runtime.registeredShared[0]).toMatchObject({
       key: 'react',
-      versions: [expect.objectContaining({ version: '19.0.0' })],
+      versions: [
+        expect.objectContaining({
+          resolvedImportSource: 'virtual:prebuild:react',
+          sourcePath: '/repo/node_modules/react/index.js',
+          version: '19.0.0',
+        }),
+      ],
     });
   });
 
@@ -459,8 +473,10 @@ describe('runtime api', () => {
               from: 'host',
               loaded: true,
               scope: ['default'],
+              sourcePath: '/repo/node_modules/react/index.js',
               shareConfig: {
                 requiredVersion: '^19.0.0',
+                resolvedImportSource: 'virtual:prebuild:react',
                 singleton: true,
                 strictVersion: true,
               },
@@ -484,6 +500,8 @@ describe('runtime api', () => {
       requestedVersion: '^19.0.0',
       selected: expect.objectContaining({
         from: 'host',
+        resolvedImportSource: 'virtual:prebuild:react',
+        sourcePath: '/repo/node_modules/react/index.js',
         version: '19.0.0',
       }),
       singleton: true,
@@ -520,8 +538,10 @@ describe('runtime api', () => {
       'vue' as any,
       {
         customShareInfo: {
+          sourcePath: '/repo/node_modules/vue/index.js',
           shareConfig: {
             requiredVersion: '^3.5.0',
+            resolvedImportSource: 'virtual:prebuild:vue',
           },
         },
       } as any,
@@ -531,6 +551,8 @@ describe('runtime api', () => {
     expect(debugInfo.runtime.sharedResolutionGraph.at(-1)).toMatchObject({
       fallbackSource: 'local-fallback',
       pkgName: 'vue',
+      requestedResolvedImportSource: 'virtual:prebuild:vue',
+      requestedSourcePath: '/repo/node_modules/vue/index.js',
       status: 'fallback',
     });
     expect(debugInfo.diagnostics.recentEvents.at(-1)).toMatchObject({
