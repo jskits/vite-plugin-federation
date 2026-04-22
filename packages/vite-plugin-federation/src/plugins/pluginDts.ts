@@ -36,6 +36,17 @@ type DevWorkerOptions = DTSManagerOptions & {
   disableHotTypesReload?: boolean;
 };
 
+type RemoteTypeUrls = moduleFederationPlugin.RemoteTypeUrls;
+type RemoteTypeUrlFactory = () => Promise<RemoteTypeUrls>;
+type FetchResponseLike = {
+  ok: boolean;
+  json: () => Promise<unknown>;
+};
+type FetchLike = (url: string) => Promise<FetchResponseLike>;
+type HostWithRemoteTypeUrls = {
+  remoteTypeUrls?: RemoteTypeUrls | RemoteTypeUrlFactory;
+};
+
 const forkDevWorkerPath = (() => {
   const currentPackageRequire = createRequire(import.meta.url);
   return currentPackageRequire.resolve('@module-federation/dts-plugin/dist/fork-dev-worker.js');
@@ -132,6 +143,135 @@ const ensureRuntimePlugin = (
   if (!hasPlugin) {
     options.runtimePlugins.push(pluginId);
   }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const getFetch = (fetchImpl?: FetchLike): FetchLike | undefined => {
+  if (fetchImpl) {
+    return fetchImpl;
+  }
+  if (typeof globalThis.fetch !== 'function') {
+    return undefined;
+  }
+  return globalThis.fetch.bind(globalThis) as unknown as FetchLike;
+};
+
+const getManifestRemoteUrl = (entry: string): string | undefined => {
+  try {
+    const url = new URL(entry);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return undefined;
+    }
+    if (!url.pathname.endsWith('.json')) {
+      return undefined;
+    }
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveTypeArtifactUrl = (
+  manifestUrl: string,
+  typePath: string | undefined,
+  fileName: string,
+): string => {
+  const baseUrl = new URL('.', manifestUrl);
+  const normalizedTypePath = typePath ? typePath.replace(/\/?$/, '/') : '';
+  return new URL(`${normalizedTypePath}${fileName}`, baseUrl).toString();
+};
+
+const readManifestTypes = async (
+  manifestUrl: string,
+  fetchImpl: FetchLike,
+): Promise<{ name: string; api: string; path?: string } | undefined> => {
+  const response = await fetchImpl(manifestUrl);
+  if (!response.ok) {
+    return undefined;
+  }
+
+  const manifest = await response.json();
+  if (!isRecord(manifest) || !isRecord(manifest.metaData) || !isRecord(manifest.metaData.types)) {
+    return undefined;
+  }
+
+  const types = manifest.metaData.types;
+  if (typeof types.name !== 'string' || typeof types.api !== 'string') {
+    return undefined;
+  }
+
+  return {
+    name: types.name,
+    api: types.api,
+    path: typeof types.path === 'string' ? types.path : undefined,
+  };
+};
+
+export const resolveManifestRemoteTypeUrls = async (
+  options: NormalizedModuleFederationOptions,
+  fetchImpl?: FetchLike,
+): Promise<RemoteTypeUrls> => {
+  const fetcher = getFetch(fetchImpl);
+  if (!fetcher) {
+    return {};
+  }
+
+  const entries = await Promise.all(
+    Object.entries(options.remotes).map(async ([remoteName, remote]) => {
+      const manifestUrl = getManifestRemoteUrl(remote.entry);
+      if (!manifestUrl) {
+        return undefined;
+      }
+
+      try {
+        const types = await readManifestTypes(manifestUrl, fetcher);
+        if (!types) {
+          return undefined;
+        }
+
+        return [
+          remoteName,
+          {
+            alias: remoteName,
+            api: resolveTypeArtifactUrl(manifestUrl, types.path, types.api),
+            zip: resolveTypeArtifactUrl(manifestUrl, types.path, types.name),
+          },
+        ] as const;
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+
+  return Object.fromEntries(entries.filter((entry): entry is NonNullable<typeof entry> => !!entry));
+};
+
+export const applyManifestRemoteTypeUrls = async (
+  host: HostWithRemoteTypeUrls,
+  options: NormalizedModuleFederationOptions,
+  fetchImpl?: FetchLike,
+): Promise<void> => {
+  const currentRemoteTypeUrls = host.remoteTypeUrls;
+
+  if (typeof currentRemoteTypeUrls === 'function') {
+    host.remoteTypeUrls = async () => ({
+      ...(await resolveManifestRemoteTypeUrls(options, fetchImpl)),
+      ...(await currentRemoteTypeUrls()),
+    });
+    return;
+  }
+
+  const manifestRemoteTypeUrls = await resolveManifestRemoteTypeUrls(options, fetchImpl);
+  if (Object.keys(manifestRemoteTypeUrls).length === 0 && !currentRemoteTypeUrls) {
+    return;
+  }
+
+  host.remoteTypeUrls = {
+    ...manifestRemoteTypeUrls,
+    ...(currentRemoteTypeUrls || {}),
+  };
 };
 
 const normalizeDevDtsOptions = (
@@ -289,6 +429,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
       const startDevWorker = async () => {
         let remoteTypeUrls: moduleFederationPlugin.RemoteTypeUrls | undefined;
         if (host) {
+          await applyManifestRemoteTypeUrls(host, options);
           remoteTypeUrls = await new Promise((resolve) => {
             consumeTypesAPI(
               {
@@ -377,6 +518,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
 
       if (consumeOptions?.host?.typesOnBuild) {
         try {
+          await applyManifestRemoteTypeUrls(consumeOptions.host, options);
           await consumeTypesAPI(consumeOptions);
         } catch (error) {
           logDtsError(error, normalizedDtsOptions);

@@ -18,13 +18,6 @@ export default defineConfig({
           ? {
               abortOnError: true,
               consumeAPITypes: true,
-              remoteTypeUrls: {
-                dtsRemote: {
-                  alias: 'dtsRemote',
-                  api: `${remoteBaseUrl}/@mf-types.d.ts`,
-                  zip: `${remoteBaseUrl}/@mf-types.zip`,
-                },
-              },
               typesOnBuild: true,
             }
           : false,
