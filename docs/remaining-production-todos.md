@@ -84,10 +84,11 @@ Current state:
 - `@module-federation/dts-plugin` is integrated.
 - Manifest metadata can describe type artifact names.
 - Dev worker and dynamic remote type hints are wired.
+- `examples/dts-remote` validates build-time remote type generation, manifest type metadata, API
+  declaration output, and zipped expose declarations.
 
 Remaining work:
 
-- Add e2e tests proving remote type generation creates `@mf-types.zip` and `@mf-types.d.ts`.
 - Add host e2e tests proving generated remote types are consumed by TypeScript.
 - Add dev e2e tests for type hot sync after a remote type change.
 - Validate `remoteTypeUrls` with manifest-derived URLs and custom URLs.

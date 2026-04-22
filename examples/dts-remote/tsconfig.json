@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "declaration": true,
+    "declarationMap": false,
+    "emitDeclarationOnly": false,
+    "lib": ["DOM", "ES2023"],
+    "outDir": "dist"
+  },
+  "include": ["src", "vite.config.ts"]
+}

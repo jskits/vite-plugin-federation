@@ -1,0 +1,20 @@
+{
+  "name": "example-dts-remote",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rimraf dist",
+    "test:artifacts": "pnpm clean && pnpm build && node scripts/verify-type-artifacts.mjs",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "vite-plugin-federation": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "6.1.3",
+    "typescript": "5.9.3",
+    "vite": "8.0.8"
+  }
+}
