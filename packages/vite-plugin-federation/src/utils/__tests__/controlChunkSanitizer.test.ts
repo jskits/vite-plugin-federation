@@ -59,6 +59,22 @@ describe('controlChunkSanitizer', () => {
     expect(result).toContain('o(()=>import("./ui.js"),__vite__mapDeps([0]),import.meta.url)');
   });
 
+  it('inlines preload helpers imported from loadShare chunks in control chunks', () => {
+    const code =
+      'import{n as initRuntime}from"./dist.js";' +
+      'import{i as preload}from"./remote__loadShare__shared__loadShare__.mjs-Abc.js";' +
+      'async function getLocalSharedImportMap(){return preload(()=>import("./localSharedImportMap.js"),__vite__mapDeps([0,1,2]))}' +
+      'export{getLocalSharedImportMap}';
+
+    expect(
+      sanitizeFederationControlChunk(code, 'assets/remoteEntry-abc.js', 'remoteEntry.js'),
+    ).toBe(
+      'import{n as initRuntime}from"./dist.js";' +
+        'async function getLocalSharedImportMap(){return import("./localSharedImportMap.js")}' +
+        'export{getLocalSharedImportMap}',
+    );
+  });
+
   it('detects federation control chunks', () => {
     expect(isFederationControlChunk('remoteEntry.js', 'remoteEntry.js')).toBe(true);
     expect(isFederationControlChunk('assets/hostInit-abc.js', 'remoteEntry.js')).toBe(true);
