@@ -380,6 +380,17 @@ export const consumeTypesAndWait = (dtsManagerOptions: DTSManagerOptions): Promi
     consumeTypesAPI(dtsManagerOptions, () => resolve()).catch(reject);
   });
 
+export const ensureAbortableGenerateTypes = (
+  generateOptions: ReturnType<typeof normalizeGenerateTypesOptions>,
+  dtsOptions: moduleFederationPlugin.PluginDtsOptions | false,
+): void => {
+  if (!generateOptions?.remote || !shouldAbortDtsBuildError(dtsOptions, 'generateTypes')) {
+    return;
+  }
+
+  generateOptions.remote.compileInChildProcess = false;
+};
+
 const handleBuildDtsError = (
   error: unknown,
   dtsOptions: moduleFederationPlugin.PluginDtsOptions | false,
@@ -630,6 +641,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
         return;
       }
 
+      ensureAbortableGenerateTypes(generateOptions, normalizedDtsOptions);
       try {
         await generateTypesAPI({ dtsManagerOptions: generateOptions });
       } catch (error) {

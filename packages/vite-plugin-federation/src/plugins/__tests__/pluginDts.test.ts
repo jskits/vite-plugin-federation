@@ -7,6 +7,7 @@ import { normalizeModuleFederationOptions } from '../../utils/normalizeModuleFed
 import pluginDts, {
   assertConsumedRemoteTypes,
   applyManifestRemoteTypeUrls,
+  ensureAbortableGenerateTypes,
   getExpectedConsumedRemoteTypeFolders,
   resolveManifestRemoteTypeUrls,
   shouldAbortDtsBuildError,
@@ -220,5 +221,30 @@ describe('pluginDts build', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('runs dts generation in process when abortOnError must surface compiler failures', () => {
+    const generateOptions = {
+      remote: {
+        compileInChildProcess: true,
+      },
+    } as Parameters<typeof ensureAbortableGenerateTypes>[0];
+
+    ensureAbortableGenerateTypes(generateOptions, {
+      generateTypes: {
+        abortOnError: true,
+      },
+    });
+
+    expect(generateOptions?.remote?.compileInChildProcess).toBe(false);
+
+    generateOptions.remote.compileInChildProcess = true;
+    ensureAbortableGenerateTypes(generateOptions, {
+      generateTypes: {
+        abortOnError: false,
+      },
+    });
+
+    expect(generateOptions.remote.compileInChildProcess).toBe(true);
   });
 });

@@ -7,6 +7,7 @@
     "build": "vite build",
     "clean": "rimraf dist",
     "test:artifacts": "pnpm clean && pnpm build && node scripts/verify-type-artifacts.mjs",
+    "test:invalid-types": "node scripts/verify-invalid-types.mjs",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {

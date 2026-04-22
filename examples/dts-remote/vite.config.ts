@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
 
+const answerExpose =
+  process.env.DTS_REMOTE_INVALID_TYPES === 'true'
+    ? './fixtures/invalid-types/answer.ts'
+    : './src/answer.ts';
+
 export default defineConfig({
   plugins: [
     federation({
@@ -8,7 +13,7 @@ export default defineConfig({
       filename: 'remoteEntry.js',
       manifest: true,
       exposes: {
-        './answer': './src/answer.ts',
+        './answer': answerExpose,
       },
       dts: {
         generateTypes: {
