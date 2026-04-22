@@ -1,8 +1,13 @@
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'pathe';
 import { describe, expect, it, vi } from 'vitest';
 import type { ResolvedConfig } from 'vite';
 import { normalizeModuleFederationOptions } from '../../utils/normalizeModuleFederationOptions';
 import pluginDts, {
+  assertConsumedRemoteTypes,
   applyManifestRemoteTypeUrls,
+  getExpectedConsumedRemoteTypeFolders,
   resolveManifestRemoteTypeUrls,
   shouldAbortDtsBuildError,
 } from '../pluginDts';
@@ -177,5 +182,43 @@ describe('pluginDts build', () => {
         'generateTypes',
       ),
     ).toBe(false);
+  });
+
+  it('detects missing consumed remote type folders for abortOnError builds', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'mf-dts-host-'));
+    const normalized = normalizeModuleFederationOptions({
+      name: 'host',
+      remotes: {
+        dtsRemote: 'https://cdn.example.com/mf-manifest.json',
+      },
+      shareStrategy: 'loaded-first',
+    });
+    const host = {
+      context: root,
+      typesFolder: '@mf-types',
+      remoteTypeUrls: {
+        dtsRemote: {
+          alias: 'remoteAlias',
+          api: 'https://cdn.example.com/@mf-types.d.ts',
+          zip: 'https://cdn.example.com/@mf-types.zip',
+        },
+      },
+    };
+
+    try {
+      await expect(getExpectedConsumedRemoteTypeFolders(host, normalized)).resolves.toEqual([
+        'dtsRemote',
+        'remoteAlias',
+      ]);
+
+      expect(() => assertConsumedRemoteTypes(host, ['remoteAlias'])).toThrow(
+        'Missing consumed federated types for "remoteAlias"',
+      );
+
+      mkdirSync(path.join(root, '@mf-types', 'remoteAlias'), { recursive: true });
+      expect(() => assertConsumedRemoteTypes(host, ['remoteAlias'])).not.toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

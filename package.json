@@ -15,7 +15,7 @@
     "changeset": "changeset",
     "dev": "turbo run dev --parallel",
     "examples:build": "pnpm --filter example-react-remote build && pnpm --filter example-react-host build && pnpm --filter example-react-ssr-host build && pnpm examples:dts:build",
-    "examples:dts:build": "pnpm --filter example-dts-remote test:artifacts && pnpm --filter example-dts-host test:types",
+    "examples:dts:build": "pnpm --filter vite-plugin-federation build && pnpm --filter example-dts-remote test:artifacts && pnpm --filter example-dts-host test:types && pnpm --filter example-dts-host test:types:failures",
     "examples:ssr:build": "pnpm --filter example-react-remote build && pnpm --filter example-react-ssr-host build",
     "examples:dev": "turbo run dev --parallel --filter=example-react-remote --filter=example-react-host",
     "format": "prettier . --cache --write",

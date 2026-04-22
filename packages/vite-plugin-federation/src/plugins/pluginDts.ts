@@ -7,6 +7,7 @@ import {
   normalizeDtsOptions,
   normalizeGenerateTypesOptions,
 } from '@module-federation/dts-plugin';
+import { existsSync } from 'fs';
 import { rpc, type DTSManagerOptions } from '@module-federation/dts-plugin/core';
 import { createRequire } from 'node:module';
 import * as path from 'pathe';
@@ -44,6 +45,8 @@ type FetchResponseLike = {
 };
 type FetchLike = (url: string) => Promise<FetchResponseLike>;
 type HostWithRemoteTypeUrls = {
+  context?: string;
+  typesFolder?: string;
   remoteTypeUrls?: RemoteTypeUrls | RemoteTypeUrlFactory;
 };
 
@@ -274,6 +277,17 @@ export const applyManifestRemoteTypeUrls = async (
   };
 };
 
+export const resolveHostRemoteTypeUrls = async (
+  host: HostWithRemoteTypeUrls,
+): Promise<RemoteTypeUrls | undefined> => {
+  if (typeof host.remoteTypeUrls === 'function') {
+    const resolvedRemoteTypeUrls = await host.remoteTypeUrls();
+    host.remoteTypeUrls = resolvedRemoteTypeUrls;
+    return resolvedRemoteTypeUrls;
+  }
+  return host.remoteTypeUrls;
+};
+
 const normalizeDevDtsOptions = (
   dts: NormalizedModuleFederationOptions['dts'],
   context: string,
@@ -321,6 +335,50 @@ export const shouldAbortDtsBuildError = (
   const phaseOptions = dtsOptions[phase];
   return typeof phaseOptions === 'object' && phaseOptions?.abortOnError === true;
 };
+
+export const getExpectedConsumedRemoteTypeFolders = async (
+  host: HostWithRemoteTypeUrls,
+  options: NormalizedModuleFederationOptions,
+): Promise<string[]> => {
+  const folders = new Set(Object.keys(options.remotes));
+  const remoteTypeUrls = await resolveHostRemoteTypeUrls(host);
+
+  Object.entries(remoteTypeUrls || {}).forEach(([remoteName, remoteTypeUrl]) => {
+    folders.add(remoteTypeUrl.alias || remoteName);
+  });
+
+  return [...folders].filter(Boolean).sort();
+};
+
+export const assertConsumedRemoteTypes = (
+  host: HostWithRemoteTypeUrls,
+  expectedFolders: string[],
+): void => {
+  if (expectedFolders.length === 0) {
+    return;
+  }
+
+  const context = host.context || process.cwd();
+  const typesFolder = host.typesFolder || '@mf-types';
+  const typeRoot = path.resolve(context, typesFolder);
+  const missingFolders = expectedFolders.filter(
+    (folder) => !existsSync(path.join(typeRoot, folder)),
+  );
+
+  if (missingFolders.length > 0) {
+    throw createModuleFederationError(
+      `Missing consumed federated types for ${missingFolders
+        .map((folder) => `"${folder}"`)
+        .join(', ')} in "${typeRoot}". ` +
+        'Check the remote type artifact URLs or disable `dts.consumeTypes.abortOnError`.',
+    );
+  }
+};
+
+export const consumeTypesAndWait = (dtsManagerOptions: DTSManagerOptions): Promise<void> =>
+  new Promise((resolve, reject) => {
+    consumeTypesAPI(dtsManagerOptions, () => resolve()).catch(reject);
+  });
 
 const handleBuildDtsError = (
   error: unknown,
@@ -542,7 +600,14 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
       if (consumeOptions?.host?.typesOnBuild) {
         try {
           await applyManifestRemoteTypeUrls(consumeOptions.host, options);
-          await consumeTypesAPI(consumeOptions);
+          const expectedRemoteTypeFolders = shouldAbortDtsBuildError(
+            normalizedDtsOptions,
+            'consumeTypes',
+          )
+            ? await getExpectedConsumedRemoteTypeFolders(consumeOptions.host, options)
+            : [];
+          await consumeTypesAndWait(consumeOptions);
+          assertConsumedRemoteTypes(consumeOptions.host, expectedRemoteTypeFolders);
         } catch (error) {
           handleBuildDtsError(error, normalizedDtsOptions, 'consumeTypes');
         }

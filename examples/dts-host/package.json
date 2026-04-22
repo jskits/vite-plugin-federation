@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build",
     "clean": "rimraf dist @mf-types",
-    "test:types": "node scripts/verify-consumed-types.mjs"
+    "test:types": "node scripts/verify-consumed-types.mjs",
+    "test:types:failures": "node scripts/verify-type-failures.mjs"
   },
   "dependencies": {
     "vite-plugin-federation": "workspace:*"

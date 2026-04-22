@@ -90,6 +90,8 @@ Current state:
   `remoteTypeUrls`, `typesOnBuild`, `consumeAPITypes`, and `abortOnError` happy-path behavior.
 - Build-time DTS generation/consumption errors are rethrown when the corresponding scoped
   `abortOnError` option is enabled.
+- `examples/dts-host` validates unavailable remote type artifacts fail build-time consumption with
+  a clear missing-types diagnostic when `abortOnError` is enabled.
 - Exact DTS workflows, defaults, and recommended production settings are documented in
   `docs/dts-workflows.md`.
 
@@ -97,7 +99,7 @@ Remaining work:
 
 - Add dev e2e tests for type hot sync after a remote type change.
 - Validate `displayErrorInTerminal` and disabled generate/consume settings.
-- Add failure-mode tests for unavailable type URLs, corrupt zip payloads, and invalid TS projects.
+- Add failure-mode tests for corrupt zip payloads and invalid TS projects.
 - Verify Vue/Svelte style TS projects if those frameworks are added to the example matrix.
 
 Acceptance criteria:
