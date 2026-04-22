@@ -193,15 +193,14 @@ Current state:
 - Basic OriginJS-style `virtual:__federation__` shim exists.
 - `from` and `format` are normalized enough for the main migration path.
 - `varFilename` can generate an additional var-style remote entry.
+- Unit coverage executes the OriginJS shim APIs for static and dynamic remotes:
+  `__federation_method_setRemote`, `__federation_method_getRemote`,
+  `__federation_method_ensure`, `__federation_method_unwrapDefault`, and
+  `__federation_method_wrapDefault`.
 
 Remaining work:
 
-- Add e2e coverage for OriginJS migration APIs:
-  - `__federation_method_setRemote`
-  - `__federation_method_getRemote`
-  - `__federation_method_ensure`
-  - `__federation_method_unwrapDefault`
-  - `__federation_method_wrapDefault`
+- Add browser/e2e coverage for OriginJS migration APIs.
 - Validate `format: 'esm'`, `format: 'var'`, and `format: 'systemjs'`.
 - Validate `from: 'vite'`, `from: 'webpack'`, and mixed host/remote combinations.
 - Validate remoteEntry-first and manifest-first compatibility behavior.
