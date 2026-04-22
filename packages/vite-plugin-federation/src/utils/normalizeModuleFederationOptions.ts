@@ -351,10 +351,14 @@ function normalizeShareItem(
   let version: string | undefined;
 
   const isImportFalse = typeof shareItem === 'object' && shareItem.import === false;
+  const explicitVersion =
+    typeof shareItem === 'object'
+      ? shareItem.version || inferVersionFromRequiredVersion(shareItem.requiredVersion)
+      : undefined;
 
   // Skip package.json resolution when import: false — this app doesn't
   // provide the package, so it may not be installed at all.
-  if (!isImportFalse) {
+  if (!isImportFalse && !explicitVersion) {
     try {
       const projectRequire = createRequire(path.join(process.cwd(), 'package.json'));
       try {
@@ -390,8 +394,6 @@ function normalizeShareItem(
       },
     };
   }
-  const explicitVersion =
-    shareItem.version || inferVersionFromRequiredVersion(shareItem.requiredVersion);
   return {
     name: key,
     from: '',

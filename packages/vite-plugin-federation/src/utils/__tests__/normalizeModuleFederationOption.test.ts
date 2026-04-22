@@ -353,6 +353,32 @@ describe('normalizeModuleFederationOption', () => {
       });
     });
 
+    it('skips package.json resolution when a shared version is explicit', () => {
+      mfErrorSpy.mockClear();
+
+      const result = normalizeModuleFederationOptions({
+        ...minimalOptions,
+        shared: {
+          'not-installed-pkg': {
+            import: '/repo/src/not-installed-pkg.js',
+            requiredVersion: '*',
+            singleton: true,
+            version: '1.2.3',
+          },
+        },
+      }).shared;
+
+      expect(mfErrorSpy).not.toHaveBeenCalled();
+      expect(result['not-installed-pkg']).toMatchObject({
+        version: '1.2.3',
+        shareConfig: {
+          import: '/repo/src/not-installed-pkg.js',
+          requiredVersion: '*',
+          singleton: true,
+        },
+      });
+    });
+
     it('normalizes allowNodeModulesSuffixMatch and matches pnpm node_modules suffixes', () => {
       const shared = normalizeModuleFederationOptions({
         ...minimalOptions,
