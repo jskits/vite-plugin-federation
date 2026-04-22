@@ -47,6 +47,8 @@ Current state:
   `versionSatisfied` for `requiredVersion` comparisons.
 - Singleton conflicts emit `MFV-003` with the selected provider/version and rejected candidate
   versions.
+- Shared packages can opt into `strictSingleton: true` to upgrade singleton conflicts from
+  diagnostic-only warnings to `MFV-003` runtime errors.
 - Generated shared wrappers throw an actionable host-only error when `import: false` is configured
   and no host provider is available, and normal shared wrappers fall back to the local prebuild
   source when runtime share resolution returns `false`.
@@ -55,8 +57,6 @@ Remaining work:
 
 - Add e2e coverage for deterministic `loaded-first` and `version-first` negotiation in real
   host/remote builds.
-- Decide whether singleton conflicts should remain diagnostic-only or become hard errors under an
-  explicit production strictness option.
 - Extend generated internal `loadShare` paths with source-path annotations so suffix-match
   decisions can be tied back to exact pnpm/symlinked file paths at runtime.
 - Add browser/e2e coverage for `strictVersion` behavior under local fallback and host-only shared

@@ -384,6 +384,24 @@ describe('normalizeModuleFederationOption', () => {
       ).toBe('react');
     });
 
+    it('normalizes strictSingleton only when explicitly enabled', () => {
+      const shared = normalizeModuleFederationOptions({
+        ...minimalOptions,
+        shared: {
+          react: {
+            singleton: true,
+            strictSingleton: true,
+          },
+          vue: {
+            singleton: true,
+          },
+        },
+      }).shared;
+
+      expect(shared.react.shareConfig.strictSingleton).toBe(true);
+      expect(shared.vue.shareConfig.strictSingleton).toBeUndefined();
+    });
+
     it('normalizes suffix share requests for nested subpaths', () => {
       expect(
         getNodeModulesSuffixShareRequest(

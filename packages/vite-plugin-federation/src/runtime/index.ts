@@ -190,6 +190,7 @@ interface RuntimeSharedCandidateSnapshot {
   scope: string[];
   singleton: boolean;
   strategy?: string;
+  strictSingleton: boolean;
   strictVersion: boolean;
   useIn: string[];
   version: string;
@@ -214,6 +215,7 @@ interface RuntimeSharedResolutionEntry {
   selected: RuntimeSharedCandidateSnapshot | null;
   shareScope: string[];
   singleton: boolean;
+  strictSingleton: boolean;
   status: SharedResolutionStatus;
   strategy?: string;
   strictVersion: boolean;
@@ -285,6 +287,7 @@ type RuntimeSharedLike = {
     import?: unknown;
     requiredVersion?: unknown;
     singleton?: unknown;
+    strictSingleton?: unknown;
     strictVersion?: unknown;
   };
   strategy?: unknown;
@@ -561,6 +564,7 @@ function toRuntimeSharedCandidateSnapshot(
     scope,
     singleton: shareConfig.singleton === true,
     strategy: typeof shared?.strategy === 'string' ? shared.strategy : undefined,
+    strictSingleton: shareConfig.strictSingleton === true,
     strictVersion: shareConfig.strictVersion === true,
     useIn,
     version,
@@ -679,27 +683,36 @@ function getDistinctRejectedVersions(rejected: RuntimeSharedCandidateSnapshot[])
   );
 }
 
-function warnSingletonConflict(
+function isModuleFederationErrorCode(error: unknown, code: ModuleFederationErrorCode) {
+  return error instanceof Error && (error as Error & { code?: unknown }).code === code;
+}
+
+function reportSingletonConflict(
   pkgName: string,
   selected: RuntimeSharedCandidateSnapshot | null,
   rejected: RuntimeSharedCandidateSnapshot[],
   singleton: boolean,
+  strictSingleton: boolean,
   scope: string[],
 ) {
   const rejectedVersions = getDistinctRejectedVersions(rejected);
   if (!singleton || !selected || rejectedVersions.length === 0) return;
 
-  mfWarnWithCode(
-    'MFV-003',
-    `Shared singleton "${pkgName}" selected version "${selected.version}" and rejected ${rejectedVersions.join(', ')}.`,
-    {
-      pkgName,
-      rejectedVersions,
-      scope,
-      selectedProvider: selected.provider,
-      selectedVersion: selected.version,
-    },
-  );
+  const message = `Shared singleton "${pkgName}" selected version "${selected.version}" and rejected ${rejectedVersions.join(', ')}.`;
+  const details = {
+    pkgName,
+    rejectedVersions,
+    scope,
+    selectedProvider: selected.provider,
+    selectedVersion: selected.version,
+    strictSingleton,
+  };
+
+  if (strictSingleton) {
+    throw createModuleFederationError('MFV-003', message);
+  }
+
+  mfWarnWithCode('MFV-003', message, details);
 }
 
 function getRequestedShareConfig(
@@ -788,15 +801,17 @@ function recordSharedResolutionFromLoad(
     singleton: shareConfig?.singleton === true,
     status,
     strategy: requested.strategy,
+    strictSingleton: shareConfig?.strictSingleton === true,
     strictVersion: shareConfig?.strictVersion === true,
     versionSatisfied,
   });
 
-  warnSingletonConflict(
+  reportSingletonConflict(
     pkgName,
     selected,
     rejected,
     shareConfig?.singleton === true,
+    shareConfig?.strictSingleton === true,
     requested.scope,
   );
 
@@ -839,6 +854,7 @@ function recordSharedResolutionError(pkgName: string, extraOptions: unknown, err
     singleton: shareConfig?.singleton === true,
     status: 'error',
     strategy: requested.strategy,
+    strictSingleton: shareConfig?.strictSingleton === true,
     strictVersion: shareConfig?.strictVersion === true,
     versionSatisfied: undefined,
   });
@@ -875,6 +891,7 @@ function createSharedDiagnosticsRuntimePlugin() {
         singleton: args.shared.shareConfig?.singleton === true,
         status: 'registered',
         strategy: typeof args.shared.strategy === 'string' ? args.shared.strategy : undefined,
+        strictSingleton: args.shared.shareConfig?.strictSingleton === true,
         strictVersion: args.shared.shareConfig?.strictVersion === true,
         versionSatisfied: undefined,
       });
@@ -909,6 +926,7 @@ function createSharedDiagnosticsRuntimePlugin() {
         status: 'before-load',
         strategy:
           typeof args.shareInfo?.strategy === 'string' ? args.shareInfo.strategy : undefined,
+        strictSingleton: args.shareInfo?.shareConfig?.strictSingleton === true,
         strictVersion: args.shareInfo?.shareConfig?.strictVersion === true,
         versionSatisfied: undefined,
       });
@@ -967,6 +985,7 @@ function createSharedDiagnosticsRuntimePlugin() {
           status: selected ? 'resolved' : 'miss',
           strategy:
             typeof args.shareInfo.strategy === 'string' ? args.shareInfo.strategy : undefined,
+          strictSingleton: args.shareInfo.shareConfig?.strictSingleton === true,
           strictVersion,
           versionSatisfied,
         });
@@ -974,11 +993,12 @@ function createSharedDiagnosticsRuntimePlugin() {
         warnSharedVersionMismatch(args.pkgName, selected, requestedVersion, strictVersion, [
           args.scope,
         ]);
-        warnSingletonConflict(
+        reportSingletonConflict(
           args.pkgName,
           selected,
           rejected,
           args.shareInfo.shareConfig?.singleton === true,
+          args.shareInfo.shareConfig?.strictSingleton === true,
           [args.scope],
         );
 
@@ -995,6 +1015,10 @@ function createSharedDiagnosticsRuntimePlugin() {
           resolver: () => resolved,
         };
       } catch (error) {
+        if (isModuleFederationErrorCode(error, 'MFV-003')) {
+          throw error;
+        }
+
         const message = error instanceof Error ? error.message : String(error);
         const candidates = getRuntimeSharedCandidates(args.pkgName, {
           name: 'diagnostics',
@@ -1022,6 +1046,7 @@ function createSharedDiagnosticsRuntimePlugin() {
           status: 'error',
           strategy:
             typeof args.shareInfo.strategy === 'string' ? args.shareInfo.strategy : undefined,
+          strictSingleton: args.shareInfo.shareConfig?.strictSingleton === true,
           strictVersion: args.shareInfo.shareConfig?.strictVersion === true,
           versionSatisfied: undefined,
         });
@@ -1370,6 +1395,11 @@ export async function loadShare<T>(...args: Parameters<ModuleFederation['loadSha
     publishRuntimeDebugUpdate('shared-resolution');
     return result;
   } catch (error) {
+    if (isModuleFederationErrorCode(error, 'MFV-003')) {
+      publishRuntimeDebugUpdate('shared-resolution');
+      throw error;
+    }
+
     recordSharedResolutionError(pkgName, extraOptions, error);
     publishRuntimeDebugUpdate('shared-resolution');
     throw error;
@@ -1385,6 +1415,11 @@ export function loadShareSync<T>(...args: Parameters<ModuleFederation['loadShare
     publishRuntimeDebugUpdate('shared-resolution');
     return result;
   } catch (error) {
+    if (isModuleFederationErrorCode(error, 'MFV-003')) {
+      publishRuntimeDebugUpdate('shared-resolution');
+      throw error;
+    }
+
     recordSharedResolutionError(pkgName, extraOptions, error);
     publishRuntimeDebugUpdate('shared-resolution');
     throw error;

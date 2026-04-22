@@ -197,6 +197,9 @@
         "allowNodeModulesSuffixMatch": {
           "type": "boolean"
         },
+        "strictSingleton": {
+          "type": "boolean"
+        },
         "assets": {
           "$ref": "#/$defs/assets"
         }

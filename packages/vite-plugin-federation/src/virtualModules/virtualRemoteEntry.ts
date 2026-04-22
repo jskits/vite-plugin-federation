@@ -116,6 +116,7 @@ export function generateLocalSharedImportMap() {
             shareConfig: {
               singleton: ${shareItem.shareConfig.singleton},
               requiredVersion: ${JSON.stringify(shareItem.shareConfig.requiredVersion)},
+              ${shareItem.shareConfig.strictSingleton ? 'strictSingleton: true,' : ''}
               ${shareItem.shareConfig.import === false ? 'import: false,' : ''}
             }
           }

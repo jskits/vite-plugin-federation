@@ -50,6 +50,7 @@ function getGeneratedShareConfigProperties(shareItem: ShareItem) {
     `singleton: ${shareItem.shareConfig.singleton}`,
     `strictVersion: ${shareItem.shareConfig.strictVersion}`,
     `requiredVersion: ${JSON.stringify(shareItem.shareConfig.requiredVersion)}`,
+    shareItem.shareConfig.strictSingleton ? 'strictSingleton: true' : undefined,
     shareItem.shareConfig.allowNodeModulesSuffixMatch
       ? 'allowNodeModulesSuffixMatch: true'
       : undefined,

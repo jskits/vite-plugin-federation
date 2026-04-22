@@ -612,6 +612,7 @@ describe('writeLoadShareModule', () => {
       version: '1.0.0',
       shareConfig: {
         singleton: true,
+        strictSingleton: true,
         strictVersion: true,
         requiredVersion: '^1.0.0',
       },
@@ -627,6 +628,7 @@ describe('writeLoadShareModule', () => {
     expect(generatedCode).toContain('if (factory === false)');
     expect(generatedCode).toContain('const fallbackModule = await import("mock-import-id")');
     expect(generatedCode).toContain('return fallbackModule.default ?? fallbackModule');
+    expect(generatedCode).toContain('strictSingleton: true');
     expect(generatedCode).toContain('strictVersion: true');
   });
 

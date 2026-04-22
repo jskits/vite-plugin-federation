@@ -61,6 +61,7 @@ type ShareImportOption = string | false | undefined;
 type ShareConfigWithImport = SharedConfig & {
   allowNodeModulesSuffixMatch?: boolean;
   import?: ShareImportOption;
+  strictSingleton?: boolean;
 };
 
 export function toInternalModuleFederationName(name: string) {
@@ -341,6 +342,7 @@ function normalizeShareItem(
         version?: string;
         shareScope?: string;
         singleton?: boolean;
+        strictSingleton?: boolean;
         requiredVersion?: string;
         strictVersion?: boolean;
         allowNodeModulesSuffixMatch?: boolean;
@@ -400,6 +402,7 @@ function normalizeShareItem(
       singleton: shareItem.singleton || false,
       requiredVersion: shareItem.requiredVersion || (version ? `^${version}` : '*'),
       strictVersion: !!shareItem.strictVersion,
+      ...(shareItem.strictSingleton ? { strictSingleton: true } : {}),
       ...(shareItem.allowNodeModulesSuffixMatch ? { allowNodeModulesSuffixMatch: true } : {}),
     },
   };
@@ -416,6 +419,7 @@ function normalizeShared(
             version?: string;
             shareScope?: string;
             singleton?: boolean;
+            strictSingleton?: boolean;
             requiredVersion?: string;
             strictVersion?: boolean;
             allowNodeModulesSuffixMatch?: boolean;
@@ -533,6 +537,7 @@ export type ModuleFederationOptions = {
             version?: string;
             shareScope?: string;
             singleton?: boolean;
+            strictSingleton?: boolean;
             requiredVersion?: string;
             strictVersion?: boolean;
             allowNodeModulesSuffixMatch?: boolean;

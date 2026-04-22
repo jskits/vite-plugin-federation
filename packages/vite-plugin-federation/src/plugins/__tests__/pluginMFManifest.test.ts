@@ -144,6 +144,7 @@ async function runGenerateBundleWithManifest(
         import: sharedConfig.import,
         requiredVersion: sharedConfig.requiredVersion || '*',
         singleton: sharedConfig.singleton || false,
+        strictSingleton: sharedConfig.strictSingleton || false,
         strictVersion: sharedConfig.strictVersion || false,
       },
     };
@@ -573,6 +574,7 @@ describe('pluginMFManifest', () => {
           import: '/workspace/packages/react/index.js',
           requiredVersion: '^19.0.0',
           singleton: true,
+          strictSingleton: true,
           strictVersion: true,
         },
         'lit/': {
@@ -599,6 +601,7 @@ describe('pluginMFManifest', () => {
 
     expect(stats.shared.find((share: any) => share.name === 'react')).toMatchObject({
       allowNodeModulesSuffixMatch: true,
+      strictSingleton: true,
     });
 
     expect(stats.diagnostics.remoteAliases).toEqual([

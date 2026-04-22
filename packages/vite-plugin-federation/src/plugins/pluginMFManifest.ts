@@ -453,6 +453,7 @@ const Manifest = (): Plugin[] => {
           singleton: shareItem.shareConfig.singleton,
           requiredVersion: shareItem.shareConfig.requiredVersion,
           allowNodeModulesSuffixMatch: shareItem.shareConfig.allowNodeModulesSuffixMatch === true,
+          strictSingleton: shareItem.shareConfig.strictSingleton === true,
           assets: {
             js: {
               async: assets.js.async,
@@ -594,6 +595,7 @@ const Manifest = (): Plugin[] => {
           import: share.shareConfig.import,
           requiredVersion: share.shareConfig.requiredVersion,
           singleton: share.shareConfig.singleton,
+          strictSingleton: share.shareConfig.strictSingleton === true,
           strictVersion: share.shareConfig.strictVersion || false,
           version: share.version,
           name,
@@ -663,6 +665,7 @@ const Manifest = (): Plugin[] => {
           resolutionSource: sharedImportInspection.resolutionSource,
           resolvedPackageEntry: sharedImportInspection.resolvedPackageEntry,
           singleton: shareItem.shareConfig.singleton,
+          strictSingleton: shareItem.shareConfig.strictSingleton === true,
           strictVersion: shareItem.shareConfig.strictVersion || false,
           used:
             usedShares.has(shareKey) ||

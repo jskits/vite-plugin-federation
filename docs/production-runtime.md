@@ -68,6 +68,7 @@ federation({
       singleton: true,
       requiredVersion: '^19.2.4',
       allowNodeModulesSuffixMatch: true,
+      strictSingleton: true,
     },
     'react/': {
       singleton: true,
@@ -90,6 +91,9 @@ plugin. The runtime records registered shared providers, the active share scope,
 diagnostics for shared misses, fallback selection, and semver range mismatches. Each graph entry
 includes `versionSatisfied` when a selected provider can be compared to `requiredVersion`, and
 singleton entries include rejected candidate versions when multiple providers are present.
+By default singleton conflicts are diagnostics only. Set `strictSingleton: true` on a shared
+package to upgrade those conflicts to an `MFV-003` runtime error while still recording the selected
+and rejected providers in `getFederationDebugInfo()`.
 
 For generated shared wrappers, `import: false` is treated as host-only: if the host does not provide
 the package, the wrapper throws an explicit error that includes `requiredVersion` and
