@@ -140,6 +140,7 @@ dist-ssr
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 **/.__mf__temp/
+**/@mf-types/
 
 other1/
 other2/

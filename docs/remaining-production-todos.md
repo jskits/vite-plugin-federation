@@ -86,14 +86,15 @@ Current state:
 - Dev worker and dynamic remote type hints are wired.
 - `examples/dts-remote` validates build-time remote type generation, manifest type metadata, API
   declaration output, and zipped expose declarations.
+- `examples/dts-host` validates build-time host type consumption from explicit `remoteTypeUrls`,
+  `typesOnBuild`, `consumeAPITypes`, and `abortOnError` happy-path behavior.
 
 Remaining work:
 
-- Add host e2e tests proving generated remote types are consumed by TypeScript.
 - Add dev e2e tests for type hot sync after a remote type change.
-- Validate `remoteTypeUrls` with manifest-derived URLs and custom URLs.
-- Validate `abortOnError`, `displayErrorInTerminal`, `typesOnBuild`, `consumeAPITypes`, and
-  `generateAPITypes`.
+- Validate manifest-derived `remoteTypeUrls`.
+- Validate `abortOnError` failure behavior, `displayErrorInTerminal`, and disabled
+  generate/consume settings.
 - Add failure-mode tests for unavailable type URLs, corrupt zip payloads, and invalid TS projects.
 - Document exact DTS defaults and recommended production settings.
 - Verify Vue/Svelte style TS projects if those frameworks are added to the example matrix.

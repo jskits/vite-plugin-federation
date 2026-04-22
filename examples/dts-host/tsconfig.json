@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "lib": ["DOM", "ES2023"],
+    "outDir": "dist",
+    "paths": {
+      "dtsRemote/*": ["@mf-types/dtsRemote/*"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "@mf-types/**/*.d.ts"]
+}

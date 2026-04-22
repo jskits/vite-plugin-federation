@@ -1,0 +1,19 @@
+{
+  "name": "example-dts-host",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rimraf dist @mf-types",
+    "test:types": "node scripts/verify-consumed-types.mjs"
+  },
+  "dependencies": {
+    "vite-plugin-federation": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "6.1.3",
+    "typescript": "5.9.3",
+    "vite": "8.0.8"
+  }
+}
