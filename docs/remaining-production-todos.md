@@ -197,6 +197,8 @@ Current state:
   `__federation_method_setRemote`, `__federation_method_getRemote`,
   `__federation_method_ensure`, `__federation_method_unwrapDefault`, and
   `__federation_method_wrapDefault`.
+- A compatibility matrix documents supported, partially supported, and unsupported remote formats,
+  `from` combinations, OriginJS APIs, and CSS migration behavior.
 
 Remaining work:
 
@@ -206,7 +208,6 @@ Remaining work:
 - Validate remoteEntry-first and manifest-first compatibility behavior.
 - Validate `dontAppendStylesToHead` migration to the new CSS behavior.
 - Add explicit errors or warnings for unsupported legacy combinations.
-- Publish a compatibility matrix with supported, partially supported, and unsupported combinations.
 
 Acceptance criteria:
 

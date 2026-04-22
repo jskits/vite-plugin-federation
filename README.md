@@ -79,6 +79,9 @@ CI build metadata, SSR asset collection, and operational recommendations.
 See [docs/dts-workflows.md](docs/dts-workflows.md) for remote type artifact generation, host type
 consumption, manifest-derived type URLs, and recommended production DTS settings.
 
+See [docs/compatibility-matrix.md](docs/compatibility-matrix.md) for OriginJS migration APIs,
+remote format support, CSS migration behavior, and unsupported legacy combinations.
+
 ## Release Flow
 
 1. Run `pnpm changeset` after finishing development work.
