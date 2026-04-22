@@ -9,11 +9,22 @@ import pluginDts, {
   applyManifestRemoteTypeUrls,
   ensureAbortableGenerateTypes,
   getExpectedConsumedRemoteTypeFolders,
+  handleBuildDtsError,
   resolveManifestRemoteTypeUrls,
   shouldAbortDtsBuildError,
 } from '../pluginDts';
 
 describe('pluginDts build', () => {
+  it('returns no plugins when dts is disabled', () => {
+    const normalized = normalizeModuleFederationOptions({
+      name: 'test-module',
+      dts: false,
+      shareStrategy: 'loaded-first',
+    });
+
+    expect(pluginDts(normalized)).toEqual([]);
+  });
+
   it('does not throw when dts options are invalid', async () => {
     const normalized = normalizeModuleFederationOptions({
       name: 'test-module',
@@ -36,6 +47,31 @@ describe('pluginDts build', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     buildPlugin?.configResolved?.(config);
     await expect(buildPlugin?.generateBundle?.()).resolves.toBeUndefined();
+    expect(consoleSpy).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
+  it('does not run build dts work when both generate and consume are disabled', async () => {
+    const normalized = normalizeModuleFederationOptions({
+      name: 'test-module',
+      dts: {
+        generateTypes: false,
+        consumeTypes: false,
+      },
+      shareStrategy: 'loaded-first',
+    });
+
+    const plugins = pluginDts(normalized);
+    const buildPlugin = plugins.find((plugin) => plugin.name === 'module-federation-dts-build');
+    const config = {
+      root: process.cwd(),
+      build: { outDir: 'dist' },
+    } as ResolvedConfig;
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    buildPlugin?.configResolved?.(config);
+    await expect(buildPlugin?.generateBundle?.()).resolves.toBeUndefined();
+
     expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
@@ -183,6 +219,27 @@ describe('pluginDts build', () => {
         'generateTypes',
       ),
     ).toBe(false);
+  });
+
+  it('suppresses terminal logging without suppressing abortOnError throws', () => {
+    const error = new Error('dts failure');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    expect(() =>
+      handleBuildDtsError(
+        error,
+        {
+          displayErrorInTerminal: false,
+          consumeTypes: {
+            abortOnError: true,
+          },
+        },
+        'consumeTypes',
+      ),
+    ).toThrow(error);
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
   });
 
   it('detects missing consumed remote type folders for abortOnError builds', async () => {

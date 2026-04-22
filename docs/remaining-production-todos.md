@@ -96,13 +96,14 @@ Current state:
   same deterministic missing-types diagnostic.
 - `examples/dts-remote` validates invalid TypeScript exposes fail build-time generation when
   `generateTypes.abortOnError` is enabled.
+- Unit coverage validates `displayErrorInTerminal`, disabled `generateTypes`/`consumeTypes`, and
+  fully disabled DTS behavior.
 - Exact DTS workflows, defaults, and recommended production settings are documented in
   `docs/dts-workflows.md`.
 
 Remaining work:
 
 - Add dev e2e tests for type hot sync after a remote type change.
-- Validate `displayErrorInTerminal` and disabled generate/consume settings.
 - Verify Vue/Svelte style TS projects if those frameworks are added to the example matrix.
 
 Acceptance criteria:

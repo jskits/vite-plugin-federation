@@ -391,7 +391,7 @@ export const ensureAbortableGenerateTypes = (
   generateOptions.remote.compileInChildProcess = false;
 };
 
-const handleBuildDtsError = (
+export const handleBuildDtsError = (
   error: unknown,
   dtsOptions: moduleFederationPlugin.PluginDtsOptions | false,
   phase: 'consumeTypes' | 'generateTypes',
