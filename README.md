@@ -44,11 +44,14 @@ This repo includes a minimal React host/remote verification pair:
 - `examples/react-remote`
 - `examples/react-host`
 - `examples/react-ssr-host`
+- `examples/dts-remote`
+- `examples/dts-host`
 
 Use the following commands:
 
 ```bash
 pnpm examples:build
+pnpm examples:dts:build
 pnpm examples:dev
 pnpm examples:ssr:build
 pnpm --filter vite-plugin-federation test:e2e:ssr
@@ -72,6 +75,9 @@ cache TTLs, retries, timeouts, SSR entry selection, asset preloading helpers, an
 
 See [docs/production-runtime.md](docs/production-runtime.md) for the production loading contract,
 CI build metadata, SSR asset collection, and operational recommendations.
+
+See [docs/dts-workflows.md](docs/dts-workflows.md) for remote type artifact generation, host type
+consumption, manifest-derived type URLs, and recommended production DTS settings.
 
 ## Release Flow
 
