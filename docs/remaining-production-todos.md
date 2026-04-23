@@ -52,6 +52,9 @@ Current state:
 - Generated local shared providers and internal `loadShare` requests include `sourcePath` and
   `resolvedImportSource` annotations so runtime debug snapshots can identify the exact local import
   or resolved file path involved in shared resolution.
+- Runtime/unit coverage validates package-root, trailing-slash subpath, and pnpm
+  `node_modules`-suffix shared matching for Vue-style subpath consumers, scoped workspace packages,
+  and pnpm-resolved package paths.
 - `examples/shared-negotiation-host` and `examples/shared-negotiation-remote` validate
   deterministic `loaded-first` and `version-first` provider selection in real production
   build/preview flows.
@@ -63,8 +66,6 @@ Remaining work:
 
 - Add browser/e2e coverage for `strictVersion` behavior under local fallback and host-only shared
   packages.
-- Add tests for React singleton mismatch, Vue subpath shared packages, pnpm symlinked packages, and
-  workspace package aliases.
 
 Acceptance criteria:
 

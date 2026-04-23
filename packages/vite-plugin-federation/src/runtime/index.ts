@@ -290,6 +290,7 @@ type RuntimeSharedLike = {
   loading?: unknown;
   scope?: unknown;
   shareConfig?: {
+    allowNodeModulesSuffixMatch?: unknown;
     eager?: unknown;
     import?: unknown;
     requiredVersion?: unknown;
@@ -313,6 +314,12 @@ type RuntimeInstanceWithInternals = ModuleFederation & {
     shareStrategy?: string;
   };
   shareScopeMap?: RuntimeShareScopeMapLike;
+};
+
+type RuntimeSharedOptionMatch = {
+  candidateKey: string | null;
+  matchType: SharedMatchType;
+  shared: RuntimeSharedLike | undefined;
 };
 
 type RuntimeSharedResolutionRecorderPayload = {
@@ -421,6 +428,104 @@ function getPackageRootName(pkgName: string) {
     return scope && name ? `${scope}/${name}` : pkgName;
   }
   return pkgName.split('/')[0] || pkgName;
+}
+
+function getNormalizedPathSlashes(value: string) {
+  return value.replace(/\\/g, '/');
+}
+
+function extractPackageRootFromNodeModulesPath(pkgName: string) {
+  const normalized = getNormalizedPathSlashes(pkgName);
+  const marker = '/node_modules/';
+  const nodeModulesIndex = normalized.lastIndexOf(marker);
+  if (nodeModulesIndex === -1) return null;
+
+  const packagePath = normalized.slice(nodeModulesIndex + marker.length);
+  if (!packagePath) return null;
+
+  const segments = packagePath.split('/').filter(Boolean);
+  if (segments.length === 0) return null;
+  if (segments[0].startsWith('@')) {
+    return segments.length > 1 ? `${segments[0]}/${segments[1]}` : null;
+  }
+  return segments[0] || null;
+}
+
+function getSharedOptionValue(
+  value: RuntimeSharedLike | RuntimeSharedLike[] | undefined,
+): RuntimeSharedLike | undefined {
+  return (Array.isArray(value) ? value[0] : value) as RuntimeSharedLike | undefined;
+}
+
+function matchRuntimeSharedOption(
+  pkgName: string,
+  sharedOptions?: RuntimeSharedOptionsLike,
+): RuntimeSharedOptionMatch {
+  if (!sharedOptions) {
+    return {
+      candidateKey: null,
+      matchType: 'unknown',
+      shared: undefined,
+    };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(sharedOptions, pkgName)) {
+    return {
+      candidateKey: pkgName,
+      matchType: 'exact',
+      shared: getSharedOptionValue(sharedOptions[pkgName]),
+    };
+  }
+
+  const packageRoot = getPackageRootName(pkgName);
+  if (packageRoot !== pkgName && Object.prototype.hasOwnProperty.call(sharedOptions, packageRoot)) {
+    return {
+      candidateKey: packageRoot,
+      matchType: 'package-root',
+      shared: getSharedOptionValue(sharedOptions[packageRoot]),
+    };
+  }
+
+  const trailingSlashKey = `${packageRoot}/`;
+  if (
+    packageRoot !== pkgName &&
+    Object.prototype.hasOwnProperty.call(sharedOptions, trailingSlashKey)
+  ) {
+    return {
+      candidateKey: packageRoot,
+      matchType: 'trailing-slash-subpath',
+      shared: getSharedOptionValue(sharedOptions[trailingSlashKey]),
+    };
+  }
+
+  const nodeModulesPackageRoot = extractPackageRootFromNodeModulesPath(pkgName);
+  if (!nodeModulesPackageRoot) {
+    return {
+      candidateKey: null,
+      matchType: 'unknown',
+      shared: undefined,
+    };
+  }
+
+  const suffixCandidates = [nodeModulesPackageRoot, `${nodeModulesPackageRoot}/`] as const;
+  for (const key of suffixCandidates) {
+    if (!Object.prototype.hasOwnProperty.call(sharedOptions, key)) continue;
+
+    const shared = getSharedOptionValue(sharedOptions[key]);
+    if (shared?.shareConfig?.allowNodeModulesSuffixMatch !== true) continue;
+
+    return {
+      candidateKey: nodeModulesPackageRoot,
+      matchType: 'node-modules-suffix',
+      shared,
+    };
+  }
+
+  return {
+    candidateKey: null,
+    matchType: 'unknown',
+    shared: undefined,
+  };
 }
 
 function parseComparableVersion(version: string) {
@@ -564,21 +669,7 @@ function inferSharedMatchType(
   pkgName: string,
   sharedOptions?: RuntimeSharedOptionsLike,
 ): SharedMatchType {
-  if (!sharedOptions) return 'unknown';
-  if (Object.prototype.hasOwnProperty.call(sharedOptions, pkgName)) return 'exact';
-
-  const packageRoot = getPackageRootName(pkgName);
-  if (packageRoot !== pkgName && Object.prototype.hasOwnProperty.call(sharedOptions, packageRoot)) {
-    return 'package-root';
-  }
-  if (
-    packageRoot !== pkgName &&
-    Object.prototype.hasOwnProperty.call(sharedOptions, `${packageRoot}/`)
-  ) {
-    return 'trailing-slash-subpath';
-  }
-
-  return 'unknown';
+  return matchRuntimeSharedOption(pkgName, sharedOptions).matchType;
 }
 
 function toRuntimeSharedCandidateSnapshot(
@@ -682,21 +773,28 @@ function getRuntimeSharedCandidates(
   if (!shareScopeMap) return [];
 
   const candidates: RuntimeSharedCandidateSnapshot[] = [];
+  const candidateKeys = new Set<string>([pkgName]);
+  const matchedSharedOption = matchRuntimeSharedOption(pkgName, runtimeInstance?.options?.shared);
+  if (matchedSharedOption.candidateKey) {
+    candidateKeys.add(matchedSharedOption.candidateKey);
+  }
   const scopeNames = shareScopes?.length ? shareScopes : Object.keys(shareScopeMap);
   for (const scopeName of scopeNames) {
-    const versionMap = shareScopeMap[scopeName]?.[pkgName];
-    if (!versionMap) continue;
-    for (const [version, shared] of Object.entries(versionMap)) {
-      candidates.push(
-        toRuntimeSharedCandidateSnapshot(
-          {
-            ...shared,
-            scope: shared.scope || [scopeName],
-            version: shared.version || version,
-          },
-          version,
-        ),
-      );
+    for (const candidateKey of candidateKeys) {
+      const versionMap = shareScopeMap[scopeName]?.[candidateKey];
+      if (!versionMap) continue;
+      for (const [version, shared] of Object.entries(versionMap)) {
+        candidates.push(
+          toRuntimeSharedCandidateSnapshot(
+            {
+              ...shared,
+              scope: shared.scope || [scopeName],
+              version: shared.version || version,
+            },
+            version,
+          ),
+        );
+      }
     }
   }
 
@@ -772,10 +870,7 @@ function getRequestedShareConfig(
   extraOptions?: unknown,
 ) {
   const sharedOptions = runtimeInstance?.options?.shared;
-  const optionsValue = sharedOptions?.[pkgName];
-  const optionsShared = (Array.isArray(optionsValue) ? optionsValue[0] : optionsValue) as
-    | RuntimeSharedLike
-    | undefined;
+  const optionsShared = matchRuntimeSharedOption(pkgName, sharedOptions).shared;
   const customShareInfo =
     extraOptions &&
     typeof extraOptions === 'object' &&

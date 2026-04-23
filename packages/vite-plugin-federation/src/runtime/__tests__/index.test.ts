@@ -510,6 +510,191 @@ describe('runtime api', () => {
     });
   });
 
+  it('records package-root shared matches for vue subpath consumers', async () => {
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        shared: {
+          vue: [
+            {
+              from: 'host',
+              scope: ['default'],
+              shareConfig: {
+                requiredVersion: '^3.5.0',
+                resolvedImportSource: 'virtual:prebuild:vue',
+                singleton: true,
+              },
+              strategy: 'loaded-first',
+              useIn: ['host'],
+              version: '3.5.0',
+            },
+          ],
+        },
+      },
+      shareScopeMap: {
+        default: {
+          vue: {
+            '3.5.0': {
+              from: 'host',
+              loaded: true,
+              scope: ['default'],
+              sourcePath: '/repo/node_modules/vue/index.js',
+              shareConfig: {
+                requiredVersion: '^3.5.0',
+                resolvedImportSource: 'virtual:prebuild:vue',
+                singleton: true,
+              },
+              strategy: 'loaded-first',
+              useIn: ['host'],
+              version: '3.5.0',
+            },
+          },
+        },
+      },
+    });
+    loadShareMock.mockResolvedValueOnce(() => ({ default: 'runtime-dom' }));
+
+    await loadShare('vue/runtime-dom' as any);
+
+    expect(getFederationDebugInfo().runtime.sharedResolutionGraph.at(-1)).toMatchObject({
+      matchType: 'package-root',
+      pkgName: 'vue/runtime-dom',
+      requestedResolvedImportSource: 'virtual:prebuild:vue',
+      requestedVersion: '^3.5.0',
+      selected: expect.objectContaining({
+        provider: 'host',
+        version: '3.5.0',
+      }),
+      status: 'loaded',
+    });
+  });
+
+  it('records trailing-slash shared matches for workspace subpath consumers', async () => {
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        shared: {
+          '@workspace/ui/': [
+            {
+              from: 'host',
+              scope: ['default'],
+              shareConfig: {
+                requiredVersion: '^1.0.0',
+                resolvedImportSource: '/repo/packages/ui/src/index.ts',
+                singleton: true,
+              },
+              strategy: 'loaded-first',
+              useIn: ['host'],
+              version: '1.0.0',
+            },
+          ],
+        },
+      },
+      shareScopeMap: {
+        default: {
+          '@workspace/ui': {
+            '1.0.0': {
+              from: 'host',
+              loaded: true,
+              scope: ['default'],
+              sourcePath: '/repo/packages/ui/src/index.ts',
+              shareConfig: {
+                requiredVersion: '^1.0.0',
+                resolvedImportSource: '/repo/packages/ui/src/index.ts',
+                singleton: true,
+              },
+              strategy: 'loaded-first',
+              useIn: ['host'],
+              version: '1.0.0',
+            },
+          },
+        },
+      },
+    });
+    loadShareMock.mockResolvedValueOnce(() => ({ default: 'workspace-ui' }));
+
+    await loadShare('@workspace/ui/button' as any);
+
+    expect(getFederationDebugInfo().runtime.sharedResolutionGraph.at(-1)).toMatchObject({
+      matchType: 'trailing-slash-subpath',
+      pkgName: '@workspace/ui/button',
+      requestedResolvedImportSource: '/repo/packages/ui/src/index.ts',
+      requestedVersion: '^1.0.0',
+      selected: expect.objectContaining({
+        provider: 'host',
+        version: '1.0.0',
+      }),
+      status: 'loaded',
+    });
+  });
+
+  it('records node_modules suffix shared matches for pnpm-resolved subpaths', async () => {
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        shared: {
+          '@workspace/ui/': [
+            {
+              from: 'host',
+              scope: ['default'],
+              shareConfig: {
+                allowNodeModulesSuffixMatch: true,
+                requiredVersion: '^1.0.0',
+                resolvedImportSource: '/repo/packages/ui/src/index.ts',
+                singleton: true,
+              },
+              strategy: 'loaded-first',
+              useIn: ['host'],
+              version: '1.0.0',
+            },
+          ],
+        },
+      },
+      shareScopeMap: {
+        default: {
+          '@workspace/ui': {
+            '1.0.0': {
+              from: 'host',
+              loaded: true,
+              scope: ['default'],
+              sourcePath: '/repo/packages/ui/src/index.ts',
+              shareConfig: {
+                allowNodeModulesSuffixMatch: true,
+                requiredVersion: '^1.0.0',
+                resolvedImportSource: '/repo/packages/ui/src/index.ts',
+                singleton: true,
+              },
+              strategy: 'loaded-first',
+              useIn: ['host'],
+              version: '1.0.0',
+            },
+          },
+        },
+      },
+    });
+    loadShareMock.mockResolvedValueOnce(() => ({ default: 'workspace-ui' }));
+
+    await loadShare(
+      '/repo/node_modules/.pnpm/@workspace+ui@1.0.0/node_modules/@workspace/ui/button/index.mjs' as any,
+    );
+
+    expect(getFederationDebugInfo().runtime.sharedResolutionGraph.at(-1)).toMatchObject({
+      matchType: 'node-modules-suffix',
+      pkgName:
+        '/repo/node_modules/.pnpm/@workspace+ui@1.0.0/node_modules/@workspace/ui/button/index.mjs',
+      requestedResolvedImportSource: '/repo/packages/ui/src/index.ts',
+      requestedVersion: '^1.0.0',
+      selected: expect.objectContaining({
+        provider: 'host',
+        version: '1.0.0',
+      }),
+      status: 'loaded',
+    });
+  });
+
   it('records MFV-003 diagnostics when shared resolution falls back locally', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     getInstanceMock.mockReturnValue({
