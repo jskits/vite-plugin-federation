@@ -7,7 +7,7 @@ const repoRoot = path.resolve(packageDir, '../..');
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: /shared-negotiation\.spec\.ts/,
+  testMatch: /shared-(?:negotiation|fallback)\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
@@ -18,6 +18,33 @@ export default defineConfig({
     headless: true,
   },
   webServer: [
+    {
+      command: 'corepack pnpm --filter example-shared-strict-fallback-app preview',
+      cwd: repoRoot,
+      reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 60_000,
+      url: 'http://localhost:4190/',
+    },
+    {
+      command: 'corepack pnpm --filter example-shared-host-only-remote preview',
+      cwd: repoRoot,
+      reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 60_000,
+      url: 'http://localhost:4191/',
+    },
+    {
+      command: 'corepack pnpm --filter example-shared-host-only-host preview',
+      cwd: repoRoot,
+      reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 60_000,
+      url: 'http://localhost:4192/',
+    },
     {
       command: 'corepack pnpm --filter example-shared-negotiation-remote preview:loaded-first',
       cwd: repoRoot,

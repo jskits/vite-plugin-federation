@@ -164,6 +164,26 @@ importers:
         specifier: 8.0.8
         version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.8.3)
 
+  examples/shared-host-only-host:
+    dependencies:
+      vite-plugin-federation:
+        specifier: workspace:*
+        version: link:../../packages/vite-plugin-federation
+    devDependencies:
+      vite:
+        specifier: 8.0.8
+        version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.8.3)
+
+  examples/shared-host-only-remote:
+    dependencies:
+      vite-plugin-federation:
+        specifier: workspace:*
+        version: link:../../packages/vite-plugin-federation
+    devDependencies:
+      vite:
+        specifier: 8.0.8
+        version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.8.3)
+
   examples/shared-negotiation-host:
     dependencies:
       vite-plugin-federation:
@@ -175,6 +195,16 @@ importers:
         version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.8.3)
 
   examples/shared-negotiation-remote:
+    dependencies:
+      vite-plugin-federation:
+        specifier: workspace:*
+        version: link:../../packages/vite-plugin-federation
+    devDependencies:
+      vite:
+        specifier: 8.0.8
+        version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.8.3)
+
+  examples/shared-strict-fallback-app:
     dependencies:
       vite-plugin-federation:
         specifier: workspace:*

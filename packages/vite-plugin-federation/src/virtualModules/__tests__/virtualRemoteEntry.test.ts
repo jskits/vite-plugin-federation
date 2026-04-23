@@ -55,13 +55,18 @@ vi.mock('../../utils/normalizeModuleFederationOptions', () => {
     getNormalizeShareItem: (pkg: string) => ({
       name: pkg,
       from: '',
-      version: '19.2.4',
+      version: pkg === 'host-only-dep' ? undefined : '19.2.4',
       scope: 'default',
       shareConfig: {
-        import: pkg === 'custom-import' ? '/abs/custom-import.js' : undefined,
+        import:
+          pkg === 'custom-import'
+            ? '/abs/custom-import.js'
+            : pkg === 'host-only-dep'
+              ? false
+              : undefined,
         singleton: true,
-        requiredVersion: '^19.2.4',
-        strictVersion: false,
+        requiredVersion: pkg === 'host-only-dep' ? '^1.2.3' : '^19.2.4',
+        strictVersion: pkg === 'host-only-dep',
       },
     }),
   };
@@ -110,6 +115,14 @@ vi.mock('../virtualShared_preBuild', () => {
       resolutionSource:
         typeof shareItem?.shareConfig?.import === 'string' ? 'configured-import' : 'project-root',
     }),
+    getHostOnlySharedErrorMessage: (
+      pkg: string,
+      shareItem: { shareConfig: { requiredVersion?: string | false; strictVersion?: boolean } },
+    ) =>
+      `[Module Federation] Shared module "${pkg}" must be provided by the host because import: false is configured.` +
+      ` requiredVersion=${String(shareItem.shareConfig.requiredVersion)}, strictVersion=${String(
+        shareItem.shareConfig.strictVersion,
+      )}`,
   };
 });
 
@@ -215,6 +228,22 @@ describe('virtualRemoteEntry', () => {
       'resolvedImportSource: "/workspace/packages/transitive-no-override/dist/index.js"',
     );
     expect(code).not.toContain('virtual:prebuild:transitive-no-override');
+  });
+
+  it('surfaces actionable host-only shared errors in localSharedImportMap', async () => {
+    hasPackageDependencyMock.mockReturnValue(false);
+
+    const mod = await import('../virtualRemoteEntry');
+
+    mod.getUsedShares().clear();
+    mod.addUsedShares('host-only-dep');
+
+    const code = mod.generateLocalSharedImportMap();
+
+    expect(code).toContain(
+      'throw new Error("[Module Federation] Shared module \\"host-only-dep\\" must be provided by the host because import: false is configured. requiredVersion=^1.2.3, strictVersion=true");',
+    );
+    expect(code).not.toContain("must be provided by host`");
   });
 
   it('writes host auto init waiting on __tla before init', async () => {

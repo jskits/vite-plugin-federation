@@ -36,7 +36,7 @@
     "lint": "eslint .",
     "test": "vitest --config vitest.config.ts run",
     "test:e2e": "pnpm build && playwright test --config playwright.config.ts && pnpm test:e2e:shared",
-    "test:e2e:shared": "pnpm build && pnpm --filter example-shared-negotiation-remote build && pnpm --filter example-shared-negotiation-host build && playwright test --config playwright.shared.config.ts",
+    "test:e2e:shared": "pnpm build && pnpm --filter example-shared-strict-fallback-app build && pnpm --filter example-shared-host-only-remote build && pnpm --filter example-shared-host-only-host build && pnpm --filter example-shared-negotiation-remote build && pnpm --filter example-shared-negotiation-host build && playwright test --config playwright.shared.config.ts",
     "test:e2e:ssr": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-react-ssr-host build && playwright test --config playwright.ssr.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "typecheck": "tsc --project tsconfig.json --noEmit"

@@ -1,0 +1,17 @@
+{
+  "name": "example-shared-strict-fallback-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rimraf dist",
+    "preview": "vite preview --host localhost --port 4190 --outDir dist"
+  },
+  "dependencies": {
+    "vite-plugin-federation": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "8.0.8"
+  }
+}

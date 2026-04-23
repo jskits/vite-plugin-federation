@@ -22,6 +22,7 @@ import {
 } from './virtualRuntimeInitStatus';
 import {
   getConcreteSharedImportSource,
+  getHostOnlySharedErrorMessage,
   getLocalProviderImportPath,
   getSharedImportSource,
   inspectSharedImportSource,
@@ -81,7 +82,7 @@ export function generateLocalSharedImportMap() {
         ${JSON.stringify(pkg)}: async () => {
           ${
             shareItem?.shareConfig.import === false
-              ? `throw new Error(\`[Module Federation] Shared module '\${${JSON.stringify(pkg)}}' must be provided by host\`);`
+              ? `throw new Error(${JSON.stringify(getHostOnlySharedErrorMessage(pkg, shareItem))});`
               : `let pkg = await import(${JSON.stringify(packageResolution.importPath)});
             return pkg;`
           }
@@ -115,7 +116,7 @@ export function generateLocalSharedImportMap() {
             }
             async get () {
               if (${shareItem.shareConfig.import === false}) {
-                throw new Error(\`[Module Federation] Shared module '\${${JSON.stringify(key)}}' must be provided by host\`);
+                throw new Error(${JSON.stringify(getHostOnlySharedErrorMessage(key, shareItem))});
               }
               usedShared[${JSON.stringify(key)}].loaded = true
               const {${JSON.stringify(key)}: pkgDynamicImport} = importMap

@@ -77,7 +77,7 @@ function getGeneratedShareConfigProperties(
     .join(',\n        ');
 }
 
-function getHostOnlySharedErrorMessage(pkg: string, shareItem: ShareItem) {
+export function getHostOnlySharedErrorMessage(pkg: string, shareItem: ShareItem) {
   return (
     `[Module Federation] Shared module "${pkg}" must be provided by the host because import: false is configured.` +
     ` requiredVersion=${String(shareItem.shareConfig.requiredVersion)}, strictVersion=${String(

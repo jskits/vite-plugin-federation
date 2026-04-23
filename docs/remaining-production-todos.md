@@ -58,14 +58,14 @@ Current state:
 - `examples/shared-negotiation-host` and `examples/shared-negotiation-remote` validate
   deterministic `loaded-first` and `version-first` provider selection in real production
   build/preview flows.
+- `examples/shared-strict-fallback-app`, `examples/shared-host-only-host`, and
+  `examples/shared-host-only-remote` validate browser-side `strictVersion` local fallback and
+  actionable `import: false` host-only shared errors in production build/preview flows.
 - Generated shared wrappers throw an actionable host-only error when `import: false` is configured
   and no host provider is available, and normal shared wrappers fall back to the local prebuild
   source when runtime share resolution returns `false`.
 
 Remaining work:
-
-- Add browser/e2e coverage for `strictVersion` behavior under local fallback and host-only shared
-  packages.
 
 Acceptance criteria:
 

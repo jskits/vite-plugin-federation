@@ -919,6 +919,31 @@ function pushSharedResolution(entry: Omit<RuntimeSharedResolutionEntry, 'id' | '
   }
 }
 
+function classifySharedResolutionError(
+  shareConfig: RuntimeSharedLike['shareConfig'] | undefined,
+  message: string,
+) {
+  const isHostOnlyConfigured = shareConfig?.import === false;
+  const isHostOnlyMissingProvider =
+    isHostOnlyConfigured &&
+    /must be provided by (?:the )?host(?: because import: false is configured)?/i.test(message);
+
+  if (isHostOnlyMissingProvider) {
+    return {
+      fallbackSource: 'host-only' as const,
+      reason:
+        'No registered host provider satisfied this import:false shared module; the consumer has no local fallback.',
+      status: 'fallback' as const,
+    };
+  }
+
+  return {
+    fallbackSource: 'none' as const,
+    reason: `Shared module resolution failed: ${message}`,
+    status: 'error' as const,
+  };
+}
+
 function recordSharedResolutionFromLoad(
   pkgName: string,
   extraOptions: unknown,
@@ -1008,15 +1033,16 @@ function recordSharedResolutionError(
     typeof shareConfig?.requiredVersion === 'string' || shareConfig?.requiredVersion === false
       ? shareConfig.requiredVersion
       : undefined;
+  const classification = classifySharedResolutionError(shareConfig, message);
 
   pushSharedResolution({
     candidates,
     consumer: getRuntimeConsumerName(runtimeInstance),
     error: message,
-    fallbackSource: 'none',
+    fallbackSource: classification.fallbackSource,
     matchType: inferSharedMatchType(pkgName, runtimeInstance?.options?.shared),
     pkgName,
-    reason: `Shared module resolution failed: ${message}`,
+    reason: classification.reason,
     requestedResolvedImportSource: requested.resolvedImportSource,
     requestedSourcePath: requested.sourcePath,
     requestedVersion,
@@ -1024,7 +1050,7 @@ function recordSharedResolutionError(
     selected: null,
     shareScope: requested.scope,
     singleton: shareConfig?.singleton === true,
-    status: 'error',
+    status: classification.status,
     strategy: requested.strategy,
     strictSingleton: shareConfig?.strictSingleton === true,
     strictVersion: shareConfig?.strictVersion === true,
@@ -1209,15 +1235,16 @@ function createSharedDiagnosticsRuntimePlugin() {
           options: { name: 'diagnostics', remotes: [], shared: {} },
           shareScopeMap: args.shareScopeMap,
         } as unknown as RuntimeInstanceWithInternals);
+        const classification = classifySharedResolutionError(args.shareInfo.shareConfig, message);
 
         pushSharedResolution({
           candidates,
           consumer: typeof args.shareInfo.from === 'string' ? args.shareInfo.from : null,
           error: message,
-          fallbackSource: 'none',
+          fallbackSource: classification.fallbackSource,
           matchType: 'exact',
           pkgName: args.pkgName,
-          reason: `Shared provider resolution threw: ${message}`,
+          reason: classification.reason,
           requestedResolvedImportSource:
             typeof args.shareInfo.shareConfig?.resolvedImportSource === 'string'
               ? args.shareInfo.shareConfig.resolvedImportSource
@@ -1233,7 +1260,7 @@ function createSharedDiagnosticsRuntimePlugin() {
           selected: null,
           shareScope: [args.scope],
           singleton: args.shareInfo.shareConfig?.singleton === true,
-          status: 'error',
+          status: classification.status,
           strategy:
             typeof args.shareInfo.strategy === 'string' ? args.shareInfo.strategy : undefined,
           strictSingleton: args.shareInfo.shareConfig?.strictSingleton === true,
