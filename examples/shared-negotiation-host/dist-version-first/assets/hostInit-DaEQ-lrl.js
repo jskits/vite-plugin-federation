@@ -1,0 +1,1 @@
+await(await import(`./remoteEntry-CTHJqXBp.js`)).init();

@@ -52,14 +52,15 @@ Current state:
 - Generated local shared providers and internal `loadShare` requests include `sourcePath` and
   `resolvedImportSource` annotations so runtime debug snapshots can identify the exact local import
   or resolved file path involved in shared resolution.
+- `examples/shared-negotiation-host` and `examples/shared-negotiation-remote` validate
+  deterministic `loaded-first` and `version-first` provider selection in real production
+  build/preview flows.
 - Generated shared wrappers throw an actionable host-only error when `import: false` is configured
   and no host provider is available, and normal shared wrappers fall back to the local prebuild
   source when runtime share resolution returns `false`.
 
 Remaining work:
 
-- Add e2e coverage for deterministic `loaded-first` and `version-first` negotiation in real
-  host/remote builds.
 - Add browser/e2e coverage for `strictVersion` behavior under local fallback and host-only shared
   packages.
 - Add tests for React singleton mismatch, Vue subpath shared packages, pnpm symlinked packages, and

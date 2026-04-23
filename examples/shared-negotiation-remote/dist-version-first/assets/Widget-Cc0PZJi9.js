@@ -1,0 +1,1 @@
+import{t as e}from"./__mfe_internal__sharedRemote__loadShare___mf_0_mf_mf_2_e2e_mf_1_shared_mf_2_value__loadShare__.mjs-YQTvRQel.js";function t(){return{...e,renderedBy:`shared-negotiation-remote`}}export{t};

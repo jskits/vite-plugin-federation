@@ -1,0 +1,20 @@
+{
+  "name": "example-shared-negotiation-remote",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm build:loaded-first && pnpm build:version-first",
+    "build:loaded-first": "MF_SHARE_SCENARIO=loaded-first MF_OUT_DIR=dist-loaded-first vite build",
+    "build:version-first": "MF_SHARE_SCENARIO=version-first MF_OUT_DIR=dist-version-first vite build",
+    "clean": "rimraf dist-loaded-first dist-version-first",
+    "preview:loaded-first": "vite preview --host localhost --port 4184 --outDir dist-loaded-first",
+    "preview:version-first": "vite preview --host localhost --port 4186 --outDir dist-version-first"
+  },
+  "dependencies": {
+    "vite-plugin-federation": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "8.0.8"
+  }
+}
