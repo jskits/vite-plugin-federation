@@ -396,8 +396,9 @@ describe('writeLoadShareModule', () => {
 
     const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
 
-    expect(generatedCode).toContain('import "/abs/pkg-b/dist/index.js";');
-    expect(generatedCode).toContain('export * from "/abs/pkg-b/dist/index.js"');
+    expect(generatedCode).not.toContain('import "/abs/pkg-b/dist/index.js";');
+    expect(generatedCode).not.toContain('export * from "/abs/pkg-b/dist/index.js"');
+    expect(generatedCode).toContain('await import("/abs/pkg-b/dist/index.js")');
     expect(generatedCode).toContain('sourcePath: "/abs/pkg-b/dist/index.js"');
     expect(generatedCode).toContain('resolvedImportSource: "/abs/pkg-b/dist/index.js"');
     expect(generatedCode).not.toContain('import "mock-import-id";');
@@ -720,8 +721,9 @@ describe('writeLoadShareModule', () => {
 
     const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
 
-    expect(generatedCode).toContain('import "/repo/packages/pkg-b/dist/index.js";');
-    expect(generatedCode).toContain('export * from "/repo/packages/pkg-b/dist/index.js"');
+    expect(generatedCode).not.toContain('import "/repo/packages/pkg-b/dist/index.js";');
+    expect(generatedCode).not.toContain('export * from "/repo/packages/pkg-b/dist/index.js"');
+    expect(generatedCode).toContain('await import("/repo/packages/pkg-b/dist/index.js")');
     expect(generatedCode).toContain('sourcePath: "/repo/packages/pkg-b/dist/index.js"');
     expect(generatedCode).toContain('resolvedImportSource: "/repo/packages/pkg-b/dist/index.js"');
     expect(generatedCode).not.toContain('import "mock-import-id";');

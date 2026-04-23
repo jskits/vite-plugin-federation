@@ -27,6 +27,9 @@ import {
 import { assertSupportedFederationManifestSchemaVersion } from '../utils/manifestProtocol';
 
 const MODULE_FEDERATION_RUNTIME_DEBUG_SYMBOL = Symbol.for('vite-plugin-federation.runtime.debug');
+const SHARED_RESOLUTION_RECORDER_SYMBOL = Symbol.for(
+  'vite-plugin-federation.runtime.recordSharedResolution',
+);
 const NODE_TARGET_QUERY_KEY = 'mf_target';
 const NODE_TARGET_QUERY_VALUE = 'node';
 const STYLE_REQUEST_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/i;
@@ -312,6 +315,15 @@ type RuntimeInstanceWithInternals = ModuleFederation & {
   shareScopeMap?: RuntimeShareScopeMapLike;
 };
 
+type RuntimeSharedResolutionRecorderPayload = {
+  error?: unknown;
+  extraOptions: unknown;
+  mode: 'async' | 'sync';
+  pkgName: string;
+  result?: unknown;
+  runtime: RuntimeInstanceWithInternals | null;
+};
+
 async function importNodeVmModule(): Promise<NodeVmModule> {
   const globalImportHook = (
     globalThis as typeof globalThis & {
@@ -364,6 +376,34 @@ function getRuntimeDebugState(): RuntimeDebugState {
 
   return state[MODULE_FEDERATION_RUNTIME_DEBUG_SYMBOL];
 }
+
+function installSharedResolutionRecorder() {
+  const state = globalThis as typeof globalThis & {
+    [SHARED_RESOLUTION_RECORDER_SYMBOL]?: (payload: RuntimeSharedResolutionRecorderPayload) => void;
+  };
+
+  state[SHARED_RESOLUTION_RECORDER_SYMBOL] = (payload) => {
+    if (payload.error !== undefined) {
+      recordSharedResolutionError(
+        payload.pkgName,
+        payload.extraOptions,
+        payload.error,
+        payload.runtime,
+      );
+    } else {
+      recordSharedResolutionFromLoad(
+        payload.pkgName,
+        payload.extraOptions,
+        payload.result,
+        payload.mode,
+        payload.runtime,
+      );
+    }
+    publishRuntimeDebugUpdate('shared-resolution');
+  };
+}
+
+installSharedResolutionRecorder();
 
 function normalizeSharedScope(scope: unknown): string[] {
   if (Array.isArray(scope)) {
@@ -789,8 +829,10 @@ function recordSharedResolutionFromLoad(
   extraOptions: unknown,
   result: unknown,
   mode: 'async' | 'sync',
+  runtimeInstanceOverride?: RuntimeInstanceWithInternals | null,
 ) {
-  const runtimeInstance = getRuntimeInstance() as RuntimeInstanceWithInternals | null;
+  const runtimeInstance =
+    runtimeInstanceOverride ?? (getRuntimeInstance() as RuntimeInstanceWithInternals | null);
   const consumer = getRuntimeConsumerName(runtimeInstance);
   const requested = getRequestedShareConfig(pkgName, runtimeInstance, extraOptions);
   const candidates = getRuntimeSharedCandidates(pkgName, runtimeInstance, requested.scope);
@@ -855,8 +897,14 @@ function recordSharedResolutionFromLoad(
   }
 }
 
-function recordSharedResolutionError(pkgName: string, extraOptions: unknown, error: unknown) {
-  const runtimeInstance = getRuntimeInstance() as RuntimeInstanceWithInternals | null;
+function recordSharedResolutionError(
+  pkgName: string,
+  extraOptions: unknown,
+  error: unknown,
+  runtimeInstanceOverride?: RuntimeInstanceWithInternals | null,
+) {
+  const runtimeInstance =
+    runtimeInstanceOverride ?? (getRuntimeInstance() as RuntimeInstanceWithInternals | null);
   const requested = getRequestedShareConfig(pkgName, runtimeInstance, extraOptions);
   const candidates = getRuntimeSharedCandidates(pkgName, runtimeInstance, requested.scope);
   const shareConfig = requested.shareConfig;

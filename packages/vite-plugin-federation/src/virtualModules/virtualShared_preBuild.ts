@@ -45,6 +45,16 @@ function escapeGeneratedStringLiteral(value: string): string {
   });
 }
 
+function getSharedResolutionRecorderBootstrapCode() {
+  return `
+    function __mfRecordSharedResolution(payload) {
+      const recorder = globalThis[Symbol.for("vite-plugin-federation.runtime.recordSharedResolution")]
+      if (typeof recorder === "function") {
+        recorder(payload)
+      }
+    }`;
+}
+
 function getGeneratedShareConfigProperties(
   shareItem: ShareItem,
   annotations?: {
@@ -295,8 +305,23 @@ export function getLocalProviderImportPath(pkg: string): string | undefined {
 
 function isWorkspaceFilePath(resolved: string | undefined): resolved is string {
   return (
-    !!resolved && !resolved.includes('/node_modules/') && !resolved.includes('\\node_modules\\')
+    !!resolved &&
+    (path.isAbsolute(resolved) || resolved.startsWith('.')) &&
+    !resolved.includes('/node_modules/') &&
+    !resolved.includes('\\node_modules\\')
   );
+}
+
+function getLocalFileNamedExports(resolved: string | undefined): string[] {
+  if (!isWorkspaceFilePath(resolved)) return [];
+
+  try {
+    const source = readFileSync(resolved, 'utf-8');
+    if (typeof source !== 'string') return [];
+    return getNamedExportsViaRegex(source, resolved);
+  } catch {
+    return [];
+  }
 }
 
 function isReactSharedPackage(pkg: string) {
@@ -483,17 +508,40 @@ export function writeLoadShareModule(
     loadShareCacheMap[pkg].writeSync(
       `
     ${importLine}
+    ${getSharedResolutionRecorderBootstrapCode()}
     function resolveHostProvidedShare(factory) {
       if (factory === false) {
         throw new Error(${escapeGeneratedStringLiteral(getHostOnlySharedErrorMessage(pkg, shareItem))})
       }
       return typeof factory === "function" ? factory() : factory
     }
-    const res = initPromise.then(runtime => runtime.loadShare(${escapeGeneratedStringLiteral(pkg)}, {
+    const loadShareOptions = {
       customShareInfo: {shareConfig:{
         ${getGeneratedShareConfigProperties(shareItem)}
       }}
-    }))
+    }
+    const res = initPromise.then(async runtime => {
+      try {
+        const result = await runtime.loadShare(${escapeGeneratedStringLiteral(pkg)}, loadShareOptions)
+        __mfRecordSharedResolution({
+          extraOptions: loadShareOptions,
+          mode: "async",
+          pkgName: ${escapeGeneratedStringLiteral(pkg)},
+          result,
+          runtime,
+        })
+        return result
+      } catch (error) {
+        __mfRecordSharedResolution({
+          error,
+          extraOptions: loadShareOptions,
+          mode: "async",
+          pkgName: ${escapeGeneratedStringLiteral(pkg)},
+          runtime,
+        })
+        throw error
+      }
+    })
     const exportModule = ${awaitOrPlaceholder}res.then(resolveHostProvidedShare)
     ${exportLine}
   `,
@@ -517,7 +565,11 @@ export function writeLoadShareModule(
     isWorkspaceFilePath(localProviderPath) || isWorkspaceFilePath(concreteSharedImportSource);
   const skipServePrebuildWarmup = command !== 'build' && (pkg === 'lit' || pkg.startsWith('lit/'));
   const providerImportId = localProviderPath || concreteSharedImportSource || sharedImportSource;
-  const namedExports = getPackageNamedExports(pkg);
+  const localProviderNamedExports = getLocalFileNamedExports(
+    concreteSharedImportSource || localProviderPath,
+  );
+  const namedExports =
+    localProviderNamedExports.length > 0 ? localProviderNamedExports : getPackageNamedExports(pkg);
   let exportLine: string;
   if (namedExports.length > 0) {
     const destructure = `const { ${namedExports.map((name, i) => `${name}: __mf_${i}`).join(', ')} } = exportModule;`;
@@ -527,12 +579,16 @@ export function writeLoadShareModule(
       : `module.exports = exportModule;\n    ${destructure}\n    Object.assign(module.exports, { ${namedExports.map((name, i) => `"${name}": __mf_${i}`).join(', ')} });`;
   } else {
     exportLine = useESM
-      ? `export default exportModule.default ?? exportModule\n    export * from ${escapeGeneratedStringLiteral(sharedImportSource)}`
+      ? `export default exportModule.default ?? exportModule${
+          isWorkspacePackage
+            ? ''
+            : `\n    export * from ${escapeGeneratedStringLiteral(sharedImportSource)}`
+        }`
       : 'module.exports = exportModule';
   }
 
   const prebuildImportLine =
-    (isWorkspacePackage && command !== 'build') || skipServePrebuildWarmup
+    isWorkspacePackage || skipServePrebuildWarmup
       ? ''
       : `import ${escapeGeneratedStringLiteral(sharedImportSource)};`;
   const devDynamicImportLine = isWorkspacePackage
@@ -548,6 +604,7 @@ export function writeLoadShareModule(
     ${prebuildImportLine}
     ${devDynamicImportLine}
     ${importLine}
+    ${getSharedResolutionRecorderBootstrapCode()}
     async function resolveShareFactory(factory) {
       if (factory === false) {
         const fallbackModule = await import(${escapeGeneratedStringLiteral(sharedImportSource)})
@@ -562,7 +619,7 @@ export function writeLoadShareModule(
       : undefined`
         : ''
     }
-    const res = initPromise.then(runtime => runtime.loadShare(${escapeGeneratedStringLiteral(pkg)}, {
+    const loadShareOptions = {
       customShareInfo: {
         sourcePath: ${escapeGeneratedStringLiteral(providerSourcePath)},
         shareConfig:{
@@ -570,7 +627,29 @@ export function writeLoadShareModule(
           resolvedImportSource: providerImportId,
         })}
       }}
-    }))
+    }
+    const res = initPromise.then(async runtime => {
+      try {
+        const result = await runtime.loadShare(${escapeGeneratedStringLiteral(pkg)}, loadShareOptions)
+        __mfRecordSharedResolution({
+          extraOptions: loadShareOptions,
+          mode: "async",
+          pkgName: ${escapeGeneratedStringLiteral(pkg)},
+          result,
+          runtime,
+        })
+        return result
+      } catch (error) {
+        __mfRecordSharedResolution({
+          error,
+          extraOptions: loadShareOptions,
+          mode: "async",
+          pkgName: ${escapeGeneratedStringLiteral(pkg)},
+          runtime,
+        })
+        throw error
+      }
+    })
     const exportModule = ${
       useSsrProviderFallback
         ? `(typeof window === "undefined"

@@ -24,6 +24,7 @@ import { resolveProxyAlias } from './utils/bundleHelpers';
 import {
   isFederationControlChunk,
   sanitizeFederationControlChunk,
+  stripLoadSharePreloadHelperCalls,
 } from './utils/controlChunkSanitizer';
 import { createModuleFederationError, mfWarn } from './utils/logger';
 import type {
@@ -401,7 +402,9 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
                 (hostFile === options.filename ||
                   hostFile.includes('hostInit') ||
                   hostFile.includes('virtualExposes') ||
-                  hostFile.includes('localSharedImportMap'));
+                  hostFile.includes('localSharedImportMap') ||
+                  hostFile.includes('REMOTE_ENTRY_ID') ||
+                  hostFile.includes('SSR_REMOTE_ENTRY_ID'));
 
               return shouldSkipFederationPreload ? [] : resolvedDeps;
             },
@@ -596,6 +599,16 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           if (!isFederationControlChunk(fileName, filename)) continue;
 
           chunk.code = sanitizeFederationControlChunk(chunk.code, fileName, filename);
+        }
+
+        for (const [fileName, chunk] of Object.entries(bundle)) {
+          if (chunk.type !== 'chunk') continue;
+          if (fileName.includes(LOAD_SHARE_TAG)) continue;
+
+          const nextCode = stripLoadSharePreloadHelperCalls(chunk.code);
+          if (nextCode !== chunk.code) {
+            chunk.code = nextCode;
+          }
         }
 
         // Pass 1: Add top-level await for CJS init functions

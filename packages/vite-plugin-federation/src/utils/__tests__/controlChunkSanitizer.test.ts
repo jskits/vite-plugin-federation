@@ -3,6 +3,7 @@ import {
   isFederationControlChunk,
   sanitizeFederationControlChunk,
   stripEmptyPreloadCalls,
+  stripLoadSharePreloadHelperCalls,
 } from '../controlChunkSanitizer';
 
 describe('controlChunkSanitizer', () => {
@@ -59,6 +60,18 @@ describe('controlChunkSanitizer', () => {
     expect(result).toContain('o(()=>import("./ui.js"),__vite__mapDeps([0]),import.meta.url)');
   });
 
+  it('strips empty preload helpers emitted by Vite 8 control chunks', () => {
+    const code =
+      'import{t as preload}from"./preload-helper-abc.js";' +
+      'async function getMap(){return preload(()=>import("./localSharedImportMap.js"),[])}' +
+      'async function getExposes(){return __vitePreload(()=>import("./virtualExposes.js"),[])}';
+
+    expect(stripEmptyPreloadCalls(code)).toBe(
+      'async function getMap(){return import("./localSharedImportMap.js")}' +
+        'async function getExposes(){return import("./virtualExposes.js")}',
+    );
+  });
+
   it('inlines preload helpers imported from loadShare chunks in control chunks', () => {
     const code =
       'import{n as initRuntime}from"./dist.js";' +
@@ -75,8 +88,51 @@ describe('controlChunkSanitizer', () => {
     );
   });
 
+  it('removes only loadShare imports that are used as preload helpers', () => {
+    const code =
+      'import{r as preload,t as sharedValue}from"./remote__loadShare__shared__loadShare__.mjs-Abc.js";' +
+      'async function loadEntry(url,resolve){return preload(()=>import(url).then(resolve),[])}' +
+      'function getShared(){return sharedValue}';
+
+    expect(stripLoadSharePreloadHelperCalls(code)).toBe(
+      'import{t as sharedValue}from"./remote__loadShare__shared__loadShare__.mjs-Abc.js";' +
+        'async function loadEntry(url,resolve){return import(url).then(resolve)}' +
+        'function getShared(){return sharedValue}',
+    );
+  });
+
+  it('does not rewrite unrelated callbacks that contain a short preload alias suffix', () => {
+    const code =
+      'import{r as e}from"./remote__loadShare__shared__loadShare__.mjs-Abc.js";' +
+      'async function ce(callback){return callback()}' +
+      'async function loadEntry(url,resolve,reject){return e(()=>import(url).then(resolve),[]).catch(reject)}' +
+      'const cleanup=ce(()=>{return 1})' +
+      'function fallback(e){return Promise.resolve(()=>e)}';
+
+    expect(stripLoadSharePreloadHelperCalls(code)).toBe(
+      'async function ce(callback){return callback()}' +
+        'async function loadEntry(url,resolve,reject){return import(url).then(resolve).catch(reject)}' +
+        'const cleanup=ce(()=>{return 1})' +
+        'function fallback(e){return Promise.resolve(()=>e)}',
+    );
+  });
+
+  it('ignores empty preload-shaped callbacks that are not dynamic imports', () => {
+    const code =
+      'import{t as preload}from"./preload-helper-abc.js";' +
+      'const result=preload(()=>({ value: 1 }),[])';
+
+    expect(stripEmptyPreloadCalls(code)).toBe(code);
+  });
+
   it('detects federation control chunks', () => {
     expect(isFederationControlChunk('remoteEntry.js', 'remoteEntry.js')).toBe(true);
+    expect(
+      isFederationControlChunk(
+        'assets/virtual_mf-REMOTE_ENTRY_ID___app__remoteEntry-_hash_-abc.js',
+        'remoteEntry-[hash].js',
+      ),
+    ).toBe(true);
     expect(isFederationControlChunk('assets/hostInit-abc.js', 'remoteEntry.js')).toBe(true);
     expect(isFederationControlChunk('assets/localSharedImportMap-abc.js', 'remoteEntry.js')).toBe(
       true,
