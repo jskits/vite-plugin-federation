@@ -94,7 +94,8 @@ Current repository coverage:
 - Unit coverage validates legacy `from` and `format` normalization.
 - Build examples validate manifest-first browser, SSR, and DTS paths.
 - Browser e2e validates `virtual:__federation__` against real `remoteEntry.js` and
-  `remoteEntry.var.js` assets through `examples/originjs-compat-host`.
+  `remoteEntry.var.js` assets through `examples/originjs-compat-host`, and verifies
+  manifest-first and remoteEntry-first remotes can coexist on the same host.
 - `varFilename` generation is supported at build configuration level.
 
 Still needed:

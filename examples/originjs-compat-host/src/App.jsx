@@ -6,15 +6,18 @@ import {
   __federation_method_unwrapDefault,
   __federation_method_wrapDefault,
 } from 'virtual:__federation__';
+import { getFederationDebugInfo, loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
 import './app.css';
 
 const VAR_REMOTE_URL = 'http://localhost:4174/remoteEntry.var.js';
+const MANIFEST_REMOTE_URL = 'http://localhost:4174/mf-manifest.json';
 
 export default function App() {
   const [status, setStatus] = useState('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [compatDebug, setCompatDebug] = useState(null);
   const [EsmButton, setEsmButton] = useState(null);
+  const [ManifestButton, setManifestButton] = useState(null);
   const [VarButton, setVarButton] = useState(null);
 
   useEffect(() => {
@@ -39,11 +42,25 @@ export default function App() {
       const unwrappedVarModule = __federation_method_unwrapDefault(
         __federation_method_wrapDefault(varModule, true),
       );
+      const manifestModule = await loadRemoteFromManifest(
+        'reactManifest/Button',
+        MANIFEST_REMOTE_URL,
+        {
+          remoteName: 'reactManifest',
+        },
+      );
+      const unwrappedManifestModule = __federation_method_unwrapDefault(
+        __federation_method_wrapDefault(manifestModule, true),
+      );
       const helperWrapped = __federation_method_wrapDefault({ named: true }, true);
       const helperUnwrapped = __federation_method_unwrapDefault({
         __esModule: true,
         default: 'compat-ok',
       });
+      const runtimeDebug = getFederationDebugInfo();
+      const manifestRegistration = runtimeDebug.runtime.registeredManifestRemotes.find(
+        (remote) => remote.alias === 'reactManifest',
+      );
 
       const nextDebug = {
         esm: {
@@ -55,6 +72,13 @@ export default function App() {
         helpers: {
           unwrapValue: helperUnwrapped,
           wrappedHasDefault: Boolean(helperWrapped.default),
+        },
+        manifest: {
+          entry: MANIFEST_REMOTE_URL,
+          registeredAlias: manifestRegistration?.alias || null,
+          registeredEntry: manifestRegistration?.entry || null,
+          request: 'reactManifest/Button',
+          resolvedType: typeof unwrappedManifestModule,
         },
         var: {
           containerReady: typeof varContainer?.get === 'function',
@@ -73,6 +97,7 @@ export default function App() {
       startTransition(() => {
         setCompatDebug(nextDebug);
         setEsmButton(() => unwrappedEsmModule);
+        setManifestButton(() => unwrappedManifestModule);
         setVarButton(() => unwrappedVarModule);
         setStatus('ready');
       });
@@ -134,10 +159,21 @@ export default function App() {
               {compatDebug?.var?.containerReady ? 'container-ready' : 'pending'}
             </div>
           </article>
+          <article className="compat-panel">
+            <div className="compat-label">Manifest Remote</div>
+            <div data-testid="manifest-registration">
+              {compatDebug?.manifest?.registeredAlias ? 'manifest-registered' : 'pending'}
+            </div>
+          </article>
         </div>
 
         <div className="compat-remote-row">
           {EsmButton ? <EsmButton label="OriginJS ESM Button" /> : <p>Loading ESM remote…</p>}
+          {ManifestButton ? (
+            <ManifestButton label="Manifest Button" />
+          ) : (
+            <p>Loading manifest remote…</p>
+          )}
           {VarButton ? <VarButton label="OriginJS VAR Button" /> : <p>Loading VAR remote…</p>}
         </div>
       </section>
