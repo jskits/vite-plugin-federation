@@ -534,6 +534,11 @@ describe('pluginMFManifest', () => {
     expect(manifest.metaData.publicPath).toBe('http://127.0.0.1:4174/');
     expect(manifest.metaData.remoteEntry.name).toBe('remoteEntry.js');
     expect(manifest.metaData.ssrRemoteEntry.name).toBe('remoteEntry.ssr.js');
+    expect(manifest.metaData.types).toEqual({
+      path: 'dist',
+      name: '.dev-server.zip',
+      api: '.dev-server.d.ts',
+    });
   });
 
   it('emits share and remote diagnostics in stats/debug artifacts', async () => {

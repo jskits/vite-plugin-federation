@@ -241,7 +241,7 @@ const Manifest = (): Plugin[] => {
                         type: 'var',
                       }
                     : undefined,
-                  types: getTypesMetadata(mfOptions),
+                  types: getTypesMetadata(mfOptions, { command: 'serve' }),
                   globalName: name,
                   pluginVersion: PLUGIN_VERSION,
                   publicPath: getDevRequestPublicPath(req),
@@ -706,14 +706,27 @@ function getExposeCssMode(expose: { css?: { inject?: string | boolean } }) {
   return expose.css?.inject || 'head';
 }
 
-function getTypesMetadata(options: {
-  dts?: boolean | { generateTypes?: boolean | { typesFolder?: string } };
-}) {
+function getTypesMetadata(
+  options: {
+    dts?: boolean | { generateTypes?: boolean | { typesFolder?: string } };
+  },
+  context?: {
+    command?: 'build' | 'serve';
+  },
+) {
   if (options.dts === false) {
     return {
       path: '',
       name: '',
       api: '',
+    };
+  }
+
+  if (context?.command === 'serve') {
+    return {
+      path: 'dist',
+      name: '.dev-server.zip',
+      api: '.dev-server.d.ts',
     };
   }
 

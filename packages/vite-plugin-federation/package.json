@@ -35,7 +35,8 @@
     "clean": "rimraf coverage dist",
     "lint": "eslint .",
     "test": "vitest --config vitest.config.ts run",
-    "test:e2e": "pnpm build && playwright test --config playwright.config.ts && pnpm test:e2e:shared",
+    "test:e2e": "pnpm build && playwright test --config playwright.config.ts && pnpm test:e2e:shared && pnpm test:e2e:dts:dev",
+    "test:e2e:dts:dev": "pnpm build && node e2e/dts-dev-hot-sync.mjs",
     "test:e2e:shared": "pnpm build && pnpm --filter example-shared-strict-fallback-app build && pnpm --filter example-shared-host-only-remote build && pnpm --filter example-shared-host-only-host build && pnpm --filter example-shared-negotiation-remote build && pnpm --filter example-shared-negotiation-host build && playwright test --config playwright.shared.config.ts",
     "test:e2e:ssr": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-react-ssr-host build && playwright test --config playwright.ssr.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
@@ -46,6 +47,7 @@
     "@module-federation/runtime": "2.3.3",
     "@module-federation/sdk": "2.3.3",
     "@rollup/pluginutils": "5.3.0",
+    "adm-zip": "0.5.16",
     "defu": "6.1.4",
     "es-module-lexer": "2.0.0",
     "estree-walker": "3.0.3",
@@ -56,6 +58,7 @@
     "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0"
   },
   "devDependencies": {
+    "@types/adm-zip": "0.5.7",
     "@playwright/test": "1.58.2",
     "ajv": "8.18.0",
     "rollup": "4.52.4",

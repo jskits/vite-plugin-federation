@@ -91,6 +91,9 @@ Current state:
   declaration output, and zipped expose declarations.
 - `examples/dts-host` validates build-time host type consumption from manifest-derived
   `remoteTypeUrls`, `typesOnBuild`, `consumeAPITypes`, and `abortOnError` happy-path behavior.
+- `packages/vite-plugin-federation/e2e/dts-dev-hot-sync.mjs` validates dev-time live DTS serving,
+  remote type regeneration, host hot type sync, and no-restart host type-checking after a remote
+  API expansion.
 - Build-time DTS generation/consumption errors are rethrown when the corresponding scoped
   `abortOnError` option is enabled.
 - `examples/dts-host` validates unavailable remote type artifacts fail build-time consumption with
@@ -106,7 +109,6 @@ Current state:
 
 Remaining work:
 
-- Add dev e2e tests for type hot sync after a remote type change.
 - Verify Vue/Svelte style TS projects if those frameworks are added to the example matrix.
 
 Acceptance criteria:

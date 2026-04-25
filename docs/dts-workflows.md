@@ -127,6 +127,10 @@ Production guidance:
 In dev, the DTS integration can start the upstream DTS worker and dynamic type hints plugin. The
 plugin also supports hot type reload events through the dev remote HMR channel.
 
+Remote dev manifests publish live DTS artifacts from `dist/.dev-server.zip` and
+`dist/.dev-server.d.ts`, so hosts consume the current dev-generated declarations instead of stale
+build-time `@mf-types` outputs during local development.
+
 Relevant dev options:
 
 - `dev.disableDynamicRemoteTypeHints`: disables dynamic remote type hints injection.
@@ -144,6 +148,8 @@ This repository includes two focused examples:
   manifest metadata, and expose declarations.
 - `examples/dts-host`: proves a host can derive type URLs from the remote manifest, consume those
   declarations during build, and type-check `dtsRemote/answer`.
+- `packages/vite-plugin-federation/e2e/dts-dev-hot-sync.mjs`: proves a host dev server receives
+  live federated type updates after a remote API change without restarting the host.
 
 Run the full DTS verification:
 

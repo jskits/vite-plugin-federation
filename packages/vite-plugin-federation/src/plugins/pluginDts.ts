@@ -1,4 +1,5 @@
 import { normalizeOptions, type moduleFederationPlugin } from '@module-federation/sdk';
+import AdmZip from 'adm-zip';
 import {
   consumeTypesAPI,
   generateTypesAPI,
@@ -8,6 +9,7 @@ import {
   normalizeGenerateTypesOptions,
 } from '@module-federation/dts-plugin';
 import { existsSync } from 'fs';
+import { writeFile } from 'fs/promises';
 import { rpc, type DTSManagerOptions } from '@module-federation/dts-plugin/core';
 import { createRequire } from 'node:module';
 import * as path from 'pathe';
@@ -130,6 +132,49 @@ const resolveOutputDir = (config: ResolvedConfig): string => {
     return path.relative(config.root, outDir);
   }
   return outDir;
+};
+
+const normalizeWatchedPath = (value: string): string =>
+  path.normalize(value).replace(/\\/g, '/').replace(/\/$/, '');
+
+const isPathWithin = (targetPath: string, basePath: string): boolean => {
+  const normalizedTarget = normalizeWatchedPath(targetPath);
+  const normalizedBase = normalizeWatchedPath(basePath);
+
+  return normalizedTarget === normalizedBase || normalizedTarget.startsWith(`${normalizedBase}/`);
+};
+
+const REMOTE_ALIAS_IDENTIFIER = 'REMOTE_ALIAS_IDENTIFIER';
+
+const generateRemoteApiTypes = (exposes: Record<string, string>): string => {
+  const exposeKeys = Object.keys(exposes);
+  const exposePaths = new Set<string>();
+  const packageType = exposeKeys.reduce((sum, exposeKey) => {
+    const exposePath = path.join(REMOTE_ALIAS_IDENTIFIER, exposeKey).split(path.sep).join('/');
+    exposePaths.add(`'${exposePath}'`);
+    return `T extends '${exposePath}' ? typeof import('${exposePath}') :${sum}`;
+  }, 'any;');
+
+  return `
+    export type RemoteKeys = ${[...exposePaths].join(' | ')};
+    type PackageType<T> = ${packageType}
+  `;
+};
+
+const syncLiveDevRemoteTypesArtifacts = async (options: {
+  apiTypesPath: string;
+  exposes: Record<string, string>;
+  typesDir: string;
+  zipPath: string;
+}): Promise<void> => {
+  if (!existsSync(options.typesDir)) {
+    return;
+  }
+
+  const zip = new AdmZip();
+  zip.addLocalFolder(options.typesDir);
+  await zip.writeZipPromise(options.zipPath);
+  await writeFile(options.apiTypesPath, generateRemoteApiTypes(options.exposes), 'utf8');
 };
 
 const ensureRuntimePlugin = (
@@ -408,6 +453,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
   }
 
   const dtsModuleFederationConfig = buildDtsModuleFederationConfig(options);
+  const dtsExposes = dtsModuleFederationConfig.exposes as Record<string, string>;
   let resolvedConfig: ResolvedConfig | undefined;
   let devWorker: DevWorker | undefined;
   let normalizedDevOptions: DevOptions | false | undefined;
@@ -441,6 +487,7 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
         return;
       }
       const devOptions = normalizedDevOptions;
+      const currentConfig = resolvedConfig;
 
       if (
         devOptions.disableDynamicRemoteTypeHints &&
@@ -518,7 +565,29 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
         return;
       }
 
+      const liveRemoteArtifacts =
+        remote && !devOptions.disableHotTypesReload
+          ? {
+              apiTypesPath: path.resolve(currentConfig.root, outputDir, '.dev-server.d.ts'),
+              exposes: dtsExposes,
+              typesDir: path.resolve(currentConfig.root, outputDir, '.dev-server'),
+              zipPath: path.resolve(currentConfig.root, outputDir, '.dev-server.zip'),
+            }
+          : undefined;
+
       const startDevWorker = async () => {
+        if (remote && !devOptions.disableHotTypesReload) {
+          await generateTypesAPI({
+            dtsManagerOptions: {
+              remote,
+              extraOptions,
+            },
+          });
+          if (liveRemoteArtifacts) {
+            await syncLiveDevRemoteTypesArtifacts(liveRemoteArtifacts);
+          }
+        }
+
         let remoteTypeUrls: moduleFederationPlugin.RemoteTypeUrls | undefined;
         if (host) {
           await applyManifestRemoteTypeUrls(host, options);
@@ -548,7 +617,45 @@ export default function pluginDts(options: NormalizedModuleFederationOptions): P
           disableHotTypesReload: devOptions.disableHotTypesReload,
         });
 
-        const update = () => devWorker?.update();
+        const ignoredWatchRoots = [
+          path.resolve(currentConfig.root, outputDir),
+          path.resolve(currentConfig.root, 'node_modules/.cache/mf-types'),
+          host ? path.resolve(currentConfig.root, host.typesFolder) : undefined,
+        ].filter((rootPath): rootPath is string => Boolean(rootPath));
+
+        let updateQueue = Promise.resolve();
+        const update = (changedFile: string) => {
+          const absoluteChangedFile = path.isAbsolute(changedFile)
+            ? changedFile
+            : path.resolve(currentConfig.root, changedFile);
+
+          if (
+            ignoredWatchRoots.some((ignoredRoot) => isPathWithin(absoluteChangedFile, ignoredRoot))
+          ) {
+            return;
+          }
+
+          updateQueue = updateQueue
+            .then(async () => {
+              if (remote && !devOptions.disableHotTypesReload) {
+                await generateTypesAPI({
+                  dtsManagerOptions: {
+                    remote,
+                    extraOptions,
+                  },
+                });
+                if (liveRemoteArtifacts) {
+                  await syncLiveDevRemoteTypesArtifacts(liveRemoteArtifacts);
+                }
+              }
+
+              devWorker?.update();
+            })
+            .catch((error) => {
+              logDtsError(error, normalizedDtsOptions);
+            });
+        };
+
         server.watcher.on('change', update);
         server.watcher.on('add', update);
         server.watcher.on('unlink', update);
