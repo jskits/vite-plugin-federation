@@ -11,12 +11,37 @@ import './app.css';
 
 const VAR_REMOTE_URL = 'http://localhost:4174/remoteEntry.var.js';
 const MANIFEST_REMOTE_URL = 'http://localhost:4174/mf-manifest.json';
+const MANUAL_CSS_BUCKET_KEY = 'css__reactRemote__./ManualCssButton';
+
+async function appendManualCssLink(href) {
+  if (!href || typeof document === 'undefined') {
+    return false;
+  }
+
+  const existingLink = document.querySelector(`link[rel="stylesheet"][data-mf-href="${href}"]`);
+  if (existingLink) {
+    return true;
+  }
+
+  await new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.setAttribute('data-mf-href', href);
+    link.onload = () => resolve();
+    link.onerror = () => reject(new Error(`Failed to load manual CSS asset: ${href}`));
+    document.head.appendChild(link);
+  });
+
+  return Boolean(document.querySelector(`link[rel="stylesheet"][data-mf-href="${href}"]`));
+}
 
 export default function App() {
   const [status, setStatus] = useState('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [compatDebug, setCompatDebug] = useState(null);
   const [EsmButton, setEsmButton] = useState(null);
+  const [ManualCssButton, setManualCssButton] = useState(null);
   const [ManifestButton, setManifestButton] = useState(null);
   const [VarButton, setVarButton] = useState(null);
 
@@ -25,6 +50,23 @@ export default function App() {
 
     const loadCompatRemotes = async () => {
       const esmContainer = await __federation_method_ensure('reactRemote');
+      const manualCssModule = await __federation_method_getRemote(
+        'reactRemote',
+        './ManualCssButton',
+      );
+      const unwrappedManualCssModule = __federation_method_unwrapDefault(
+        __federation_method_wrapDefault(manualCssModule, true),
+      );
+      const manualCssHrefs = globalThis[MANUAL_CSS_BUCKET_KEY] || [];
+      const manualCssHref =
+        manualCssHrefs.find((href) => href.includes('ManualCssButton')) ||
+        manualCssHrefs[0] ||
+        null;
+      const manualCssLinkBeforeInject = manualCssHref
+        ? document.querySelector(`link[rel="stylesheet"][data-mf-href="${manualCssHref}"]`)
+        : null;
+      const manualCssInjected = await appendManualCssLink(manualCssHref);
+
       const esmModule = await __federation_method_getRemote('reactRemote', './Button');
       const wrappedNamespace = __federation_method_wrapDefault(esmModule, true);
       const unwrappedEsmModule = __federation_method_unwrapDefault(wrappedNamespace);
@@ -73,6 +115,13 @@ export default function App() {
           unwrapValue: helperUnwrapped,
           wrappedHasDefault: Boolean(helperWrapped.default),
         },
+        manualCss: {
+          autoInjectedBeforeManual: Boolean(manualCssLinkBeforeInject),
+          bucketKey: MANUAL_CSS_BUCKET_KEY,
+          href: manualCssHref,
+          hrefCount: manualCssHrefs.length,
+          manualInjectedAfterHost: manualCssInjected,
+        },
         manifest: {
           entry: MANIFEST_REMOTE_URL,
           registeredAlias: manifestRegistration?.alias || null,
@@ -97,6 +146,7 @@ export default function App() {
       startTransition(() => {
         setCompatDebug(nextDebug);
         setEsmButton(() => unwrappedEsmModule);
+        setManualCssButton(() => unwrappedManualCssModule);
         setManifestButton(() => unwrappedManifestModule);
         setVarButton(() => unwrappedVarModule);
         setStatus('ready');
@@ -165,10 +215,21 @@ export default function App() {
               {compatDebug?.manifest?.registeredAlias ? 'manifest-registered' : 'pending'}
             </div>
           </article>
+          <article className="compat-panel">
+            <div className="compat-label">Manual CSS</div>
+            <div data-testid="manual-css">
+              {compatDebug?.manualCss?.manualInjectedAfterHost ? 'host-injected' : 'pending'}
+            </div>
+          </article>
         </div>
 
         <div className="compat-remote-row">
           {EsmButton ? <EsmButton label="OriginJS ESM Button" /> : <p>Loading ESM remote…</p>}
+          {ManualCssButton ? (
+            <ManualCssButton label="OriginJS Manual CSS Button" />
+          ) : (
+            <p>Loading manual CSS remote…</p>
+          )}
           {ManifestButton ? (
             <ManifestButton label="Manifest Button" />
           ) : (

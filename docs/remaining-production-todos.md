@@ -215,6 +215,9 @@ Current state:
 - The OriginJS compatibility shim now throws `MFV-005` for unsupported legacy `format` values and
   missing `systemjs` runtimes, and emits a one-time `MFV-007` warning for unsupported `from`
   values.
+- `examples/react-remote` exposes `./ManualCssButton` with `dontAppendStylesToHead: true`, and
+  enables `bundleAllCSS: true` so `examples/originjs-compat-host` can verify the host receives the
+  manual CSS href bucket and injects the stylesheet explicitly.
 - A compatibility matrix documents supported, partially supported, and unsupported remote formats,
   `from` combinations, OriginJS APIs, and CSS migration behavior.
 
@@ -222,7 +225,6 @@ Remaining work:
 
 - Validate `format: 'esm'`, `format: 'var'`, and `format: 'systemjs'`.
 - Validate `from: 'vite'`, `from: 'webpack'`, and mixed host/remote combinations.
-- Validate `dontAppendStylesToHead` migration to the new CSS behavior.
 
 Acceptance criteria:
 

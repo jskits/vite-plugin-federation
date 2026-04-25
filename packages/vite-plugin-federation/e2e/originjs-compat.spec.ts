@@ -7,10 +7,12 @@ test.describe('originjs compatibility shim', () => {
     await expect(page.getByTestId('status')).toHaveText('ready');
     await expect(page.getByTestId('esm-ensure')).toHaveText('container-ready');
     await expect(page.getByTestId('var-ensure')).toHaveText('container-ready');
+    await expect(page.getByTestId('manual-css')).toHaveText('host-injected');
     await expect(page.getByTestId('manifest-registration')).toHaveText('manifest-registered');
     await expect(page.getByTestId('helper-wrap')).toHaveText('default');
     await expect(page.getByTestId('helper-unwrap')).toHaveText('compat-ok');
     await expect(page.getByRole('button', { name: 'OriginJS ESM Button' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'OriginJS Manual CSS Button' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Manifest Button' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'OriginJS VAR Button' })).toBeVisible();
 
@@ -27,6 +29,13 @@ test.describe('originjs compatibility shim', () => {
             helpers?: {
               unwrapValue?: string;
               wrappedHasDefault?: boolean;
+            };
+            manualCss?: {
+              autoInjectedBeforeManual?: boolean;
+              bucketKey?: string;
+              href?: string | null;
+              hrefCount?: number;
+              manualInjectedAfterHost?: boolean;
             };
             manifest?: {
               entry?: string;
@@ -57,6 +66,13 @@ test.describe('originjs compatibility shim', () => {
         unwrapValue: 'compat-ok',
         wrappedHasDefault: true,
       },
+      manualCss: {
+        autoInjectedBeforeManual: false,
+        bucketKey: 'css__reactRemote__./ManualCssButton',
+        href: expect.stringContaining('ManualCssButton'),
+        hrefCount: expect.any(Number),
+        manualInjectedAfterHost: true,
+      },
       manifest: {
         entry: 'http://localhost:4174/mf-manifest.json',
         registeredAlias: 'reactManifest',
@@ -69,6 +85,26 @@ test.describe('originjs compatibility shim', () => {
         request: 'reactRemoteVar/Button',
         resolvedType: 'function',
       },
+    });
+
+    const manualCssStyle = await page.evaluate(() => {
+      const button = document.querySelector('button.remote-manual-css-button');
+      if (!button) {
+        return null;
+      }
+
+      const style = window.getComputedStyle(button);
+      return {
+        backgroundColor: style.backgroundColor,
+        borderTopWidth: style.borderTopWidth,
+        color: style.color,
+      };
+    });
+
+    expect(manualCssStyle).toMatchObject({
+      backgroundColor: 'rgb(134, 239, 172)',
+      borderTopWidth: '3px',
+      color: 'rgb(20, 83, 45)',
     });
   });
 });

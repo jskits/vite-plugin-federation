@@ -76,6 +76,14 @@ OriginJS `dontAppendStylesToHead` maps to the new expose CSS behavior:
 
 Prefer the explicit `css.inject` option for new code.
 
+Repository coverage:
+
+- `examples/react-remote` publishes `./ManualCssButton` with `dontAppendStylesToHead: true`.
+- The compatibility example enables `bundleAllCSS: true` so manual CSS href buckets are emitted at
+  runtime.
+- `examples/originjs-compat-host` verifies the browser receives the manual CSS href bucket and can
+  inject the stylesheet explicitly from the host.
+
 ## Unsupported Or Risky Combinations
 
 The plugin should fail clearly or require app-level validation for:
@@ -104,6 +112,8 @@ Current repository coverage:
 - Browser e2e validates `virtual:__federation__` against real `remoteEntry.js` and
   `remoteEntry.var.js` assets through `examples/originjs-compat-host`, and verifies
   manifest-first and remoteEntry-first remotes can coexist on the same host.
+- Browser e2e validates `dontAppendStylesToHead` migration by consuming a manual CSS expose and
+  injecting its stylesheet from the host.
 - `varFilename` generation is supported at build configuration level.
 
 Still needed:

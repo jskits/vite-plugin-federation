@@ -20,6 +20,7 @@ export default defineConfig({
       filename: 'remoteEntry.js',
       varFilename: 'remoteEntry.var.js',
       manifest: true,
+      bundleAllCSS: true,
       dts: false,
       dev: {
         remoteHmr: true,
@@ -28,6 +29,10 @@ export default defineConfig({
       exposes: {
         './Button': './src/Button.jsx',
         './Card': './src/Card.jsx',
+        './ManualCssButton': {
+          import: './src/ManualCssButton.jsx',
+          dontAppendStylesToHead: true,
+        },
       },
       shared: {
         react: {

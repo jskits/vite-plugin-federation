@@ -1,0 +1,11 @@
+.remote-manual-css-button {
+  border: 3px solid #14532d;
+  border-radius: 999px;
+  background: #86efac;
+  color: #14532d;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0.8rem 1.2rem;
+}

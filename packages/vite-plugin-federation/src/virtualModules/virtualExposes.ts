@@ -46,6 +46,10 @@ export function generateExposes(
     }
 
     async function handleCssAssets(exposeKey, injectMode) {
+      if (typeof document === "undefined") {
+        return;
+      }
+
       // Replaced at build time with expose -> css asset paths.
       const cssAssets = cssAssetMap[exposeKey] || [];
 
@@ -57,10 +61,6 @@ export function generateExposes(
 
       if (injectMode === "manual") {
         globalThis[${JSON.stringify(cssBucketKeyPrefix)} + exposeKey] = hrefs;
-        return;
-      }
-
-      if (typeof document === "undefined") {
         return;
       }
 

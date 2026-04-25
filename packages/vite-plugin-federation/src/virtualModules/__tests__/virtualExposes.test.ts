@@ -288,4 +288,36 @@ describe('virtualExposes', () => {
     expect(document.head.appendChild).not.toHaveBeenCalled();
     expect(globalThis['css__remote-app__./one']).toBeUndefined();
   });
+
+  it('skips css handling entirely during server evaluation', async () => {
+    const code = generateExposes(
+      getDefaultMockOptions({
+        name: 'remote-app',
+        exposes: {
+          './one': {
+            import: './one.js',
+            css: { inject: 'manual' },
+          } as any,
+        },
+        bundleAllCSS: true as any,
+      }),
+    ).replace(
+      `"${getExposesCssMapPlaceholder()}"`,
+      JSON.stringify({
+        './one': ['./style.css'],
+      }),
+    );
+
+    const dynamicImport = vi.fn(async (id: string) => ({ default: id }));
+    const exposes = await toRunnableModule(code)(
+      undefined,
+      URL,
+      dynamicImport,
+      'file:///repo/x.js',
+    );
+
+    await expect(exposes['./one']()).resolves.toMatchObject({ default: './one.js' });
+    expect(dynamicImport).toHaveBeenCalledTimes(1);
+    expect(globalThis['css__remote-app__./one']).toBeUndefined();
+  });
 });
