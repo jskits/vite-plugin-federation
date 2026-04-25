@@ -36,3 +36,7 @@ jobs:
 
       - name: Verify workspace
         run: pnpm check
+
+      - name: Smoke test packed package
+        if: matrix.node-version == 22
+        run: pnpm test:package:smoke

@@ -65,6 +65,9 @@ jobs:
           console.log(`Publishing ${packageJson.name}@${packageJson.version}`);
           NODE
 
+      - name: Validate package tarball
+        run: pnpm --filter vite-plugin-federation pack --dry-run
+
       - name: Publish package
         run: pnpm release
         env:

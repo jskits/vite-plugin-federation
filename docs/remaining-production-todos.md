@@ -441,15 +441,15 @@ Suggested commits:
 Current state:
 
 - CI runs `pnpm check`.
+- CI now installs a clean temporary Vite app from a real `pnpm pack` tarball and verifies the
+  package can build there.
+- Release workflow validates `pnpm pack --dry-run` before publishing.
 - Release workflow is manual-only.
 - Package exports include root and runtime entry.
 - Build produces ESM, CJS, and DTS.
 
 Remaining work:
 
-- Add package publish dry-run validation.
-- Add `pnpm pack` artifact smoke test.
-- Add install smoke test in a temporary Vite app.
 - Add scheduled or manual extended e2e workflow for heavier framework matrix tests.
 - Add changeset policy documentation.
 - Validate package side effects and tree-shaking behavior.
