@@ -176,13 +176,16 @@ Current state:
   cases.
 - Generated manifests include `release.id`, `metaData.buildInfo.releaseId`, and entry-level
   `integrity`/`contentHash` metadata for remote entries.
+- Manifest remotes can opt into runtime remote-entry verification through
+  `registerManifestRemote(..., { integrity: true | { mode } })`, with debug snapshots recording
+  successful and failed integrity checks.
 - Backward/forward compatibility rules and manifest hosting/cache rules are documented as part of
   the manifest protocol.
 
 Remaining work:
 
-- Add optional runtime integrity verification for manifest-declared assets if the production
-  security model requires browser-side enforcement.
+- No further manifest protocol gaps are currently tracked beyond keeping schema and integrity
+  checks covered in CI.
 
 Acceptance criteria:
 

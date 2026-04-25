@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
@@ -114,6 +115,18 @@ import {
   refreshRemote,
 } from '../index';
 import { clearModuleFederationDebugState } from '../../utils/logger';
+
+function toArrayBuffer(value: string) {
+  return new TextEncoder().encode(value).buffer;
+}
+
+function toSha384Integrity(value: string) {
+  return `sha384-${createHash('sha384').update(value).digest('base64')}`;
+}
+
+function toSha256ContentHash(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
 
 describe('runtime api', () => {
   beforeEach(() => {
@@ -805,16 +818,19 @@ describe('runtime api', () => {
     );
 
     await expect(
-      loadShare('host-only-dep' as any, {
-        customShareInfo: {
-          shareConfig: {
-            import: false,
-            requiredVersion: '^1.2.3',
-            singleton: true,
-            strictVersion: true,
+      loadShare(
+        'host-only-dep' as any,
+        {
+          customShareInfo: {
+            shareConfig: {
+              import: false,
+              requiredVersion: '^1.2.3',
+              singleton: true,
+              strictVersion: true,
+            },
           },
-        },
-      } as any),
+        } as any,
+      ),
     ).rejects.toThrow('must be provided by the host because import: false is configured');
 
     expect(getFederationDebugInfo().runtime.sharedResolutionGraph.at(-1)).toMatchObject({
@@ -1490,6 +1506,176 @@ describe('runtime api', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(registerRemotesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('verifies manifest remoteEntry integrity metadata when enabled', async () => {
+    const assetSource = 'export const remoteValue = "verified";';
+    const manifestUrl = 'http://remote.example/mf-manifest.json';
+    const remoteEntryUrl = 'http://remote.example/remoteEntry.js';
+    const expectedIntegrity = toSha384Integrity(assetSource);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === manifestUrl) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            name: 'remoteApp',
+            metaData: {
+              globalName: 'remoteApp',
+              remoteEntry: {
+                name: 'remoteEntry.js',
+                path: '',
+                type: 'module',
+                integrity: expectedIntegrity,
+              },
+            },
+          }),
+        };
+      }
+
+      if (url === remoteEntryUrl) {
+        return {
+          ok: true,
+          status: 200,
+          arrayBuffer: async () => toArrayBuffer(assetSource),
+        };
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await registerManifestRemote('remoteApp', manifestUrl, {
+      integrity: true,
+      target: 'web',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getFederationDebugInfo().runtime.manifestIntegrityChecks).toEqual([
+      expect.objectContaining({
+        assetUrl: remoteEntryUrl,
+        expectedIntegrity,
+        manifestUrl,
+        mode: 'prefer-integrity',
+        status: 'success',
+        target: 'web',
+        verifiedWith: ['integrity'],
+      }),
+    ]);
+  });
+
+  it('falls back to contentHash verification when integrity metadata is absent', async () => {
+    const assetSource = 'export const remoteValue = "content-hash-only";';
+    const manifestUrl = 'http://remote.example/mf-manifest.json';
+    const remoteEntryUrl = 'http://remote.example/remoteEntry.js';
+    const expectedContentHash = toSha256ContentHash(assetSource);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === manifestUrl) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            name: 'remoteApp',
+            metaData: {
+              globalName: 'remoteApp',
+              remoteEntry: {
+                name: 'remoteEntry.js',
+                path: '',
+                type: 'module',
+                contentHash: expectedContentHash,
+              },
+            },
+          }),
+        };
+      }
+
+      if (url === remoteEntryUrl) {
+        return {
+          ok: true,
+          status: 200,
+          arrayBuffer: async () => toArrayBuffer(assetSource),
+        };
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await registerManifestRemote('remoteApp', manifestUrl, {
+      integrity: true,
+      target: 'web',
+    });
+
+    expect(getFederationDebugInfo().runtime.manifestIntegrityChecks).toEqual([
+      expect.objectContaining({
+        actualContentHash: expectedContentHash,
+        assetUrl: remoteEntryUrl,
+        expectedContentHash,
+        manifestUrl,
+        mode: 'prefer-integrity',
+        status: 'success',
+        target: 'web',
+        verifiedWith: ['contentHash'],
+      }),
+    ]);
+  });
+
+  it('rejects manifest remote entries when runtime integrity verification fails', async () => {
+    const manifestUrl = 'http://remote.example/mf-manifest.json';
+    const remoteEntryUrl = 'http://remote.example/remoteEntry.js';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === manifestUrl) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            name: 'remoteApp',
+            metaData: {
+              globalName: 'remoteApp',
+              remoteEntry: {
+                name: 'remoteEntry.js',
+                path: '',
+                type: 'module',
+                integrity: toSha384Integrity('expected-source'),
+              },
+            },
+          }),
+        };
+      }
+
+      if (url === remoteEntryUrl) {
+        return {
+          ok: true,
+          status: 200,
+          arrayBuffer: async () => toArrayBuffer('tampered-source'),
+        };
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      registerManifestRemote('remoteApp', manifestUrl, {
+        integrity: true,
+        target: 'web',
+      }),
+    ).rejects.toThrow('failed integrity verification');
+
+    expect(registerRemotesMock).not.toHaveBeenCalled();
+    expect(getFederationDebugInfo().runtime.manifestIntegrityChecks).toEqual([
+      expect.objectContaining({
+        assetUrl: remoteEntryUrl,
+        manifestUrl,
+        mode: 'prefer-integrity',
+        status: 'failure',
+        target: 'web',
+        verifiedWith: ['integrity'],
+      }),
+    ]);
   });
 
   it('refreshes registered manifest remotes and invalidates the manifest cache', async () => {

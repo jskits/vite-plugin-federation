@@ -144,7 +144,22 @@ export interface ManifestFetchOptions {
   timeout?: number;
 }
 
+export type ManifestIntegrityVerificationMode =
+  | 'prefer-integrity'
+  | 'integrity'
+  | 'content-hash'
+  | 'both';
+
+export interface ManifestIntegrityOptions {
+  mode?: ManifestIntegrityVerificationMode;
+}
+
+interface NormalizedManifestIntegrityOptions {
+  mode: ManifestIntegrityVerificationMode;
+}
+
 export interface RegisterManifestRemoteOptions extends ManifestFetchOptions {
+  integrity?: boolean | ManifestIntegrityOptions;
   remoteName?: string;
   shareScope?: string;
   target?: FederationRuntimeTarget;
@@ -164,6 +179,21 @@ interface ManifestFetchLogEntry {
   status: 'cache-hit' | 'failure' | 'retry' | 'success';
   statusCode?: number;
   timestamp: string;
+}
+
+interface ManifestIntegrityCheckLogEntry {
+  actualContentHash?: string;
+  actualIntegrity?: string;
+  assetUrl: string;
+  error?: string;
+  expectedContentHash?: string;
+  expectedIntegrity?: string;
+  manifestUrl: string;
+  mode: ManifestIntegrityVerificationMode;
+  status: 'failure' | 'success';
+  target: FederationRuntimeTarget;
+  timestamp: string;
+  verifiedWith: Array<'contentHash' | 'integrity'>;
 }
 
 type SharedMatchType =
@@ -249,6 +279,7 @@ interface RuntimeDebugState {
   sharedResolutionSeq: number;
   manifestCache: Map<string, ManifestCacheEntry>;
   manifestFetches: ManifestFetchLogEntry[];
+  manifestIntegrityChecks: ManifestIntegrityCheckLogEntry[];
   manifestRequests: Map<string, Promise<FederationRemoteManifest>>;
   registrationRequests: Map<string, Promise<Record<string, unknown>>>;
   registeredManifestRemotes: Map<
@@ -357,6 +388,7 @@ type RuntimeDebugEventName =
   | 'refresh-remote'
   | 'load-error'
   | 'manifest-fetched'
+  | 'manifest-integrity'
   | 'manifest-registered'
   | 'clear-caches';
 
@@ -376,6 +408,7 @@ function getRuntimeDebugState(): RuntimeDebugState {
     sharedResolutionSeq: 0,
     manifestCache: new Map(),
     manifestFetches: [],
+    manifestIntegrityChecks: [],
     manifestRequests: new Map(),
     registrationRequests: new Map(),
     registeredManifestRemotes: new Map(),
@@ -1697,6 +1730,29 @@ function getManifestFetchImplementation(fetchOverride?: typeof fetch) {
   return fetchImplementation;
 }
 
+function normalizeManifestIntegrityOptions(
+  options: RegisterManifestRemoteOptions['integrity'],
+): NormalizedManifestIntegrityOptions | null {
+  if (!options) {
+    return null;
+  }
+
+  const mode = (typeof options === 'object' ? options.mode : undefined) || 'prefer-integrity';
+  if (
+    mode !== 'prefer-integrity' &&
+    mode !== 'integrity' &&
+    mode !== 'content-hash' &&
+    mode !== 'both'
+  ) {
+    throw createModuleFederationError(
+      'MFV-004',
+      `Invalid manifest integrity mode "${String(mode)}". Expected "prefer-integrity", "integrity", "content-hash", or "both".`,
+    );
+  }
+
+  return { mode };
+}
+
 function isAbsoluteUrl(value: string) {
   return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value) || value.startsWith('//');
 }
@@ -1729,6 +1785,80 @@ function resolveManifestAssetUrl(
     return new URL(entryPath, new URL(publicPath, manifestUrl)).toString();
   }
   return new URL(entryPath, manifestUrl).toString();
+}
+
+function parseSriIntegrity(
+  manifestUrl: string,
+  assetUrl: string,
+  integrity: string,
+): {
+  algorithm: 'sha256' | 'sha384' | 'sha512';
+  subtleAlgorithm: 'SHA-256' | 'SHA-384' | 'SHA-512';
+  value: string;
+} {
+  const match = integrity.match(/^(sha256|sha384|sha512)-([A-Za-z0-9+/=]+)$/);
+  if (!match) {
+    throw createModuleFederationError(
+      'MFV-004',
+      `Federation manifest "${manifestUrl}" declares unsupported integrity "${integrity}" for "${assetUrl}". Expected sha256/sha384/sha512 SRI format.`,
+    );
+  }
+
+  const algorithm = match[1] as 'sha256' | 'sha384' | 'sha512';
+  return {
+    algorithm,
+    subtleAlgorithm:
+      algorithm === 'sha256' ? 'SHA-256' : algorithm === 'sha384' ? 'SHA-384' : 'SHA-512',
+    value: match[2],
+  };
+}
+
+async function digestArrayBuffer(
+  buffer: ArrayBuffer,
+  algorithm: 'SHA-256' | 'SHA-384' | 'SHA-512',
+) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle?.digest) {
+    throw createModuleFederationError(
+      'MFV-004',
+      'Web Crypto API is unavailable. Manifest integrity verification requires crypto.subtle.digest.',
+    );
+  }
+
+  return new Uint8Array(await subtle.digest(algorithm, buffer));
+}
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = '';
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+
+  if (typeof globalThis.btoa === 'function') {
+    return globalThis.btoa(binary);
+  }
+
+  const bufferCtor = (
+    globalThis as typeof globalThis & {
+      Buffer?: {
+        from(input: Uint8Array): { toString(encoding: 'base64'): string };
+      };
+    }
+  ).Buffer;
+  if (bufferCtor) {
+    return bufferCtor.from(bytes).toString('base64');
+  }
+
+  throw createModuleFederationError(
+    'MFV-004',
+    'Unable to encode integrity digest as base64 in the current runtime environment.',
+  );
 }
 
 export function resolveFederationManifestAssetUrl(
@@ -2116,6 +2246,14 @@ function recordManifestFetch(entry: ManifestFetchLogEntry) {
   }
 }
 
+function recordManifestIntegrityCheck(entry: ManifestIntegrityCheckLogEntry) {
+  const debugState = getRuntimeDebugState();
+  debugState.manifestIntegrityChecks.push(entry);
+  if (debugState.manifestIntegrityChecks.length > 50) {
+    debugState.manifestIntegrityChecks.shift();
+  }
+}
+
 function getManifestRetryDelay(options: ManifestFetchOptions, attempt: number, error: unknown) {
   if (typeof options.retryDelay === 'function') {
     return Math.max(0, options.retryDelay(attempt, error));
@@ -2236,6 +2374,194 @@ async function fetchManifestResponse(
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
     externalSignal?.removeEventListener('abort', onAbort);
+  }
+}
+
+async function fetchManifestAssetResponse(
+  manifestUrl: string,
+  assetUrl: string,
+  fetchImplementation: typeof fetch,
+  options: ManifestFetchOptions,
+) {
+  if (!options.timeout || options.timeout <= 0 || typeof AbortController === 'undefined') {
+    return fetchImplementation(assetUrl, options.fetchInit);
+  }
+
+  const controller = new AbortController();
+  const fetchInit = options.fetchInit ? { ...options.fetchInit } : {};
+  const externalSignal = fetchInit.signal;
+  let didTimeout = false;
+
+  const onAbort = () => {
+    controller.abort(externalSignal?.reason);
+  };
+  if (externalSignal?.aborted) {
+    onAbort();
+  } else {
+    externalSignal?.addEventListener('abort', onAbort, { once: true });
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      didTimeout = true;
+      controller.abort();
+      reject(
+        createModuleFederationError(
+          'MFV-004',
+          `Timed out fetching federation asset "${assetUrl}" declared by manifest "${manifestUrl}" after ${options.timeout}ms.`,
+        ),
+      );
+    }, options.timeout);
+  });
+
+  try {
+    return await Promise.race([
+      fetchImplementation(assetUrl, {
+        ...fetchInit,
+        signal: controller.signal,
+      }),
+      timeoutPromise,
+    ]);
+  } catch (error) {
+    if (didTimeout) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Timed out fetching federation asset "${assetUrl}" declared by manifest "${manifestUrl}" after ${options.timeout}ms.`,
+      );
+    }
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', onAbort);
+  }
+}
+
+async function verifyManifestEntryIntegrity(
+  manifestUrl: string,
+  assetUrl: string,
+  entry: FederationRemoteManifestEntry,
+  target: FederationRuntimeTarget,
+  options: RegisterManifestRemoteOptions,
+) {
+  const integrityOptions = normalizeManifestIntegrityOptions(options.integrity);
+  if (!integrityOptions) {
+    return;
+  }
+
+  const expectedIntegrity = typeof entry.integrity === 'string' ? entry.integrity : undefined;
+  const expectedContentHash =
+    typeof entry.contentHash === 'string' ? entry.contentHash.toLowerCase() : undefined;
+  const requiresIntegrity =
+    integrityOptions.mode === 'integrity' ||
+    integrityOptions.mode === 'both' ||
+    (integrityOptions.mode === 'prefer-integrity' && Boolean(expectedIntegrity));
+  const requiresContentHash =
+    integrityOptions.mode === 'content-hash' ||
+    integrityOptions.mode === 'both' ||
+    (integrityOptions.mode === 'prefer-integrity' && !expectedIntegrity);
+
+  const fetchImplementation = getManifestFetchImplementation(options.fetch);
+  const verifiedWith: Array<'contentHash' | 'integrity'> = [];
+  let actualIntegrity: string | undefined;
+  let actualContentHash: string | undefined;
+
+  try {
+    if (requiresIntegrity && !expectedIntegrity) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Federation manifest "${manifestUrl}" does not declare metaData.${target === 'node' ? 'ssrRemoteEntry' : 'remoteEntry'}.integrity for "${assetUrl}".`,
+      );
+    }
+
+    if (requiresContentHash && !expectedContentHash) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Federation manifest "${manifestUrl}" does not declare metaData.${target === 'node' ? 'ssrRemoteEntry' : 'remoteEntry'}.contentHash for "${assetUrl}".`,
+      );
+    }
+
+    const response = await fetchManifestAssetResponse(
+      manifestUrl,
+      assetUrl,
+      fetchImplementation,
+      options,
+    );
+    if (!response.ok) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Failed to fetch federation asset "${assetUrl}" declared by manifest "${manifestUrl}" with status ${response.status}.`,
+      );
+    }
+
+    const buffer = await response.arrayBuffer();
+    const digestCache = new Map<string, Promise<Uint8Array>>();
+    const getDigest = (algorithm: 'SHA-256' | 'SHA-384' | 'SHA-512') => {
+      const cacheKey = algorithm;
+      if (!digestCache.has(cacheKey)) {
+        digestCache.set(cacheKey, digestArrayBuffer(buffer, algorithm));
+      }
+      return digestCache.get(cacheKey)!;
+    };
+
+    if (requiresIntegrity && expectedIntegrity) {
+      const parsedIntegrity = parseSriIntegrity(manifestUrl, assetUrl, expectedIntegrity);
+      const digest = await getDigest(parsedIntegrity.subtleAlgorithm);
+      actualIntegrity = `${parsedIntegrity.algorithm}-${bytesToBase64(digest)}`;
+      verifiedWith.push('integrity');
+
+      if (actualIntegrity !== expectedIntegrity) {
+        throw createModuleFederationError(
+          'MFV-004',
+          `Federation asset "${assetUrl}" failed integrity verification from manifest "${manifestUrl}". Expected ${expectedIntegrity} but received ${actualIntegrity}.`,
+        );
+      }
+    }
+
+    if (requiresContentHash && expectedContentHash) {
+      const digest = await getDigest('SHA-256');
+      actualContentHash = bytesToHex(digest);
+      verifiedWith.push('contentHash');
+
+      if (actualContentHash !== expectedContentHash) {
+        throw createModuleFederationError(
+          'MFV-004',
+          `Federation asset "${assetUrl}" failed contentHash verification from manifest "${manifestUrl}". Expected ${expectedContentHash} but received ${actualContentHash}.`,
+        );
+      }
+    }
+
+    recordManifestIntegrityCheck({
+      actualContentHash,
+      actualIntegrity,
+      assetUrl,
+      expectedContentHash,
+      expectedIntegrity,
+      manifestUrl,
+      mode: integrityOptions.mode,
+      status: 'success',
+      target,
+      timestamp: new Date().toISOString(),
+      verifiedWith,
+    });
+    publishRuntimeDebugUpdate('manifest-integrity');
+  } catch (error) {
+    recordManifestIntegrityCheck({
+      actualContentHash,
+      actualIntegrity,
+      assetUrl,
+      error: error instanceof Error ? error.message : String(error),
+      expectedContentHash,
+      expectedIntegrity,
+      manifestUrl,
+      mode: integrityOptions.mode,
+      status: 'failure',
+      target,
+      timestamp: new Date().toISOString(),
+      verifiedWith,
+    });
+    publishRuntimeDebugUpdate('manifest-integrity');
+    throw error;
   }
 }
 
@@ -2390,6 +2716,9 @@ export async function registerManifestRemote(
       selectedEntry,
       manifest.metaData.publicPath,
     );
+
+    await verifyManifestEntryIntegrity(manifestUrl, remoteEntryUrl, selectedEntry, target, options);
+
     const registration = {
       alias: remoteAlias === remoteName ? undefined : remoteAlias,
       entry: appendEntryRefreshTimestamp(remoteEntryUrl, target, options.force),
@@ -2575,6 +2904,7 @@ export async function loadRemoteFromManifest<T>(
     fetch,
     fetchInit,
     force,
+    integrity,
     remoteName,
     retries,
     retryDelay,
@@ -2590,6 +2920,7 @@ export async function loadRemoteFromManifest<T>(
     fetch,
     fetchInit,
     force,
+    integrity,
     remoteName,
     retries,
     retryDelay,
@@ -2619,6 +2950,7 @@ export function clearFederationRuntimeCaches() {
   debugState.sharedResolutionSeq = 0;
   debugState.manifestCache.clear();
   debugState.manifestFetches = [];
+  debugState.manifestIntegrityChecks = [];
   debugState.manifestRequests.clear();
   debugState.registrationRequests.clear();
   debugState.registeredManifestRemotes.clear();
@@ -2643,6 +2975,7 @@ export function getFederationDebugInfo() {
       })),
       manifestCacheKeys: [...debugState.manifestCache.keys()],
       manifestFetches: debugState.manifestFetches.map((entry) => ({ ...entry })),
+      manifestIntegrityChecks: debugState.manifestIntegrityChecks.map((entry) => ({ ...entry })),
       pendingManifestRequests: [...debugState.manifestRequests.keys()],
       pendingRemoteRegistrations: [...debugState.registrationRequests.keys()],
       registeredManifestRemotes: [...debugState.registeredManifestRemotes.values()].map(
