@@ -218,13 +218,15 @@ Current state:
 - `examples/react-remote` exposes `./ManualCssButton` with `dontAppendStylesToHead: true`, and
   enables `bundleAllCSS: true` so `examples/originjs-compat-host` can verify the host receives the
   manual CSS href bucket and injects the stylesheet explicitly.
+- `examples/webpack-systemjs-remote` gives the repository a real webpack Module Federation remote
+  built with `library.type = 'system'`, and `examples/originjs-compat-host` now injects a local
+  SystemJS runtime asset before consuming that remote through `virtual:__federation__`.
 - A compatibility matrix documents supported, partially supported, and unsupported remote formats,
   `from` combinations, OriginJS APIs, and CSS migration behavior.
 
 Remaining work:
 
-- Validate `format: 'esm'`, `format: 'var'`, and `format: 'systemjs'`.
-- Validate `from: 'vite'`, `from: 'webpack'`, and mixed host/remote combinations.
+- No further compatibility-specific gaps are currently tracked beyond keeping the matrix covered in CI.
 
 Acceptance criteria:
 

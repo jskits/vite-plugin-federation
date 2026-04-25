@@ -7,11 +7,16 @@ import {
   __federation_method_wrapDefault,
 } from 'virtual:__federation__';
 import { getFederationDebugInfo, loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
+import systemJsRuntimeUrl from 'systemjs/dist/system.min.js?url';
 import './app.css';
 
 const VAR_REMOTE_URL = 'http://localhost:4174/remoteEntry.var.js';
 const MANIFEST_REMOTE_URL = 'http://localhost:4174/mf-manifest.json';
+const WEBPACK_SYSTEM_REMOTE_URL = 'http://localhost:4195/remoteEntry.js';
 const MANUAL_CSS_BUCKET_KEY = 'css__reactRemote__./ManualCssButton';
+const SYSTEM_JS_RUNTIME_DATA_ATTR = 'data-mf-systemjs-runtime';
+
+let systemJsRuntimePromise;
 
 async function appendManualCssLink(href) {
   if (!href || typeof document === 'undefined') {
@@ -36,6 +41,52 @@ async function appendManualCssLink(href) {
   return Boolean(document.querySelector(`link[rel="stylesheet"][data-mf-href="${href}"]`));
 }
 
+async function ensureSystemJsRuntime() {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+
+  if (globalThis.System?.import) {
+    return true;
+  }
+
+  if (!systemJsRuntimePromise) {
+    systemJsRuntimePromise = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector(
+        `script[${SYSTEM_JS_RUNTIME_DATA_ATTR}="true"]`,
+      );
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(Boolean(globalThis.System?.import)), {
+          once: true,
+        });
+        existingScript.addEventListener(
+          'error',
+          () => reject(new Error('Failed to load SystemJS runtime asset')),
+          { once: true },
+        );
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = systemJsRuntimeUrl;
+      script.async = false;
+      script.setAttribute(SYSTEM_JS_RUNTIME_DATA_ATTR, 'true');
+      script.onload = () => {
+        if (globalThis.System?.import) {
+          resolve(true);
+          return;
+        }
+
+        reject(new Error('SystemJS runtime loaded without registering globalThis.System.import'));
+      };
+      script.onerror = () => reject(new Error('Failed to load SystemJS runtime asset'));
+      document.head.appendChild(script);
+    });
+  }
+
+  return systemJsRuntimePromise;
+}
+
 export default function App() {
   const [status, setStatus] = useState('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -44,11 +95,13 @@ export default function App() {
   const [ManualCssButton, setManualCssButton] = useState(null);
   const [ManifestButton, setManifestButton] = useState(null);
   const [VarButton, setVarButton] = useState(null);
+  const [WebpackSystemValue, setWebpackSystemValue] = useState('');
 
   useEffect(() => {
     let active = true;
 
     const loadCompatRemotes = async () => {
+      const systemRuntimeReady = await ensureSystemJsRuntime();
       const esmContainer = await __federation_method_ensure('reactRemote');
       const manualCssModule = await __federation_method_getRemote(
         'reactRemote',
@@ -83,6 +136,23 @@ export default function App() {
       const varModule = await __federation_method_getRemote('reactRemoteVar', './Button');
       const unwrappedVarModule = __federation_method_unwrapDefault(
         __federation_method_wrapDefault(varModule, true),
+      );
+
+      __federation_method_setRemote('webpackSystemRemote', {
+        url: async () => WEBPACK_SYSTEM_REMOTE_URL,
+        format: 'systemjs',
+        from: 'webpack',
+        entryGlobalName: 'webpackCompatRemote',
+        shareScope: 'default',
+      });
+
+      const webpackSystemContainer = await __federation_method_ensure('webpackSystemRemote');
+      const webpackSystemModule = await __federation_method_getRemote(
+        'webpackSystemRemote',
+        './message',
+      );
+      const unwrappedWebpackSystemModule = __federation_method_unwrapDefault(
+        __federation_method_wrapDefault(webpackSystemModule, true),
       );
       const manifestModule = await loadRemoteFromManifest(
         'reactManifest/Button',
@@ -129,6 +199,15 @@ export default function App() {
           request: 'reactManifest/Button',
           resolvedType: typeof unwrappedManifestModule,
         },
+        systemjs: {
+          containerReady: typeof webpackSystemContainer?.get === 'function',
+          entry: WEBPACK_SYSTEM_REMOTE_URL,
+          format: 'systemjs',
+          from: 'webpack',
+          request: 'webpackSystemRemote/message',
+          resolvedValue: String(unwrappedWebpackSystemModule),
+          runtimeReady: systemRuntimeReady,
+        },
         var: {
           containerReady: typeof varContainer?.get === 'function',
           entry: VAR_REMOTE_URL,
@@ -149,6 +228,7 @@ export default function App() {
         setManualCssButton(() => unwrappedManualCssModule);
         setManifestButton(() => unwrappedManifestModule);
         setVarButton(() => unwrappedVarModule);
+        setWebpackSystemValue(String(unwrappedWebpackSystemModule));
         setStatus('ready');
       });
     };
@@ -210,6 +290,12 @@ export default function App() {
             </div>
           </article>
           <article className="compat-panel">
+            <div className="compat-label">SystemJS Ensure</div>
+            <div data-testid="systemjs-ensure">
+              {compatDebug?.systemjs?.containerReady ? 'container-ready' : 'pending'}
+            </div>
+          </article>
+          <article className="compat-panel">
             <div className="compat-label">Manifest Remote</div>
             <div data-testid="manifest-registration">
               {compatDebug?.manifest?.registeredAlias ? 'manifest-registered' : 'pending'}
@@ -236,6 +322,11 @@ export default function App() {
             <p>Loading manifest remote…</p>
           )}
           {VarButton ? <VarButton label="OriginJS VAR Button" /> : <p>Loading VAR remote…</p>}
+          {WebpackSystemValue ? (
+            <p data-testid="webpack-systemjs-message">{WebpackSystemValue}</p>
+          ) : (
+            <p>Loading webpack SystemJS remote…</p>
+          )}
         </div>
       </section>
     </main>

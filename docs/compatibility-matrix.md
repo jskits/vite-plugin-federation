@@ -48,22 +48,22 @@ federation({
 
 ## Remote Formats
 
-| Format                  | Status                        | Notes                                                                                                                            |
-| ----------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `esm` / `module`        | Supported                     | Preferred for Vite-to-Vite remotes and manifest-first loading.                                                                   |
-| `var`                   | Partially supported           | `varFilename` can emit an additional var-style entry. Browser-only legacy interop should be validated per app.                   |
-| `systemjs` / `system`   | Partially supported           | Normalized to runtime `system`; requires the host environment to provide the expected SystemJS runtime behavior.                 |
-| Webpack manifest remote | Partially supported           | Runtime registration can consume compatible manifest-like entries, but mixed Webpack/Vite deployments need app-level validation. |
-| CommonJS remote entry   | Unsupported for browser hosts | Use SSR/node-specific loading or expose an ESM/manifest entry instead.                                                           |
+| Format                  | Status                        | Notes                                                                                                                               |
+| ----------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `esm` / `module`        | Supported                     | Preferred for Vite-to-Vite remotes and manifest-first loading.                                                                      |
+| `var`                   | Partially supported           | `varFilename` can emit an additional var-style entry. Browser-only legacy interop should be validated per app.                      |
+| `systemjs` / `system`   | Supported with runtime guard  | Browser hosts must provide a compatible SystemJS runtime; repository e2e validates a real webpack `library.type = 'system'` remote. |
+| Webpack manifest remote | Partially supported           | Runtime registration can consume compatible manifest-like entries, but mixed Webpack/Vite deployments need app-level validation.    |
+| CommonJS remote entry   | Unsupported for browser hosts | Use SSR/node-specific loading or expose an ESM/manifest entry instead.                                                              |
 
 ## `from` Combinations
 
-| Host    | Remote        | Status                              | Notes                                                                                                                 |
-| ------- | ------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Vite    | Vite          | Supported                           | Primary path. Use manifest-first URLs.                                                                                |
-| Vite    | OriginJS Vite | Supported for common migration APIs | Use the virtual shim or migrate to manifest-first config.                                                             |
-| Vite    | Webpack       | Partially supported                 | Prefer manifest/runtime-compatible remotes; validate shared dependency semantics.                                     |
-| Webpack | Vite          | Not a primary target                | Vite remotes should publish manifest and module entries; Webpack-host compatibility is not guaranteed by this plugin. |
+| Host    | Remote        | Status                                | Notes                                                                                                                 |
+| ------- | ------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Vite    | Vite          | Supported                             | Primary path. Use manifest-first URLs.                                                                                |
+| Vite    | OriginJS Vite | Supported for common migration APIs   | Use the virtual shim or migrate to manifest-first config.                                                             |
+| Vite    | Webpack       | Supported for validated browser flows | Browser e2e validates a Vite host consuming a webpack `systemjs` remote through the OriginJS compatibility shim.      |
+| Webpack | Vite          | Not a primary target                  | Vite remotes should publish manifest and module entries; Webpack-host compatibility is not guaranteed by this plugin. |
 
 ## CSS Compatibility
 
@@ -110,13 +110,14 @@ Current repository coverage:
   one-time warnings for unsupported `from` values.
 - Build examples validate manifest-first browser, SSR, and DTS paths.
 - Browser e2e validates `virtual:__federation__` against real `remoteEntry.js` and
-  `remoteEntry.var.js` assets through `examples/originjs-compat-host`, and verifies
-  manifest-first and remoteEntry-first remotes can coexist on the same host.
+  `remoteEntry.var.js` assets through `examples/originjs-compat-host`, verifies
+  manifest-first and remoteEntry-first remotes can coexist on the same host, and loads a real
+  webpack `systemjs` remote after injecting a local SystemJS runtime asset.
 - Browser e2e validates `dontAppendStylesToHead` migration by consuming a manual CSS expose and
   injecting its stylesheet from the host.
 - `varFilename` generation is supported at build configuration level.
+- `examples/webpack-systemjs-remote` validates `format: 'systemjs'` and `from: 'webpack'` against
+  a real remote built with webpack Module Federation.
 
-Still needed:
-
-- Real `esm`, `var`, and `systemjs` remote matrix examples.
-- Mixed Vite/Webpack remote validation if this plugin officially supports that deployment mode.
+The repository now covers the practical migration matrix it documents: Vite `esm`, Vite `var`,
+manifest-first Vite remotes, and a webpack `systemjs` remote consumed by a Vite host.

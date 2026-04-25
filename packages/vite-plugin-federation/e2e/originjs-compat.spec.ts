@@ -7,10 +7,12 @@ test.describe('originjs compatibility shim', () => {
     await expect(page.getByTestId('status')).toHaveText('ready');
     await expect(page.getByTestId('esm-ensure')).toHaveText('container-ready');
     await expect(page.getByTestId('var-ensure')).toHaveText('container-ready');
+    await expect(page.getByTestId('systemjs-ensure')).toHaveText('container-ready');
     await expect(page.getByTestId('manual-css')).toHaveText('host-injected');
     await expect(page.getByTestId('manifest-registration')).toHaveText('manifest-registered');
     await expect(page.getByTestId('helper-wrap')).toHaveText('default');
     await expect(page.getByTestId('helper-unwrap')).toHaveText('compat-ok');
+    await expect(page.getByTestId('webpack-systemjs-message')).toHaveText('webpack-systemjs-ready');
     await expect(page.getByRole('button', { name: 'OriginJS ESM Button' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'OriginJS Manual CSS Button' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Manifest Button' })).toBeVisible();
@@ -43,6 +45,15 @@ test.describe('originjs compatibility shim', () => {
               registeredEntry?: string | null;
               request?: string;
               resolvedType?: string;
+            };
+            systemjs?: {
+              containerReady?: boolean;
+              entry?: string;
+              format?: string;
+              from?: string;
+              request?: string;
+              resolvedValue?: string;
+              runtimeReady?: boolean;
             };
             var?: {
               containerReady?: boolean;
@@ -78,6 +89,15 @@ test.describe('originjs compatibility shim', () => {
         registeredAlias: 'reactManifest',
         request: 'reactManifest/Button',
         resolvedType: 'function',
+      },
+      systemjs: {
+        containerReady: true,
+        entry: 'http://localhost:4195/remoteEntry.js',
+        format: 'systemjs',
+        from: 'webpack',
+        request: 'webpackSystemRemote/message',
+        resolvedValue: 'webpack-systemjs-ready',
+        runtimeReady: true,
       },
       var: {
         containerReady: true,

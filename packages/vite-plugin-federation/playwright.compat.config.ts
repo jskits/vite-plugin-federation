@@ -29,6 +29,15 @@ export default defineConfig({
       url: 'http://localhost:4174/',
     },
     {
+      command: 'corepack pnpm --filter example-webpack-systemjs-remote preview',
+      cwd: repoRoot,
+      reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 60_000,
+      url: 'http://localhost:4195/remoteEntry.js',
+    },
+    {
       command: 'corepack pnpm --filter example-originjs-compat-host preview',
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
