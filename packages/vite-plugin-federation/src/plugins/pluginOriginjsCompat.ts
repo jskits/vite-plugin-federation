@@ -41,6 +41,7 @@ export default function pluginOriginjsCompat(options: NormalizedModuleFederation
 
         const remotesMap = ${JSON.stringify(remotes)};
         const remoteContainers = Object.create(null);
+        const compatWarnings = new Set();
 
         function __federation_method_unwrapDefault(module) {
           return module?.__esModule || module?.[Symbol.toStringTag] === "Module"
@@ -58,8 +59,87 @@ export default function pluginOriginjsCompat(options: NormalizedModuleFederation
           return module;
         }
 
+        function formatCompatMessage(code, message) {
+          return "[Module Federation] " + code + " " + message;
+        }
+
+        function createCompatError(code, message) {
+          return new Error(formatCompatMessage(code, message));
+        }
+
+        function warnCompatOnce(code, key, message) {
+          if (compatWarnings.has(key)) {
+            return;
+          }
+          compatWarnings.add(key);
+          console.warn(formatCompatMessage(code, message));
+        }
+
+        function normalizeCompatFormat(format) {
+          if (format === "module") return "esm";
+          if (format === "system") return "systemjs";
+          return format || "esm";
+        }
+
+        function validateCompatRemote(remoteName, remote) {
+          if (!remote) {
+            throw createCompatError("MFV-005", "Unknown remote: " + remoteName);
+          }
+
+          const normalizedFormat = normalizeCompatFormat(remote.format);
+          const normalizedFrom = typeof remote.from === "string" && remote.from.length > 0
+            ? remote.from
+            : "vite";
+
+          if (
+            normalizedFormat !== "esm" &&
+            normalizedFormat !== "var" &&
+            normalizedFormat !== "systemjs"
+          ) {
+            throw createCompatError(
+              "MFV-005",
+              'Legacy remote "' +
+                remoteName +
+                '" uses unsupported format "' +
+                normalizedFormat +
+                '". Supported formats are "esm", "var", and "systemjs".',
+            );
+          }
+
+          if (normalizedFrom !== "vite" && normalizedFrom !== "webpack") {
+            warnCompatOnce(
+              "MFV-007",
+              "from:" + remoteName + ":" + normalizedFrom,
+              'Legacy remote "' +
+                remoteName +
+                '" uses unsupported from "' +
+                normalizedFrom +
+                '". Expected "vite" or "webpack"; compatibility is not guaranteed.',
+            );
+          }
+
+          if (normalizedFormat === "systemjs") {
+            const systemRuntime = globalThis.System;
+            if (!systemRuntime || typeof systemRuntime.import !== "function") {
+              throw createCompatError(
+                "MFV-005",
+                'Legacy remote "' +
+                  remoteName +
+                  '" uses format "systemjs" but globalThis.System.import is unavailable.',
+              );
+            }
+          }
+
+          return {
+            ...remote,
+            format: normalizedFormat,
+            from: normalizedFrom,
+            shareScope: remote.shareScope || "default",
+          };
+        }
+
         function __federation_method_setRemote(remoteName, remoteConfig) {
-          remotesMap[remoteName] = remoteConfig;
+          remotesMap[remoteName] = validateCompatRemote(remoteName, remoteConfig);
           delete remoteContainers[remoteName];
         }
 
@@ -83,10 +163,8 @@ export default function pluginOriginjsCompat(options: NormalizedModuleFederation
         }
 
         async function registerRemote(remoteName) {
-          const remote = remotesMap[remoteName];
-          if (!remote) {
-            throw new Error("[Module Federation] Unknown remote: " + remoteName);
-          }
+          const remote = validateCompatRemote(remoteName, remotesMap[remoteName]);
+          remotesMap[remoteName] = remote;
 
           const entry = typeof remote.url === "function" ? await remote.url() : remote.url;
           registerRemotes(

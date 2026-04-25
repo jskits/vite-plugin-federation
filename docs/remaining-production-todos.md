@@ -212,6 +212,9 @@ Current state:
   validate browser-side OriginJS migration APIs against real `remoteEntry.js` and
   `remoteEntry.var.js` assets, while also proving manifest-first and remoteEntry-first remotes can
   coexist on the same host.
+- The OriginJS compatibility shim now throws `MFV-005` for unsupported legacy `format` values and
+  missing `systemjs` runtimes, and emits a one-time `MFV-007` warning for unsupported `from`
+  values.
 - A compatibility matrix documents supported, partially supported, and unsupported remote formats,
   `from` combinations, OriginJS APIs, and CSS migration behavior.
 
@@ -220,7 +223,6 @@ Remaining work:
 - Validate `format: 'esm'`, `format: 'var'`, and `format: 'systemjs'`.
 - Validate `from: 'vite'`, `from: 'webpack'`, and mixed host/remote combinations.
 - Validate `dontAppendStylesToHead` migration to the new CSS behavior.
-- Add explicit errors or warnings for unsupported legacy combinations.
 
 Acceptance criteria:
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getDefaultMockOptions } from '../../utils/__tests__/helpers';
 import pluginOriginjsCompat from '../pluginOriginjsCompat';
 
@@ -172,5 +172,91 @@ describe('pluginOriginjsCompat', () => {
     expect(exports.__federation_method_wrapDefault({ default: 'kept' }, true)).toEqual({
       default: 'kept',
     });
+  });
+
+  it('throws a clear error for unsupported legacy remote formats', async () => {
+    const plugin = pluginOriginjsCompat(getDefaultMockOptions());
+    const code = plugin.load?.(RESOLVED_ORIGINJS_VIRTUAL_ID);
+    expect(typeof code).toBe('string');
+
+    const { exports } = createShimHarness(code as string);
+    expect(() =>
+      exports.__federation_method_setRemote('legacyRemote', {
+        url: 'http://localhost:4174/remoteEntry.cjs',
+        format: 'commonjs',
+        from: 'vite',
+      }),
+    ).toThrow(
+      '[Module Federation] MFV-005 Legacy remote "legacyRemote" uses unsupported format "commonjs"',
+    );
+  });
+
+  it('throws a clear error when systemjs runtime support is unavailable', async () => {
+    const plugin = pluginOriginjsCompat(getDefaultMockOptions());
+    const code = plugin.load?.(RESOLVED_ORIGINJS_VIRTUAL_ID);
+    expect(typeof code).toBe('string');
+
+    const { exports } = createShimHarness(code as string);
+    const previousSystem = (globalThis as typeof globalThis & { System?: unknown }).System;
+
+    try {
+      Reflect.deleteProperty(globalThis as typeof globalThis & { System?: unknown }, 'System');
+      expect(() =>
+        exports.__federation_method_setRemote('systemRemote', {
+          url: 'http://localhost:4174/remoteEntry.system.js',
+          format: 'systemjs',
+          from: 'vite',
+        }),
+      ).toThrow(
+        '[Module Federation] MFV-005 Legacy remote "systemRemote" uses format "systemjs" but globalThis.System.import is unavailable.',
+      );
+    } finally {
+      if (previousSystem === undefined) {
+        Reflect.deleteProperty(globalThis as typeof globalThis & { System?: unknown }, 'System');
+      } else {
+        (globalThis as typeof globalThis & { System?: unknown }).System = previousSystem;
+      }
+    }
+  });
+
+  it('warns once for unsupported from values and still registers the remote', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const plugin = pluginOriginjsCompat(getDefaultMockOptions());
+    const code = plugin.load?.(RESOLVED_ORIGINJS_VIRTUAL_ID);
+    expect(typeof code).toBe('string');
+
+    const { exports, registerRemotesCalls } = createShimHarness(code as string);
+    exports.__federation_method_setRemote('legacyRemote', {
+      url: 'http://localhost:4174/remoteEntry.js',
+      format: 'esm',
+      from: 'legacy-bundler',
+      shareScope: 'legacy',
+    });
+
+    await exports.__federation_method_ensure('legacyRemote');
+    await exports.__federation_method_ensure('legacyRemote');
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'MFV-007 Legacy remote "legacyRemote" uses unsupported from "legacy-bundler"',
+      ),
+    );
+    expect(registerRemotesCalls[0]).toEqual({
+      remotes: [
+        {
+          name: 'legacyRemote',
+          entry: 'http://localhost:4174/remoteEntry.js',
+          type: 'module',
+          entryGlobalName: 'legacyRemote',
+          shareScope: 'legacy',
+        },
+      ],
+      options: {
+        force: true,
+      },
+    });
+
+    warnSpy.mockRestore();
   });
 });

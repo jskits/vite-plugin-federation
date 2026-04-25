@@ -86,12 +86,20 @@ The plugin should fail clearly or require app-level validation for:
 - Legacy remote entries that do not expose a runtime-compatible container.
 - Remote CSS migration paths that rely on implicit global side effects.
 
+Current shim guardrails:
+
+- Unsupported legacy `format` values throw `MFV-005`.
+- `systemjs` remotes throw `MFV-005` when `globalThis.System.import` is unavailable.
+- Unsupported legacy `from` values emit a one-time `MFV-007` warning.
+
 ## Verification Status
 
 Current repository coverage:
 
 - Unit coverage executes the OriginJS virtual APIs.
 - Unit coverage validates legacy `from` and `format` normalization.
+- Unit coverage validates unsupported legacy `format`, missing `systemjs` runtime support, and
+  one-time warnings for unsupported `from` values.
 - Build examples validate manifest-first browser, SSR, and DTS paths.
 - Browser e2e validates `virtual:__federation__` against real `remoteEntry.js` and
   `remoteEntry.var.js` assets through `examples/originjs-compat-host`, and verifies
