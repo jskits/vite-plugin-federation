@@ -208,12 +208,14 @@ Current state:
   `__federation_method_setRemote`, `__federation_method_getRemote`,
   `__federation_method_ensure`, `__federation_method_unwrapDefault`, and
   `__federation_method_wrapDefault`.
+- `examples/originjs-compat-host` and `packages/vite-plugin-federation/e2e/originjs-compat.spec.ts`
+  validate browser-side OriginJS migration APIs against real `remoteEntry.js` and
+  `remoteEntry.var.js` assets.
 - A compatibility matrix documents supported, partially supported, and unsupported remote formats,
   `from` combinations, OriginJS APIs, and CSS migration behavior.
 
 Remaining work:
 
-- Add browser/e2e coverage for OriginJS migration APIs.
 - Validate `format: 'esm'`, `format: 'var'`, and `format: 'systemjs'`.
 - Validate `from: 'vite'`, `from: 'webpack'`, and mixed host/remote combinations.
 - Validate remoteEntry-first and manifest-first compatibility behavior.

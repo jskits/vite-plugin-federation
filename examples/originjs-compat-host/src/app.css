@@ -1,0 +1,48 @@
+.compat-shell {
+  min-height: 100vh;
+  padding: 3rem 1.5rem;
+  background:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 34%),
+    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  color: #0f172a;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+.compat-card {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+}
+
+.compat-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  margin: 1.5rem 0;
+}
+
+.compat-panel {
+  padding: 1rem;
+  border-radius: 1rem;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.compat-remote-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.compat-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #475569;
+  margin-bottom: 0.35rem;
+}

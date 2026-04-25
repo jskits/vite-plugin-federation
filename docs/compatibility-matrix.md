@@ -93,10 +93,11 @@ Current repository coverage:
 - Unit coverage executes the OriginJS virtual APIs.
 - Unit coverage validates legacy `from` and `format` normalization.
 - Build examples validate manifest-first browser, SSR, and DTS paths.
+- Browser e2e validates `virtual:__federation__` against real `remoteEntry.js` and
+  `remoteEntry.var.js` assets through `examples/originjs-compat-host`.
 - `varFilename` generation is supported at build configuration level.
 
 Still needed:
 
-- Browser/e2e OriginJS migration coverage.
 - Real `esm`, `var`, and `systemjs` remote matrix examples.
 - Mixed Vite/Webpack remote validation if this plugin officially supports that deployment mode.

@@ -4,30 +4,29 @@ import federation from 'vite-plugin-federation';
 
 export default defineConfig({
   server: {
-    origin: 'http://localhost:4174',
-    port: 4174,
+    port: 4193,
   },
   preview: {
-    port: 4174,
-  },
-  ssr: {
-    noExternal: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
+    port: 4193,
   },
   plugins: [
     react(),
     federation({
-      name: 'reactRemote',
-      filename: 'remoteEntry.js',
-      varFilename: 'remoteEntry.var.js',
-      manifest: true,
+      name: 'originCompatHost',
       dts: false,
-      dev: {
-        remoteHmr: true,
+      compat: {
+        originjs: true,
+        virtualFederationShim: true,
       },
-      shareStrategy: 'loaded-first',
-      exposes: {
-        './Button': './src/Button.jsx',
-        './Card': './src/Card.jsx',
+      remotes: {
+        reactRemote: {
+          name: 'reactRemote',
+          entry: 'http://localhost:4174/remoteEntry.js',
+          type: 'module',
+          format: 'esm',
+          from: 'vite',
+          shareScope: 'default',
+        },
       },
       shared: {
         react: {
