@@ -1,5 +1,9 @@
 # vite-plugin-federation
 
+[![CI](https://github.com/jskits/vite-plugin-federation/actions/workflows/ci.yml/badge.svg)](https://github.com/jskits/vite-plugin-federation/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/vite-plugin-federation.svg)](https://www.npmjs.com/package/vite-plugin-federation)
+![license](https://img.shields.io/npm/l/vite-plugin-federation)
+
 > A production-grade [Module Federation 2.0][mf2] plugin for **Vite 5 / 6 / 7 / 8** (including
 > Rolldown). Manifest-first. SSR-aware. Multi-tenant. Includes an OriginJS-compatible
 > `virtual:__federation__` migration shim.
