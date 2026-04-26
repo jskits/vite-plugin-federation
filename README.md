@@ -76,18 +76,22 @@ cache TTLs, retries, timeouts, SSR entry selection, asset preloading helpers, an
 See [docs/production-runtime.md](docs/production-runtime.md) for the production loading contract,
 CI build metadata, SSR asset collection, and operational recommendations.
 
+See [docs/plugin-api.md](docs/plugin-api.md) for plugin configuration and
+[docs/runtime-api.md](docs/runtime-api.md) for `vite-plugin-federation/runtime`.
+
 See [docs/dts-workflows.md](docs/dts-workflows.md) for remote type artifact generation, host type
 consumption, manifest-derived type URLs, and recommended production DTS settings.
 
-See [docs/compatibility-matrix.md](docs/compatibility-matrix.md) for OriginJS migration APIs,
-remote format support, CSS migration behavior, and unsupported legacy combinations.
+See [docs/originjs-migration.md](docs/originjs-migration.md) and
+[docs/compatibility-matrix.md](docs/compatibility-matrix.md) for OriginJS migration APIs, remote
+format support, CSS migration behavior, and unsupported legacy combinations.
+
+See [docs/troubleshooting.md](docs/troubleshooting.md) for error-code based debugging.
 
 ## Release Flow
 
-1. Run `pnpm changeset` after finishing development work.
-2. Make sure `pnpm check` passes before merging into the main branch.
-3. Run `pnpm version-packages` for manual local versioning.
-4. Run `pnpm release`.
+See [docs/release-checklist.md](docs/release-checklist.md) for Changeset policy, versioning,
+package quality gates, and release steps.
 
 ## CI/CD
 

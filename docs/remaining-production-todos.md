@@ -427,18 +427,23 @@ Current state:
 - README includes quick start and production runtime entry.
 - `docs/production-runtime.md` documents manifest runtime controls.
 - `tech.md` documents the architecture.
+- `docs/plugin-api.md` documents plugin options for remotes, hosts, shared packages, manifest
+  output, devtools, DTS, and compatibility.
+- `docs/runtime-api.md` documents `vite-plugin-federation/runtime`, manifest loading, rollout
+  controls, SSR target selection, integrity, hooks, preload helpers, and debug APIs.
+- `docs/manifest-protocol.md` documents manifest schema rules, compatibility fixtures, and hosting
+  guidance.
+- `docs/originjs-migration.md` documents the OriginJS migration path, virtual API mapping, CSS
+  migration, and webpack SystemJS compatibility.
+- `docs/troubleshooting.md` is organized by `MFV-*` error code and links errors to debug snapshot
+  fields and recommended actions.
+- Existing DTS, compatibility matrix, production SSR, devtools contract, and release checklist docs
+  are linked from README.
 
 Remaining work:
 
-- Add complete plugin config API reference.
-- Add runtime API reference for `vite-plugin-federation/runtime`.
-- Add manifest protocol reference.
-- Add OriginJS migration guide.
-- Add troubleshooting guide organized by error code.
-- Add SSR deployment guide.
-- Add DTS guide.
-- Add compatibility matrix.
-- Add release checklist for maintainers.
+- No further API/migration documentation gaps are currently tracked beyond keeping references in
+  sync with public API changes.
 
 Acceptance criteria:
 
