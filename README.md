@@ -48,6 +48,8 @@ This repo includes a minimal React host/remote verification pair:
 - `examples/vue-host`
 - `examples/svelte-remote`
 - `examples/svelte-host`
+- `examples/lit-remote`
+- `examples/lit-host`
 - `examples/dts-remote`
 - `examples/dts-host`
 

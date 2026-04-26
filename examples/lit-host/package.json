@@ -1,0 +1,19 @@
+{
+  "name": "example-lit-host",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rimraf dist",
+    "dev": "vite",
+    "preview": "vite preview --port 4195"
+  },
+  "dependencies": {
+    "lit": "3.3.2",
+    "vite-plugin-federation": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "8.0.8"
+  }
+}

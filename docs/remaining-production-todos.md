@@ -401,12 +401,13 @@ Current state:
   metadata in production builds.
 - Svelte host/remote examples validate Svelte component remotes, manifest consumption, and shared
   Svelte singleton metadata in production builds.
+- Lit host/remote examples validate web component remotes, manifest consumption, and shared Lit
+  singleton metadata in production builds.
 - React SSR host exists.
 - Dev remote HMR e2e exists.
 
 Remaining work:
 
-- Add Lit host/remote example.
 - Add multi-remote host example.
 - Add host consuming both manifest and legacy remoteEntry remotes.
 - Add pnpm workspace/symlink shared dependency example.

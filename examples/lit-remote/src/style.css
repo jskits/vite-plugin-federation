@@ -1,0 +1,18 @@
+body {
+  margin: 0;
+  background: #eef9ff;
+  color: #0b2738;
+  font-family: Futura, Avenir, sans-serif;
+}
+
+.lit-remote-shell {
+  min-height: 100vh;
+  padding: 4rem;
+}
+
+.eyebrow {
+  color: #006f9f;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
