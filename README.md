@@ -91,6 +91,9 @@ See [docs/troubleshooting.md](docs/troubleshooting.md) for error-code based debu
 See [docs/dev-hmr.md](docs/dev-hmr.md) for remote dev HMR strategies, batching, and fallback
 rules.
 
+See [docs/compiler-adapter.md](docs/compiler-adapter.md) for Vite/Rolldown transform behavior,
+control chunk rules, and the known CJS bundle warning.
+
 ## Release Flow
 
 See [docs/release-checklist.md](docs/release-checklist.md) for Changeset policy, versioning,

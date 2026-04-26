@@ -166,7 +166,11 @@ function applyRewrites(
   if (!changed) return;
   return {
     code: ms.toString(),
-    map: ms.generateMap({ hires: true }),
+    map: ms.generateMap({
+      hires: true,
+      includeContent: true,
+      source: id,
+    }),
   };
 }
 

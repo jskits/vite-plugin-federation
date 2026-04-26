@@ -364,16 +364,17 @@ Current state:
 - Vite/Rolldown differences are handled in several places.
 - Control chunks, TLA placeholders, and manual chunk protection exist.
 - Remote import named export transforms are covered by unit tests.
+- Remote named export transforms now emit sourcemaps with `source` and `sourcesContent`, and unit
+  tests validate those fields.
+- Control chunk sanitizer tests snapshot key output shapes for preload helper removal,
+  load-share preload helper inlining, side-effect import removal, and Vite 8-style helpers.
+- `docs/compiler-adapter.md` documents Vite/Rolldown adapter rules, control chunk constraints, Vite
+  version policy, and the intentional `tsup` CJS named/default export warning.
 
 Remaining work:
 
-- Expand Vite version matrix tests for Vite 5, 6, 7, and 8 where feasible.
-- Expand Rolldown-specific tests for CJS interop, dynamic import, and manual chunks.
-- Add source map validation for transformed remote imports.
-- Add stress tests for large module graphs and module parse timeout/idle timeout behavior.
-- Replace fragile text placeholders where a safer transform hook exists.
-- Resolve or intentionally document the CJS named/default export warning emitted by `tsup`.
-- Add build output snapshot tests for key control chunks.
+- No further compiler adapter P1 gaps are currently tracked beyond adding explicit multi-version
+  Vite matrix jobs when the example matrix is expanded.
 
 Acceptance criteria:
 

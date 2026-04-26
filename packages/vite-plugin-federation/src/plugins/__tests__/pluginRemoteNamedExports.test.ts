@@ -404,6 +404,8 @@ describe('pluginRemoteNamedExports', () => {
       expect(result).toBeDefined();
       expect(result.map).toBeDefined();
       expect(result.map.mappings).toBeTruthy();
+      expect(result.map.sources).toEqual(['/src/app.js']);
+      expect(result.map.sourcesContent).toEqual(['import { foo } from "remoteApp/utils";']);
     });
   });
 });
