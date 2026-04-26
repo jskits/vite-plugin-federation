@@ -260,16 +260,19 @@ Current state:
 - Remote dev updates can trigger host-side refresh behavior.
 - CSS and type update events exist.
 - Unit and one Playwright e2e cover the current dev remote HMR path.
+- Remote update payloads include strategy, reason, batch id, and a small expose dependency graph so
+  hosts/devtools can explain why partial reload, style update, type update, or full reload was used.
+- Remote file events are debounced and duplicate file changes are batched before broadcasting.
+- Host partial reload uses Vite `server.reloadModule()` for matching remote virtual modules and
+  falls back to full reload when the module cannot be matched or Vite cannot reload it.
+- Style and type updates remain page-state preserving when the host can refresh stylesheet links or
+  type data without reloading.
+- `docs/dev-hmr.md` documents strategies, batching, browser events, and fallback rules.
 
 Remaining work:
 
-- Implement true module-level partial HMR for remote exposes where feasible.
-- Preserve host application state when only a remote expose implementation changes.
-- Define fallback rules from partial HMR to full reload.
-- Add framework-aware validation for React Fast Refresh and Vue HMR.
-- Track remote expose dependency graph in dev sidecar.
-- Add debouncing and batching for rapid remote changes.
-- Add dev diagnostics showing why a change used partial reload or full reload.
+- No further Dev HMR P1 gaps are currently tracked beyond expanding framework-specific e2e coverage
+  when Vue/Svelte/Lit examples are added.
 
 Acceptance criteria:
 

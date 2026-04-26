@@ -88,6 +88,9 @@ format support, CSS migration behavior, and unsupported legacy combinations.
 
 See [docs/troubleshooting.md](docs/troubleshooting.md) for error-code based debugging.
 
+See [docs/dev-hmr.md](docs/dev-hmr.md) for remote dev HMR strategies, batching, and fallback
+rules.
+
 ## Release Flow
 
 See [docs/release-checklist.md](docs/release-checklist.md) for Changeset policy, versioning,

@@ -16,18 +16,31 @@ const HOST_TYPES_UPDATE_EVENT = 'vite-plugin-federation:remote-types-update';
 const HOST_REMOTE_UPDATE_EVENT = 'vite-plugin-federation:remote-update';
 const REMOTE_HMR_CONNECT_RETRY_DELAY_MS = 1000;
 const REMOTE_HMR_CONNECT_MAX_RETRIES = 10;
+const REMOTE_HMR_BROADCAST_DEBOUNCE_MS = 25;
 const STYLE_FILE_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/i;
 const TYPES_FILE_RE = /\.d\.[cm]?ts$/i;
 const ENCODED_LOAD_REMOTE_TAG = packageNameEncode('__loadRemote__');
 
 type RemoteUpdateAction = 'full-reload' | 'partial-reload' | 'style-update' | 'types-update';
+type RemoteUpdateStrategy = 'full' | 'partial' | 'style' | 'types';
+
+type RemoteExposeDependencyGraph = {
+  expose?: string;
+  file: string;
+  importers: string[];
+  matchedBy: 'direct-expose' | 'importer-graph' | 'none' | 'style' | 'types';
+};
 
 type RemoteUpdatePayload = {
   action: RemoteUpdateAction;
+  batchId?: string;
+  dependencyGraph?: RemoteExposeDependencyGraph;
   expose?: string;
   file: string;
   kind: 'boundary' | 'expose' | 'style' | 'types';
+  reason: string;
   remote: string;
+  strategy: RemoteUpdateStrategy;
   ts: number;
 };
 
@@ -44,6 +57,7 @@ type ModuleGraphNode = {
 };
 
 type HostRemoteUpdatePayload = RemoteUpdatePayload & {
+  fallbackReason?: string;
   hostRemote: string;
   remoteOrigin?: string;
   remoteRequestId?: string;
@@ -226,6 +240,69 @@ function findExposeNameForFile(
   }
 }
 
+function collectImporterIdsForFile(server: ViteDevServer, file: string, limit = 12) {
+  const getModulesByFile = (
+    server.moduleGraph as
+      | { getModulesByFile?: (file: string) => Set<ModuleGraphNode> | undefined }
+      | undefined
+  )?.getModulesByFile;
+  if (typeof getModulesByFile !== 'function') return [];
+
+  const normalizedFile = normalizeFilePath(file);
+  const modules = [
+    ...(getModulesByFile.call(server.moduleGraph, normalizedFile) || []),
+    ...(getModulesByFile.call(server.moduleGraph, file) || []),
+  ];
+  const importers = new Set<string>();
+  const visited = new Set<ModuleGraphNode>();
+  const queue = modules.flatMap((moduleNode) => [...(moduleNode.importers || [])]);
+
+  while (queue.length > 0 && importers.size < limit) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+
+    const id = current.id || current.url;
+    if (typeof id === 'string') {
+      importers.add(normalizeFilePath(id));
+    }
+
+    current.importers?.forEach((importer) => {
+      if (!visited.has(importer)) {
+        queue.push(importer);
+      }
+    });
+  }
+
+  return [...importers];
+}
+
+function getExposeMatchType(
+  server: ViteDevServer,
+  options: NormalizedModuleFederationOptions,
+  file: string,
+  exposeName: string | undefined,
+): RemoteExposeDependencyGraph['matchedBy'] {
+  if (!exposeName) return 'none';
+  const exposeImportMap = getExposeImportMap(server, options);
+  return exposeImportMap.has(normalizeFilePath(file)) ? 'direct-expose' : 'importer-graph';
+}
+
+function createDependencyGraph(
+  server: ViteDevServer,
+  options: NormalizedModuleFederationOptions,
+  file: string,
+  exposeName: string | undefined,
+  matchedBy: RemoteExposeDependencyGraph['matchedBy'],
+): RemoteExposeDependencyGraph {
+  return {
+    expose: exposeName,
+    file,
+    importers: collectImporterIdsForFile(server, file),
+    matchedBy,
+  };
+}
+
 function classifyRemoteUpdate(
   server: ViteDevServer,
   options: NormalizedModuleFederationOptions,
@@ -233,13 +310,17 @@ function classifyRemoteUpdate(
 ): RemoteUpdatePayload {
   const normalizedFile = normalizeFilePath(file);
   const exposeName = findExposeNameForFile(server, options, normalizedFile);
+  const matchedBy = getExposeMatchType(server, options, normalizedFile, exposeName);
 
   if (TYPES_FILE_RE.test(normalizedFile)) {
     return {
       action: 'types-update',
+      dependencyGraph: createDependencyGraph(server, options, normalizedFile, undefined, 'types'),
       file: normalizedFile,
       kind: 'types',
+      reason: 'Type declaration changed; host type sync can update without reloading the page.',
       remote: options.name,
+      strategy: 'types',
       ts: Date.now(),
     };
   }
@@ -247,10 +328,13 @@ function classifyRemoteUpdate(
   if (STYLE_FILE_RE.test(normalizedFile) && exposeName) {
     return {
       action: 'style-update',
+      dependencyGraph: createDependencyGraph(server, options, normalizedFile, exposeName, 'style'),
       expose: exposeName,
       file: normalizedFile,
       kind: 'style',
+      reason: 'Stylesheet belongs to a known remote expose; host can refresh matching CSS links.',
       remote: options.name,
+      strategy: 'style',
       ts: Date.now(),
     };
   }
@@ -258,19 +342,28 @@ function classifyRemoteUpdate(
   if (exposeName) {
     return {
       action: 'partial-reload',
+      dependencyGraph: createDependencyGraph(server, options, normalizedFile, exposeName, matchedBy),
       expose: exposeName,
       file: normalizedFile,
       kind: 'expose',
+      reason:
+        matchedBy === 'direct-expose'
+          ? 'Changed file is a configured expose entry; host virtual modules can reload directly.'
+          : 'Changed file is inside a known expose importer graph; host virtual modules can reload partially.',
       remote: options.name,
+      strategy: 'partial',
       ts: Date.now(),
     };
   }
 
   return {
     action: 'full-reload',
+    dependencyGraph: createDependencyGraph(server, options, normalizedFile, undefined, 'none'),
     file: normalizedFile,
     kind: 'boundary',
+    reason: 'Changed file is outside the known expose graph; falling back to a full reload.',
     remote: options.name,
+    strategy: 'full',
     ts: Date.now(),
   };
 }
@@ -466,6 +559,16 @@ async function triggerHostRemoteExposeUpdate(
   ).reloadModule;
 
   if (typeof reloadModule !== 'function') {
+    server.ws.send({
+      type: 'custom',
+      event: HOST_REMOTE_UPDATE_EVENT,
+      data: {
+        ...payload,
+        action: 'full-reload',
+        fallbackReason: 'Vite server.reloadModule is unavailable; falling back to full reload.',
+        strategy: 'full',
+      },
+    });
     server.ws.send({ type: 'full-reload' });
     return;
   }
@@ -480,8 +583,20 @@ async function triggerHostRemoteExposeUpdate(
   if (matchedModules.length === 0) {
     mfWarn(
       `Remote expose update "${payload.remoteRequestId || payload.hostRemote}" had no matching host virtual modules. ` +
-        'Runtime consumers should handle the expose-update event directly.',
+        'Falling back to full reload.',
     );
+    server.ws.send({
+      type: 'custom',
+      event: HOST_REMOTE_UPDATE_EVENT,
+      data: {
+        ...payload,
+        action: 'full-reload',
+        fallbackReason:
+          'No matching host virtual modules were found for the remote expose update.',
+        strategy: 'full',
+      },
+    });
+    server.ws.send({ type: 'full-reload' });
     return;
   }
 
@@ -595,21 +710,45 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.end(
             JSON.stringify({
+              debounceMs: REMOTE_HMR_BROADCAST_DEBOUNCE_MS,
               remote: options.name,
               event: REMOTE_HMR_EVENT,
+              exposes: Object.entries(options.exposes).map(([expose, exposeOptions]) => ({
+                expose,
+                import: exposeOptions.import,
+              })),
               wsUrl,
             }),
           );
         });
 
+        const pendingFiles = new Set<string>();
+        let broadcastTimer: ReturnType<typeof setTimeout> | undefined;
+
+        const flushBroadcasts = () => {
+          const batchFiles = [...pendingFiles];
+          pendingFiles.clear();
+          broadcastTimer = undefined;
+          if (batchFiles.length === 0) return;
+
+          const batchId = `${options.name}:${Date.now()}:${batchFiles.length}`;
+          for (const file of batchFiles) {
+            server.ws.send({
+              type: 'custom',
+              event: REMOTE_HMR_EVENT,
+              data: {
+                ...classifyRemoteUpdate(server, options, file),
+                batchId,
+              },
+            });
+          }
+        };
+
         const broadcast = (file: string) => {
           if (shouldIgnoreFile(file, options)) return;
-
-          server.ws.send({
-            type: 'custom',
-            event: REMOTE_HMR_EVENT,
-            data: classifyRemoteUpdate(server, options, file),
-          });
+          pendingFiles.add(file);
+          if (broadcastTimer) clearTimeout(broadcastTimer);
+          broadcastTimer = setTimeout(flushBroadcasts, REMOTE_HMR_BROADCAST_DEBOUNCE_MS);
         };
 
         server.watcher.on('change', broadcast);
@@ -617,6 +756,8 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
         server.watcher.on('unlink', broadcast);
 
         server.httpServer?.once('close', () => {
+          if (broadcastTimer) clearTimeout(broadcastTimer);
+          pendingFiles.clear();
           server.watcher.off('change', broadcast);
           server.watcher.off('add', broadcast);
           server.watcher.off('unlink', broadcast);
