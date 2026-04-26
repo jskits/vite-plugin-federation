@@ -161,9 +161,13 @@ const checkout = await loadRemote('checkout/App');
 | ------------ | ------------------ | ------------------------------------------------------------------------ |
 | `cache`      | `true`             | Set `false` when every call must hit the manifest URL.                   |
 | `cacheTtl`   | no expiry          | Expire cached manifests after a fixed number of milliseconds.            |
+| `fallbackUrls` | `[]`            | Try alternate manifest origins when the primary URL fails.               |
+| `staleWhileRevalidate` | `false` | Return an expired cached manifest immediately and refresh it in the background. |
+| `circuitBreaker` | `false`       | Stop repeatedly failing manifest requests for a cooldown window.         |
 | `force`      | `false`            | Drop cached and pending manifest work before fetching/registering again. |
 | `fetch`      | `globalThis.fetch` | Provide a platform fetch in tests, legacy Node, or custom runtimes.      |
 | `fetchInit`  | `undefined`        | Pass credentials, headers, or request mode to manifest fetches.          |
+| `hooks`      | `undefined`        | Observe manifest fetch, register, load, refresh, and telemetry events.   |
 | `retries`    | `0`                | Retry network failures, timeouts, `408`, `429`, and `5xx` responses.     |
 | `retryDelay` | capped backoff     | Use a fixed delay or function for retry pacing.                          |
 | `timeout`    | no timeout         | Abort and reject slow manifest requests.                                 |
@@ -176,17 +180,42 @@ Example with credentials and custom retry pacing:
 ```ts
 await loadRemoteFromManifest('catalog/Button', catalogManifestUrl, {
   cacheTtl: 30_000,
+  circuitBreaker: {
+    cooldownMs: 30_000,
+    failureThreshold: 3,
+  },
+  fallbackUrls: [
+    'https://cdn-backup.example.com/catalog/mf-manifest.json',
+  ],
   fetchInit: {
     credentials: 'include',
     headers: {
       'x-host-version': import.meta.env.VITE_APP_VERSION,
     },
   },
+  hooks: {
+    telemetry(event) {
+      console.debug('[federation]', event.kind, event.stage, event.durationMs);
+    },
+  },
   retries: 3,
   retryDelay: (attempt) => attempt * 250,
+  staleWhileRevalidate: true,
   timeout: 4_000,
 });
 ```
+
+When a fallback manifest URL succeeds, relative remote entries and assets are resolved from the
+winning manifest origin. `getFederationDebugInfo()` exposes both the configured `manifestUrl` and
+the effective `sourceUrl` in manifest cache and registered manifest remote snapshots.
+
+`circuitBreaker: true` uses `failureThreshold: 3` and `cooldownMs: 30000`. During the open window,
+the runtime rejects immediately with `MFV-004` and records a `circuit-open` manifest fetch event.
+
+Hook events use `{ kind, stage, timestamp }` plus contextual fields such as `manifestUrl`,
+`sourceUrl`, `remoteId`, `entry`, `target`, `status`, `statusCode`, `durationMs`, and `error`.
+Available `kind` values are `manifest-fetch`, `remote-register`, `remote-load`, and
+`remote-refresh`; stages are `before`, `after`, and `error`.
 
 ## Refresh And Rollout Behavior
 
@@ -205,6 +234,29 @@ await refreshRemote('catalog', {
 
 For browser targets, forced refreshes append a timestamp query to the remote entry URL. This avoids
 stale remote entry caches while keeping immutable asset caching for hashed chunks.
+
+For route-level fallbacks, wrap non-critical remote loads at the route boundary and log the runtime
+snapshot. Keep shell-critical remotes fail-fast during boot.
+
+```ts
+import { getFederationDebugInfo, loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
+
+export async function loadCatalogRoute() {
+  try {
+    return await loadRemoteFromManifest('catalog/App', catalogManifestUrl, {
+      cacheTtl: 30_000,
+      circuitBreaker: true,
+      fallbackUrls: [catalogBackupManifestUrl],
+      retries: 2,
+      staleWhileRevalidate: true,
+      timeout: 4_000,
+    });
+  } catch (error) {
+    console.error('[federation] catalog route fallback', error, getFederationDebugInfo());
+    return import('./CatalogUnavailable');
+  }
+}
+```
 
 ## SSR And Node Hosts
 
@@ -312,6 +364,7 @@ Use `getFederationDebugInfo()` to inspect the active runtime. The snapshot inclu
 - Registered shared providers, active share scope entries, and shared resolution graph entries.
 - Manifest cache entries with `manifestUrl`, `name`, `fetchedAt`, and `expiresAt`.
 - Manifest fetch history with `success`, `retry`, `failure`, and `cache-hit` entries.
+- Manifest circuit breaker state and fallback `sourceUrl` when configured.
 - Pending manifest requests and pending remote registrations.
 - Package-level diagnostics emitted through the plugin logger.
 

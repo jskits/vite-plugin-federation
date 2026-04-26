@@ -324,16 +324,23 @@ Current state:
 
 - Manifest fetch has timeout, retry, cache TTL, force refresh, and request collapsing.
 - Remote refresh can invalidate manifest cache and update registered remotes.
+- Manifest fetch can try an ordered `fallbackUrls` list, and relative remote entries resolve from
+  the manifest origin that actually succeeded.
+- `staleWhileRevalidate` can serve an expired cached manifest immediately while a background
+  refresh updates cache and debug snapshots.
+- Manifest circuit breaker controls can stop repeatedly failing remote manifests for a bounded
+  cooldown window, with `circuit-open` events in the manifest fetch timeline.
+- Runtime hooks/telemetry cover manifest fetch, manifest remote registration, manifest remote load,
+  and remote refresh with `before`/`after`/`error` stages and latency fields.
+- Runtime debug snapshots expose fallback `sourceUrl` and manifest circuit breaker state.
+- Remote-entry integrity checks are available when manifest entry hashes are emitted and runtime
+  verification is enabled.
+- Route-level fallback recipes are documented in the production runtime guide.
 
 Remaining work:
 
-- Add optional multi-origin manifest fallback list.
-- Add stale-while-revalidate behavior for manifests.
-- Add circuit breaker style protection for repeatedly failing remotes.
-- Add runtime plugin hooks around manifest fetch, remote register, remote load, and refresh.
-- Add optional integrity checks for manifest-declared assets if the manifest includes hashes.
-- Add structured telemetry hooks for manifest fetch latency and remote load latency.
-- Add route-level fallback recipes for host applications.
+- No further runtime resilience P1 gaps are currently tracked beyond keeping rollout controls
+  covered by unit tests and docs.
 
 Acceptance criteria:
 

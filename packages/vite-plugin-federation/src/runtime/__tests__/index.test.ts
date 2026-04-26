@@ -1173,6 +1173,159 @@ describe('runtime api', () => {
     });
   });
 
+  it('falls back across manifest URLs and resolves assets from the winning origin', async () => {
+    const primaryManifestUrl = 'https://primary.example/mf-manifest.json';
+    const fallbackManifestUrl = 'https://fallback.example/mf-manifest.json';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === primaryManifestUrl) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({}),
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'remoteApp',
+          metaData: {
+            globalName: 'remoteApp',
+            remoteEntry: {
+              name: 'remoteEntry.js',
+              path: '',
+              type: 'module',
+            },
+          },
+        }),
+      };
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await registerManifestRemote('remoteApp', primaryManifestUrl, {
+      fallbackUrls: [fallbackManifestUrl],
+      target: 'web',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(registerRemotesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        entry: 'https://fallback.example/remoteEntry.js',
+      }),
+    ]);
+    expect(getFederationDebugInfo().runtime.manifestCache[0]).toMatchObject({
+      manifestUrl: primaryManifestUrl,
+      sourceUrl: fallbackManifestUrl,
+    });
+    expect(getFederationDebugInfo().runtime.registeredManifestRemotes[0]).toMatchObject({
+      manifestUrl: primaryManifestUrl,
+      sourceUrl: fallbackManifestUrl,
+    });
+  });
+
+  it('serves stale manifests while revalidating expired cache entries', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
+    const manifestUrl = 'https://remote.example/mf-manifest.json';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'remoteV1',
+          metaData: {
+            remoteEntry: {
+              name: 'remoteEntry.js',
+              type: 'module',
+            },
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'remoteV2',
+          metaData: {
+            remoteEntry: {
+              name: 'remoteEntry.js',
+              type: 'module',
+            },
+          },
+        }),
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const fresh = await fetchFederationManifest(manifestUrl, { cacheTtl: 1000 });
+    expect(fresh.name).toBe('remoteV1');
+
+    vi.setSystemTime(new Date('2026-01-01T00:00:02.000Z'));
+    const stale = await fetchFederationManifest(manifestUrl, {
+      cacheTtl: 1000,
+      staleWhileRevalidate: true,
+    });
+    expect(stale.name).toBe('remoteV1');
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    const refreshed = await fetchFederationManifest(manifestUrl, { cacheTtl: 1000 });
+    expect(refreshed.name).toBe('remoteV2');
+    const cachedAgain = await fetchFederationManifest(manifestUrl, { cacheTtl: 1000 });
+    expect(cachedAgain.name).toBe('remoteV2');
+    expect(getFederationDebugInfo().runtime.manifestFetches.map((entry) => entry.status)).toEqual([
+      'success',
+      'stale-cache-hit',
+      'success',
+      'cache-hit',
+    ]);
+  });
+
+  it('opens a manifest circuit breaker after repeated failures', async () => {
+    const manifestUrl = 'https://remote.example/mf-manifest.json';
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      fetchFederationManifest(manifestUrl, {
+        circuitBreaker: {
+          cooldownMs: 10_000,
+          failureThreshold: 1,
+        },
+      }),
+    ).rejects.toThrow('status 503');
+
+    await expect(
+      fetchFederationManifest(manifestUrl, {
+        circuitBreaker: {
+          cooldownMs: 10_000,
+          failureThreshold: 1,
+        },
+      }),
+    ).rejects.toThrow('Manifest circuit breaker is open');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getFederationDebugInfo().runtime.manifestCircuitBreakers[0]).toMatchObject({
+      failureCount: 1,
+      manifestUrl,
+      state: 'open',
+    });
+    expect(getFederationDebugInfo().runtime.manifestFetches.at(-1)).toMatchObject({
+      status: 'circuit-open',
+    });
+  });
+
   it('accepts legacy and same-major manifest schema versions', async () => {
     const fetchMock = vi
       .fn()
@@ -1855,6 +2008,55 @@ describe('runtime api', () => {
     expect(registerRemotesMock).toHaveBeenCalledTimes(1);
     expect(loadRemoteMock).toHaveBeenCalledWith('remoteApp/Button', { from: 'runtime' });
     expect(result).toEqual({ default: 'button' });
+  });
+
+  it('emits runtime hooks and telemetry around manifest remote loading', async () => {
+    const manifestUrl = 'http://remote.example/mf-manifest.json';
+    const events: string[] = [];
+    const telemetry = vi.fn((event) => {
+      events.push(`${event.kind}:${event.stage}`);
+    });
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          globalName: 'remoteApp',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    loadRemoteMock.mockResolvedValueOnce({ default: 'button' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await loadRemoteFromManifest('remoteApp/Button', manifestUrl, {
+      hooks: {
+        telemetry,
+      },
+    });
+
+    expect(events).toEqual([
+      'remote-register:before',
+      'manifest-fetch:before',
+      'manifest-fetch:after',
+      'remote-register:after',
+      'remote-load:before',
+      'remote-load:after',
+    ]);
+    expect(telemetry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        durationMs: expect.any(Number),
+        kind: 'remote-load',
+        stage: 'after',
+        status: 'success',
+      }),
+    );
   });
 
   it('resolves expose assets from federation manifests', () => {

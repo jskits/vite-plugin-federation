@@ -138,12 +138,56 @@ export interface FederationRemoteManifest {
 export interface ManifestFetchOptions {
   cache?: boolean;
   cacheTtl?: number;
+  circuitBreaker?: boolean | ManifestCircuitBreakerOptions;
+  fallbackUrls?: string[];
   fetch?: typeof fetch;
   fetchInit?: RequestInit;
   force?: boolean;
+  hooks?: FederationRuntimeHooks;
   retries?: number;
   retryDelay?: number | ((attempt: number, error: unknown) => number);
+  staleWhileRevalidate?: boolean;
   timeout?: number;
+}
+
+export interface ManifestCircuitBreakerOptions {
+  cooldownMs?: number;
+  failureThreshold?: number;
+}
+
+export type FederationRuntimeHookKind =
+  | 'manifest-fetch'
+  | 'remote-register'
+  | 'remote-load'
+  | 'remote-refresh';
+
+export type FederationRuntimeHookStage = 'before' | 'after' | 'error';
+
+export interface FederationRuntimeHookEvent {
+  durationMs?: number;
+  entry?: string;
+  error?: string;
+  kind: FederationRuntimeHookKind;
+  manifestUrl?: string;
+  primaryManifestUrl?: string;
+  remoteAlias?: string;
+  remoteId?: string;
+  remoteName?: string;
+  shareScope?: string;
+  sourceUrl?: string;
+  stage: FederationRuntimeHookStage;
+  status?: string;
+  statusCode?: number;
+  target?: FederationRuntimeTarget;
+  timestamp: string;
+}
+
+export interface FederationRuntimeHooks {
+  manifestFetch?: (event: FederationRuntimeHookEvent) => void;
+  remoteLoad?: (event: FederationRuntimeHookEvent) => void;
+  remoteRefresh?: (event: FederationRuntimeHookEvent) => void;
+  remoteRegister?: (event: FederationRuntimeHookEvent) => void;
+  telemetry?: (event: FederationRuntimeHookEvent) => void;
 }
 
 export type ManifestIntegrityVerificationMode =
@@ -171,6 +215,7 @@ interface ManifestCacheEntry {
   expiresAt: number | null;
   fetchedAt: number;
   manifest: FederationRemoteManifest;
+  sourceUrl: string;
 }
 
 interface ManifestFetchLogEntry {
@@ -178,9 +223,16 @@ interface ManifestFetchLogEntry {
   durationMs?: number;
   error?: string;
   manifestUrl: string;
-  status: 'cache-hit' | 'failure' | 'retry' | 'success';
+  primaryManifestUrl?: string;
+  sourceUrl?: string;
+  status: 'cache-hit' | 'circuit-open' | 'failure' | 'retry' | 'stale-cache-hit' | 'success';
   statusCode?: number;
   timestamp: string;
+}
+
+interface ManifestFetchResult {
+  manifest: FederationRemoteManifest;
+  sourceUrl: string;
 }
 
 interface ManifestIntegrityCheckLogEntry {
@@ -196,6 +248,14 @@ interface ManifestIntegrityCheckLogEntry {
   target: FederationRuntimeTarget;
   timestamp: string;
   verifiedWith: Array<'contentHash' | 'integrity'>;
+}
+
+interface ManifestCircuitBreakerState {
+  failureCount: number;
+  lastFailureAt: number | null;
+  nextRetryAt: number | null;
+  openedAt: number | null;
+  state: 'closed' | 'open';
 }
 
 type SharedMatchType =
@@ -286,9 +346,11 @@ interface RuntimeDebugState {
   sharedResolutionGraph: RuntimeSharedResolutionEntry[];
   sharedResolutionSeq: number;
   manifestCache: Map<string, ManifestCacheEntry>;
+  manifestCircuitBreakers: Map<string, ManifestCircuitBreakerState>;
   manifestFetches: ManifestFetchLogEntry[];
   manifestIntegrityChecks: ManifestIntegrityCheckLogEntry[];
   manifestRequests: Map<string, Promise<FederationRemoteManifest>>;
+  manifestSourceUrls: Map<string, string>;
   registrationRequests: Map<string, Promise<Record<string, unknown>>>;
   registeredManifestRemotes: Map<
     string,
@@ -299,6 +361,7 @@ interface RuntimeDebugState {
       manifestUrl: string;
       name: string;
       shareScope: string;
+      sourceUrl?: string;
       target: FederationRuntimeTarget;
       type: string;
     }
@@ -415,9 +478,11 @@ function getRuntimeDebugState(): RuntimeDebugState {
     sharedResolutionGraph: [],
     sharedResolutionSeq: 0,
     manifestCache: new Map(),
+    manifestCircuitBreakers: new Map(),
     manifestFetches: [],
     manifestIntegrityChecks: [],
     manifestRequests: new Map(),
+    manifestSourceUrls: new Map(),
     registrationRequests: new Map(),
     registeredManifestRemotes: new Map(),
   };
@@ -1813,6 +1878,122 @@ function recordRuntimeLoadError(
   };
 }
 
+function getRuntimeHookName(kind: FederationRuntimeHookKind) {
+  if (kind === 'manifest-fetch') return 'manifestFetch';
+  if (kind === 'remote-register') return 'remoteRegister';
+  if (kind === 'remote-load') return 'remoteLoad';
+  return 'remoteRefresh';
+}
+
+function emitRuntimeHook(
+  hooks: FederationRuntimeHooks | undefined,
+  event: Omit<FederationRuntimeHookEvent, 'timestamp'>,
+) {
+  if (!hooks) return;
+
+  const hookEvent: FederationRuntimeHookEvent = {
+    ...event,
+    timestamp: new Date().toISOString(),
+  };
+  const handler = hooks[getRuntimeHookName(event.kind)];
+
+  try {
+    handler?.(hookEvent);
+    hooks.telemetry?.(hookEvent);
+  } catch (error) {
+    mfWarnWithCode(
+      'MFV-004',
+      `Federation runtime hook "${event.kind}" failed: ${getRuntimeErrorMessage(error)}`,
+    );
+  }
+}
+
+function normalizeManifestFallbackUrls(manifestUrl: string, fallbackUrls: string[] | undefined) {
+  const urls = [manifestUrl, ...(fallbackUrls || [])].filter(
+    (url): url is string => typeof url === 'string' && url.length > 0,
+  );
+  return [...new Set(urls)];
+}
+
+function normalizeManifestCircuitBreakerOptions(
+  options: ManifestFetchOptions['circuitBreaker'],
+): Required<ManifestCircuitBreakerOptions> | null {
+  if (!options) return null;
+  if (options === true) {
+    return {
+      cooldownMs: 30_000,
+      failureThreshold: 3,
+    };
+  }
+  return {
+    cooldownMs: Math.max(0, options.cooldownMs ?? 30_000),
+    failureThreshold: Math.max(1, Math.floor(options.failureThreshold ?? 3)),
+  };
+}
+
+function assertManifestCircuitBreakerAllowsRequest(manifestUrl: string, options: ManifestFetchOptions) {
+  const circuitBreakerOptions = normalizeManifestCircuitBreakerOptions(options.circuitBreaker);
+  if (!circuitBreakerOptions) return;
+
+  const debugState = getRuntimeDebugState();
+  const state = debugState.manifestCircuitBreakers.get(manifestUrl);
+  if (!state || state.state !== 'open' || !state.nextRetryAt || Date.now() >= state.nextRetryAt) {
+    return;
+  }
+
+  const error = createModuleFederationError(
+    'MFV-004',
+    `Manifest circuit breaker is open for "${manifestUrl}" until ${new Date(state.nextRetryAt).toISOString()}.`,
+  );
+  markManifestFetchError(error, { retriable: true });
+  recordManifestFetch({
+    attempt: 0,
+    error: error.message,
+    manifestUrl,
+    status: 'circuit-open',
+    timestamp: new Date().toISOString(),
+  });
+  emitRuntimeHook(options.hooks, {
+    error: error.message,
+    kind: 'manifest-fetch',
+    manifestUrl,
+    primaryManifestUrl: manifestUrl,
+    stage: 'error',
+    status: 'circuit-open',
+  });
+  throw error;
+}
+
+function recordManifestCircuitBreakerSuccess(manifestUrl: string, options: ManifestFetchOptions) {
+  if (!normalizeManifestCircuitBreakerOptions(options.circuitBreaker)) return;
+  getRuntimeDebugState().manifestCircuitBreakers.set(manifestUrl, {
+    failureCount: 0,
+    lastFailureAt: null,
+    nextRetryAt: null,
+    openedAt: null,
+    state: 'closed',
+  });
+}
+
+function recordManifestCircuitBreakerFailure(manifestUrl: string, options: ManifestFetchOptions) {
+  const circuitBreakerOptions = normalizeManifestCircuitBreakerOptions(options.circuitBreaker);
+  if (!circuitBreakerOptions) return;
+
+  const debugState = getRuntimeDebugState();
+  const current = debugState.manifestCircuitBreakers.get(manifestUrl);
+  const failureCount = (current?.failureCount || 0) + 1;
+  const now = Date.now();
+  const shouldOpen = failureCount >= circuitBreakerOptions.failureThreshold;
+
+  debugState.manifestCircuitBreakers.set(manifestUrl, {
+    failureCount,
+    lastFailureAt: now,
+    nextRetryAt: shouldOpen ? now + circuitBreakerOptions.cooldownMs : null,
+    openedAt: shouldOpen ? current?.openedAt || now : null,
+    state: shouldOpen ? 'open' : 'closed',
+  });
+}
+
 function getManifestFetchImplementation(fetchOverride?: typeof fetch) {
   const fetchImplementation = fetchOverride ?? globalThis.fetch;
   if (!fetchImplementation) {
@@ -2659,64 +2840,154 @@ async function verifyManifestEntryIntegrity(
   }
 }
 
-async function fetchManifestJsonWithRetries(manifestUrl: string, options: ManifestFetchOptions) {
+async function fetchManifestJsonWithRetries(
+  manifestUrl: string,
+  options: ManifestFetchOptions,
+): Promise<ManifestFetchResult> {
+  assertManifestCircuitBreakerAllowsRequest(manifestUrl, options);
+
   const fetchImplementation = getManifestFetchImplementation(options.fetch);
+  const candidateUrls = normalizeManifestFallbackUrls(manifestUrl, options.fallbackUrls);
   const maxRetries = Math.max(0, Math.floor(options.retries || 0));
   let lastError: unknown;
 
-  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-    const startedAt = Date.now();
+  for (const candidateUrl of candidateUrls) {
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      const startedAt = Date.now();
 
-    try {
-      const response = await fetchManifestResponse(manifestUrl, fetchImplementation, options);
-      const durationMs = Date.now() - startedAt;
-
-      if (!response.ok) {
-        throw markManifestFetchError(
-          createModuleFederationError(
-            'MFV-004',
-            `Failed to fetch federation manifest "${manifestUrl}" with status ${response.status}.`,
-          ),
-          {
-            retriable: response.status === 408 || response.status === 429 || response.status >= 500,
-            status: response.status,
-          },
-        );
-      }
-
-      const manifest = (await response.json()) as FederationRemoteManifest;
-      validateManifest(manifestUrl, manifest);
-      recordManifestFetch({
-        attempt,
-        durationMs,
-        manifestUrl,
-        status: 'success',
-        statusCode: response.status,
-        timestamp: new Date().toISOString(),
-      });
-      return manifest;
-    } catch (error) {
-      lastError = error;
-      const shouldRetry = attempt < maxRetries && isRetriableManifestFetchError(error);
-      recordManifestFetch({
-        attempt,
-        durationMs: Date.now() - startedAt,
-        error: error instanceof Error ? error.message : String(error),
-        manifestUrl,
-        status: shouldRetry ? 'retry' : 'failure',
-        statusCode: getManifestFetchErrorStatus(error),
-        timestamp: new Date().toISOString(),
+      emitRuntimeHook(options.hooks, {
+        kind: 'manifest-fetch',
+        manifestUrl: candidateUrl,
+        primaryManifestUrl: manifestUrl,
+        stage: 'before',
       });
 
-      if (!shouldRetry) {
+      try {
+        const response = await fetchManifestResponse(candidateUrl, fetchImplementation, options);
+        const durationMs = Date.now() - startedAt;
+
+        if (!response.ok) {
+          throw markManifestFetchError(
+            createModuleFederationError(
+              'MFV-004',
+              `Failed to fetch federation manifest "${candidateUrl}" with status ${response.status}.`,
+            ),
+            {
+              retriable:
+                response.status === 408 || response.status === 429 || response.status >= 500,
+              status: response.status,
+            },
+          );
+        }
+
+        const manifest = (await response.json()) as FederationRemoteManifest;
+        validateManifest(candidateUrl, manifest);
+        recordManifestFetch({
+          attempt,
+          durationMs,
+          manifestUrl: candidateUrl,
+          primaryManifestUrl: manifestUrl,
+          sourceUrl: candidateUrl,
+          status: 'success',
+          statusCode: response.status,
+          timestamp: new Date().toISOString(),
+        });
+        emitRuntimeHook(options.hooks, {
+          durationMs,
+          kind: 'manifest-fetch',
+          manifestUrl: candidateUrl,
+          primaryManifestUrl: manifestUrl,
+          sourceUrl: candidateUrl,
+          stage: 'after',
+          status: 'success',
+          statusCode: response.status,
+        });
+        recordManifestCircuitBreakerSuccess(manifestUrl, options);
+        return {
+          manifest,
+          sourceUrl: candidateUrl,
+        };
+      } catch (error) {
+        lastError = error;
+        const shouldRetry = attempt < maxRetries && isRetriableManifestFetchError(error);
+        const status = shouldRetry ? 'retry' : 'failure';
+        const durationMs = Date.now() - startedAt;
+        recordManifestFetch({
+          attempt,
+          durationMs,
+          error: error instanceof Error ? error.message : String(error),
+          manifestUrl: candidateUrl,
+          primaryManifestUrl: manifestUrl,
+          status,
+          statusCode: getManifestFetchErrorStatus(error),
+          timestamp: new Date().toISOString(),
+        });
+        emitRuntimeHook(options.hooks, {
+          durationMs,
+          error: getRuntimeErrorMessage(error),
+          kind: 'manifest-fetch',
+          manifestUrl: candidateUrl,
+          primaryManifestUrl: manifestUrl,
+          stage: 'error',
+          status,
+          statusCode: getManifestFetchErrorStatus(error),
+        });
+
+        if (shouldRetry) {
+          await wait(getManifestRetryDelay(options, attempt, error));
+          continue;
+        }
+
         break;
       }
-
-      await wait(getManifestRetryDelay(options, attempt, error));
     }
   }
 
+  recordManifestCircuitBreakerFailure(manifestUrl, options);
   throw toManifestFetchError(manifestUrl, lastError);
+}
+
+function revalidateStaleFederationManifest(manifestUrl: string, options: ManifestFetchOptions) {
+  const debugState = getRuntimeDebugState();
+  if (debugState.manifestRequests.has(manifestUrl)) return;
+
+  const revalidateOptions: ManifestFetchOptions = {
+    ...options,
+    force: true,
+    staleWhileRevalidate: false,
+  };
+
+  const revalidatePromise = fetchManifestJsonWithRetries(manifestUrl, revalidateOptions)
+    .then(({ manifest, sourceUrl }) => {
+      debugState.manifestSourceUrls.set(manifestUrl, sourceUrl);
+      if (isManifestCacheEnabled(options)) {
+        debugState.manifestCache.set(manifestUrl, {
+          expiresAt: getManifestCacheExpiry(options),
+          fetchedAt: Date.now(),
+          manifest,
+          sourceUrl,
+        });
+      }
+      publishRuntimeDebugUpdate('manifest-fetched');
+      return manifest;
+    })
+    .catch((error) => {
+      const manifestError = toManifestFetchError(manifestUrl, error);
+      debugState.lastLoadError = {
+        code: 'MFV-004',
+        manifestUrl,
+        message: manifestError.message,
+        remoteId: manifestUrl,
+        timestamp: new Date().toISOString(),
+      };
+      publishRuntimeDebugUpdate('load-error');
+      return debugState.manifestCache.get(manifestUrl)?.manifest as FederationRemoteManifest;
+    })
+    .finally(() => {
+      debugState.manifestRequests.delete(manifestUrl);
+    });
+
+  debugState.manifestRequests.set(manifestUrl, revalidatePromise);
 }
 
 export async function fetchFederationManifest(
@@ -2727,6 +2998,7 @@ export async function fetchFederationManifest(
   if (options.force) {
     debugState.manifestCache.delete(manifestUrl);
     debugState.manifestRequests.delete(manifestUrl);
+    debugState.manifestSourceUrls.delete(manifestUrl);
   }
 
   const cachedManifest = debugState.manifestCache.get(manifestUrl);
@@ -2739,6 +3011,7 @@ export async function fetchFederationManifest(
     recordManifestFetch({
       attempt: 0,
       manifestUrl,
+      sourceUrl: cachedManifest.sourceUrl,
       status: 'cache-hit',
       timestamp: new Date().toISOString(),
     });
@@ -2746,6 +3019,17 @@ export async function fetchFederationManifest(
   }
 
   if (cachedManifest && !isManifestCacheEntryFresh(cachedManifest)) {
+    if (options.staleWhileRevalidate) {
+      recordManifestFetch({
+        attempt: 0,
+        manifestUrl,
+        sourceUrl: cachedManifest.sourceUrl,
+        status: 'stale-cache-hit',
+        timestamp: new Date().toISOString(),
+      });
+      revalidateStaleFederationManifest(manifestUrl, options);
+      return cachedManifest.manifest;
+    }
     debugState.manifestCache.delete(manifestUrl);
   }
 
@@ -2756,12 +3040,14 @@ export async function fetchFederationManifest(
 
   const fetchManifestPromise = (async () => {
     try {
-      const manifest = await fetchManifestJsonWithRetries(manifestUrl, options);
+      const { manifest, sourceUrl } = await fetchManifestJsonWithRetries(manifestUrl, options);
+      debugState.manifestSourceUrls.set(manifestUrl, sourceUrl);
       if (isManifestCacheEnabled(options)) {
         debugState.manifestCache.set(manifestUrl, {
           expiresAt: getManifestCacheExpiry(options),
           fetchedAt: Date.now(),
           manifest,
+          sourceUrl,
         });
       }
       publishRuntimeDebugUpdate('manifest-fetched');
@@ -2801,13 +3087,23 @@ export async function registerManifestRemote(
   }
 
   const registerPromise = (async () => {
+    const startedAt = Date.now();
+    emitRuntimeHook(options.hooks, {
+      kind: 'remote-register',
+      manifestUrl,
+      remoteAlias,
+      stage: 'before',
+      target,
+    });
+
     try {
       const manifest = await fetchFederationManifest(manifestUrl, options);
       const selectedEntry = getManifestEntryForTarget(manifestUrl, manifest, target);
+      const manifestSourceUrl = debugState.manifestSourceUrls.get(manifestUrl) || manifestUrl;
       const remoteName = options.remoteName || manifest.name || remoteAlias;
       const shareScope = options.shareScope || 'default';
       const remoteEntryUrl = resolveManifestAssetUrl(
-        manifestUrl,
+        manifestSourceUrl,
         selectedEntry,
         manifest.metaData.publicPath,
       );
@@ -2841,16 +3137,40 @@ export async function registerManifestRemote(
         manifestUrl,
         name: registration.name,
         shareScope: registration.shareScope,
+        sourceUrl: manifestSourceUrl,
         target,
         type: registration.type,
       });
       publishRuntimeDebugUpdate('manifest-registered');
+      emitRuntimeHook(options.hooks, {
+        durationMs: Date.now() - startedAt,
+        entry: registration.entry,
+        kind: 'remote-register',
+        manifestUrl,
+        remoteAlias,
+        remoteName: registration.name,
+        shareScope: registration.shareScope,
+        sourceUrl: manifestSourceUrl,
+        stage: 'after',
+        status: 'success',
+        target,
+      });
 
       return registration;
     } catch (error) {
       recordRuntimeLoadError(remoteAlias, error, {
         manifestUrl,
         remoteAlias,
+        target,
+      });
+      emitRuntimeHook(options.hooks, {
+        durationMs: Date.now() - startedAt,
+        error: getRuntimeErrorMessage(error),
+        kind: 'remote-register',
+        manifestUrl,
+        remoteAlias,
+        stage: 'error',
+        status: 'failure',
         target,
       });
       publishRuntimeDebugUpdate('load-error');
@@ -2899,83 +3219,149 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
     throw createModuleFederationError('MFV-004', `Invalid remote id "${remoteIdOrAlias}".`);
   }
 
+  const startedAt = Date.now();
   const target = getDefaultTarget(options.target);
   const registeredManifestRemote = getRegisteredManifestRemote(remoteAlias, target);
   const manifestUrl = options.manifestUrl || registeredManifestRemote?.[1].manifestUrl;
 
-  if (manifestUrl) {
-    const debugState = getRuntimeDebugState();
-    const requestKey =
-      registeredManifestRemote?.[0] || getManifestRequestKey(remoteAlias, manifestUrl, target);
-
-    if (options.invalidateManifest !== false) {
-      debugState.manifestCache.delete(manifestUrl);
-    }
-    debugState.manifestRequests.delete(manifestUrl);
-    debugState.registrationRequests.delete(requestKey);
-    debugState.registeredManifestRemotes.delete(requestKey);
-
-    const registration = await registerManifestRemote(remoteAlias, manifestUrl, {
-      ...options,
-      force: true,
-      remoteName: options.remoteName || registeredManifestRemote?.[1].name,
-      shareScope: options.shareScope || registeredManifestRemote?.[1].shareScope,
-      target,
-    });
-
-    syncRegisteredRemoteDebugState();
-    publishRuntimeDebugUpdate('refresh-remote');
-    return registration;
-  }
-
-  const runtimeRemote = getRegisteredRuntimeRemote(remoteAlias);
-  if (!runtimeRemote) {
-    throw createModuleFederationError(
-      'MFV-004',
-      `Remote "${remoteAlias}" is not registered in the current federation runtime instance.`,
-    );
-  }
-
-  const runtimeRemoteRecord = runtimeRemote as unknown as Record<string, unknown>;
-  const runtimeRemoteEntry =
-    typeof runtimeRemoteRecord.entry === 'string' ? runtimeRemoteRecord.entry : undefined;
-
-  if (runtimeRemoteEntry && isManifestRemoteEntry(runtimeRemoteEntry)) {
-    const registration = await registerManifestRemote(remoteAlias, runtimeRemoteEntry, {
-      ...options,
-      force: true,
-      remoteName:
-        typeof runtimeRemoteRecord.name === 'string'
-          ? (runtimeRemoteRecord.name as string)
-          : options.remoteName,
-      shareScope:
-        typeof runtimeRemoteRecord.shareScope === 'string'
-          ? (runtimeRemoteRecord.shareScope as string)
-          : options.shareScope,
-      target,
-    });
-
-    syncRegisteredRemoteDebugState();
-    publishRuntimeDebugUpdate('refresh-remote');
-    return registration;
-  }
-
-  const refreshedRuntimeRemote = {
-    ...runtimeRemoteRecord,
-    ...(typeof runtimeRemoteRecord.entry === 'string'
-      ? {
-          entry: appendEntryRefreshTimestamp(runtimeRemoteRecord.entry, target, true),
-        }
-      : {}),
-  } as Parameters<ModuleFederation['registerRemotes']>[0][number];
-
-  registerRuntimeRemoteWithReplace(refreshedRuntimeRemote, {
-    force: true,
-    remoteIdentifier: remoteAlias,
+  emitRuntimeHook(options.hooks, {
+    kind: 'remote-refresh',
+    manifestUrl,
+    remoteAlias,
+    remoteId: remoteIdOrAlias,
+    stage: 'before',
+    target,
   });
-  syncRegisteredRemoteDebugState();
-  publishRuntimeDebugUpdate('refresh-remote');
-  return runtimeRemote;
+
+  try {
+    if (manifestUrl) {
+      const debugState = getRuntimeDebugState();
+      const requestKey =
+        registeredManifestRemote?.[0] || getManifestRequestKey(remoteAlias, manifestUrl, target);
+
+      if (options.invalidateManifest !== false) {
+        debugState.manifestCache.delete(manifestUrl);
+      }
+      debugState.manifestRequests.delete(manifestUrl);
+      debugState.registrationRequests.delete(requestKey);
+      debugState.registeredManifestRemotes.delete(requestKey);
+
+      const registration = await registerManifestRemote(remoteAlias, manifestUrl, {
+        ...options,
+        force: true,
+        remoteName: options.remoteName || registeredManifestRemote?.[1].name,
+        shareScope: options.shareScope || registeredManifestRemote?.[1].shareScope,
+        target,
+      });
+
+      syncRegisteredRemoteDebugState();
+      publishRuntimeDebugUpdate('refresh-remote');
+      emitRuntimeHook(options.hooks, {
+        durationMs: Date.now() - startedAt,
+        entry: typeof registration.entry === 'string' ? registration.entry : undefined,
+        kind: 'remote-refresh',
+        manifestUrl,
+        remoteAlias,
+        remoteId: remoteIdOrAlias,
+        remoteName: typeof registration.name === 'string' ? registration.name : undefined,
+        shareScope:
+          typeof registration.shareScope === 'string' ? registration.shareScope : undefined,
+        stage: 'after',
+        status: 'success',
+        target,
+      });
+      return registration;
+    }
+
+    const runtimeRemote = getRegisteredRuntimeRemote(remoteAlias);
+    if (!runtimeRemote) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Remote "${remoteAlias}" is not registered in the current federation runtime instance.`,
+      );
+    }
+
+    const runtimeRemoteRecord = runtimeRemote as unknown as Record<string, unknown>;
+    const runtimeRemoteEntry =
+      typeof runtimeRemoteRecord.entry === 'string' ? runtimeRemoteRecord.entry : undefined;
+
+    if (runtimeRemoteEntry && isManifestRemoteEntry(runtimeRemoteEntry)) {
+      const registration = await registerManifestRemote(remoteAlias, runtimeRemoteEntry, {
+        ...options,
+        force: true,
+        remoteName:
+          typeof runtimeRemoteRecord.name === 'string'
+            ? (runtimeRemoteRecord.name as string)
+            : options.remoteName,
+        shareScope:
+          typeof runtimeRemoteRecord.shareScope === 'string'
+            ? (runtimeRemoteRecord.shareScope as string)
+            : options.shareScope,
+        target,
+      });
+
+      syncRegisteredRemoteDebugState();
+      publishRuntimeDebugUpdate('refresh-remote');
+      emitRuntimeHook(options.hooks, {
+        durationMs: Date.now() - startedAt,
+        entry: typeof registration.entry === 'string' ? registration.entry : undefined,
+        kind: 'remote-refresh',
+        manifestUrl: runtimeRemoteEntry,
+        remoteAlias,
+        remoteId: remoteIdOrAlias,
+        remoteName: typeof registration.name === 'string' ? registration.name : undefined,
+        shareScope:
+          typeof registration.shareScope === 'string' ? registration.shareScope : undefined,
+        stage: 'after',
+        status: 'success',
+        target,
+      });
+      return registration;
+    }
+
+    const refreshedRuntimeRemote = {
+      ...runtimeRemoteRecord,
+      ...(typeof runtimeRemoteRecord.entry === 'string'
+        ? {
+            entry: appendEntryRefreshTimestamp(runtimeRemoteRecord.entry, target, true),
+          }
+        : {}),
+    } as Parameters<ModuleFederation['registerRemotes']>[0][number];
+
+    registerRuntimeRemoteWithReplace(refreshedRuntimeRemote, {
+      force: true,
+      remoteIdentifier: remoteAlias,
+    });
+    syncRegisteredRemoteDebugState();
+    publishRuntimeDebugUpdate('refresh-remote');
+    emitRuntimeHook(options.hooks, {
+      durationMs: Date.now() - startedAt,
+      entry:
+        typeof (refreshedRuntimeRemote as unknown as Record<string, unknown>).entry === 'string'
+          ? ((refreshedRuntimeRemote as unknown as Record<string, unknown>).entry as string)
+          : undefined,
+      kind: 'remote-refresh',
+      remoteAlias,
+      remoteId: remoteIdOrAlias,
+      stage: 'after',
+      status: 'success',
+      target,
+    });
+    return runtimeRemote;
+  } catch (error) {
+    emitRuntimeHook(options.hooks, {
+      durationMs: Date.now() - startedAt,
+      error: getRuntimeErrorMessage(error),
+      kind: 'remote-refresh',
+      manifestUrl,
+      remoteAlias,
+      remoteId: remoteIdOrAlias,
+      stage: 'error',
+      status: 'failure',
+      target,
+    });
+    throw error;
+  }
 }
 
 export async function registerManifestRemotes(
@@ -3011,14 +3397,18 @@ export async function loadRemoteFromManifest<T>(
   const {
     cache,
     cacheTtl,
+    circuitBreaker,
+    fallbackUrls,
     fetch,
     fetchInit,
     force,
+    hooks,
     integrity,
     remoteName,
     retries,
     retryDelay,
     shareScope,
+    staleWhileRevalidate,
     target,
     timeout,
     ...loadRemoteOptions
@@ -3027,14 +3417,18 @@ export async function loadRemoteFromManifest<T>(
   await registerManifestRemote(remoteAlias, manifestUrl, {
     cache,
     cacheTtl,
+    circuitBreaker,
+    fallbackUrls,
     fetch,
     fetchInit,
     force,
+    hooks,
     integrity,
     remoteName,
     retries,
     retryDelay,
     shareScope,
+    staleWhileRevalidate,
     target,
     timeout,
   });
@@ -3044,7 +3438,43 @@ export async function loadRemoteFromManifest<T>(
     ...loadRemoteOptions,
   } as Parameters<ModuleFederation['loadRemote']>[1];
 
-  return loadRemote<T>(remoteId, runtimeLoadOptions);
+  const startedAt = Date.now();
+  emitRuntimeHook(hooks, {
+    kind: 'remote-load',
+    manifestUrl,
+    remoteAlias,
+    remoteId,
+    stage: 'before',
+    target: getDefaultTarget(target),
+  });
+
+  try {
+    const result = await loadRemote<T>(remoteId, runtimeLoadOptions);
+    emitRuntimeHook(hooks, {
+      durationMs: Date.now() - startedAt,
+      kind: 'remote-load',
+      manifestUrl,
+      remoteAlias,
+      remoteId,
+      stage: 'after',
+      status: 'success',
+      target: getDefaultTarget(target),
+    });
+    return result;
+  } catch (error) {
+    emitRuntimeHook(hooks, {
+      durationMs: Date.now() - startedAt,
+      error: getRuntimeErrorMessage(error),
+      kind: 'remote-load',
+      manifestUrl,
+      remoteAlias,
+      remoteId,
+      stage: 'error',
+      status: 'failure',
+      target: getDefaultTarget(target),
+    });
+    throw error;
+  }
 }
 
 export function clearFederationRuntimeCaches() {
@@ -3059,9 +3489,11 @@ export function clearFederationRuntimeCaches() {
   debugState.sharedResolutionGraph = [];
   debugState.sharedResolutionSeq = 0;
   debugState.manifestCache.clear();
+  debugState.manifestCircuitBreakers.clear();
   debugState.manifestFetches = [];
   debugState.manifestIntegrityChecks = [];
   debugState.manifestRequests.clear();
+  debugState.manifestSourceUrls.clear();
   debugState.registrationRequests.clear();
   debugState.registeredManifestRemotes.clear();
   publishRuntimeDebugUpdate('clear-caches');
@@ -3082,8 +3514,15 @@ export function getFederationDebugInfo() {
         fetchedAt: entry.fetchedAt,
         manifestUrl,
         name: entry.manifest.name,
+        sourceUrl: entry.sourceUrl,
       })),
       manifestCacheKeys: [...debugState.manifestCache.keys()],
+      manifestCircuitBreakers: [...debugState.manifestCircuitBreakers.entries()].map(
+        ([manifestUrl, entry]) => ({
+          ...entry,
+          manifestUrl,
+        }),
+      ),
       manifestFetches: debugState.manifestFetches.map((entry) => ({ ...entry })),
       manifestIntegrityChecks: debugState.manifestIntegrityChecks.map((entry) => ({ ...entry })),
       pendingManifestRequests: [...debugState.manifestRequests.keys()],
