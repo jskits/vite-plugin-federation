@@ -6,6 +6,7 @@ Import production runtime helpers from:
 import {
   createFederationInstance,
   createFederationManifestPreloadPlan,
+  createFederationRuntimeScope,
   createServerFederationInstance,
   loadRemoteFromManifest,
   warmFederationRemotes,
@@ -181,6 +182,25 @@ Additional options:
 - `asyncChunkPolicy`: `'css'` by default, or `'none'`, `'js'`, `'all'`.
 - `includeManifestHints`: set `false` to ignore manifest-level `preload` hints.
 
+## Runtime Scopes
+
+### `createFederationRuntimeScope(runtimeKey)`
+
+Creates scoped wrappers for tenant or experiment isolation. The scope injects `runtimeKey` into
+manifest fetching, registration, remote loading, refreshing, and warmups.
+
+```ts
+const tenant = createFederationRuntimeScope('tenant-a');
+
+await tenant.registerManifestRemote('catalog', manifestUrl, {
+  shareScope: 'tenant-a',
+});
+```
+
+`runtimeKey` partitions manifest cache, pending requests, circuit breaker state, registered manifest
+remote debug records, and remote load metrics. Use `tenant.getFederationDebugInfo()` for a filtered
+debug snapshot.
+
 ### `warmFederationRemotes(remotes, options?)`
 
 Registers selected manifest remotes and optionally calls runtime `preloadRemote` for each one.
@@ -238,7 +258,8 @@ hooks: {
 ```
 
 Events include `kind`, `stage`, `timestamp`, and contextual fields such as `manifestUrl`,
-`sourceUrl`, `remoteId`, `entry`, `target`, `status`, `statusCode`, `durationMs`, and `error`.
+`sourceUrl`, `remoteId`, `runtimeKey`, `entry`, `target`, `status`, `statusCode`, `durationMs`,
+and `error`.
 
 ## Debugging
 

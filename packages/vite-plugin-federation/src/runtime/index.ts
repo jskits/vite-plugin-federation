@@ -196,6 +196,7 @@ export interface ManifestFetchOptions {
   hooks?: FederationRuntimeHooks;
   retries?: number;
   retryDelay?: number | ((attempt: number, error: unknown) => number);
+  runtimeKey?: string;
   staleWhileRevalidate?: boolean;
   timeout?: number;
 }
@@ -223,6 +224,7 @@ export interface FederationRuntimeHookEvent {
   remoteAlias?: string;
   remoteId?: string;
   remoteName?: string;
+  runtimeKey?: string;
   shareScope?: string;
   sourceUrl?: string;
   stage: FederationRuntimeHookStage;
@@ -264,7 +266,9 @@ export interface RegisterManifestRemoteOptions extends ManifestFetchOptions {
 interface ManifestCacheEntry {
   expiresAt: number | null;
   fetchedAt: number;
+  manifestUrl: string;
   manifest: FederationRemoteManifest;
+  runtimeKey: string;
   sourceUrl: string;
 }
 
@@ -274,6 +278,7 @@ interface ManifestFetchLogEntry {
   error?: string;
   manifestUrl: string;
   primaryManifestUrl?: string;
+  runtimeKey?: string;
   sourceUrl?: string;
   status: 'cache-hit' | 'circuit-open' | 'failure' | 'retry' | 'stale-cache-hit' | 'success';
   statusCode?: number;
@@ -311,6 +316,7 @@ interface RemoteLoadMetricLogEntry {
   remoteAlias?: string;
   remoteId: string;
   remoteName?: string;
+  runtimeKey?: string;
   shareScope?: string;
   sourceUrl?: string;
   status: 'failure' | 'success';
@@ -341,8 +347,10 @@ export interface VerifyFederationManifestAssetsResult {
 interface ManifestCircuitBreakerState {
   failureCount: number;
   lastFailureAt: number | null;
+  manifestUrl: string;
   nextRetryAt: number | null;
   openedAt: number | null;
+  runtimeKey: string;
   state: 'closed' | 'open';
 }
 
@@ -419,6 +427,7 @@ interface RuntimeDebugState {
     remoteAlias?: string;
     remoteId: string;
     remoteName?: string;
+    runtimeKey?: string;
     shareScope?: string;
     target?: FederationRuntimeTarget;
     timestamp: string;
@@ -449,6 +458,7 @@ interface RuntimeDebugState {
       entryGlobalName: string;
       manifestUrl: string;
       name: string;
+      runtimeKey: string;
       shareScope: string;
       sourceUrl?: string;
       target: FederationRuntimeTarget;
@@ -1889,6 +1899,7 @@ interface RuntimeRemoteLoadMetricContext {
   remoteAlias?: string;
   remoteName?: string;
   registrationDurationMs?: number;
+  runtimeKey?: string;
   shareScope?: string;
   sourceUrl?: string;
   target?: FederationRuntimeTarget;
@@ -1922,6 +1933,7 @@ async function loadRemoteWithRuntimeMetrics<T>(
       remoteAlias,
       remoteId,
       remoteName: context.remoteName,
+      runtimeKey: context.runtimeKey,
       shareScope: context.shareScope,
       sourceUrl: context.sourceUrl,
       status: 'success',
@@ -1943,6 +1955,7 @@ async function loadRemoteWithRuntimeMetrics<T>(
       remoteAlias,
       remoteId,
       remoteName: context.remoteName,
+      runtimeKey: context.runtimeKey,
       shareScope: context.shareScope,
       sourceUrl: context.sourceUrl,
       status: 'failure',
@@ -1970,21 +1983,36 @@ function getDefaultTarget(target?: FederationRuntimeTarget): FederationRuntimeTa
   return typeof (globalThis as { window?: unknown }).window === 'undefined' ? 'node' : 'web';
 }
 
+function getRuntimeKey(runtimeKey?: string) {
+  return runtimeKey || 'default';
+}
+
+function getManifestCacheKey(manifestUrl: string, runtimeKey?: string) {
+  return `${getRuntimeKey(runtimeKey)}:${manifestUrl}`;
+}
+
 function getManifestRequestKey(
   remoteAlias: string,
   manifestUrl: string,
   target: FederationRuntimeTarget,
+  runtimeKey?: string,
 ) {
-  return `${target}:${remoteAlias}:${manifestUrl}`;
+  return `${getRuntimeKey(runtimeKey)}:${target}:${remoteAlias}:${manifestUrl}`;
 }
 
-function findRegisteredManifestRemoteForDebug(remoteId: string, target = getDefaultTarget()) {
+function findRegisteredManifestRemoteForDebug(
+  remoteId: string,
+  target = getDefaultTarget(),
+  runtimeKey?: string,
+) {
   const [remoteAlias] = remoteId.split('/');
   if (!remoteAlias) return undefined;
 
   const debugState = getRuntimeDebugState();
   const remotes = [...debugState.registeredManifestRemotes.values()].filter(
-    (remote) => remote.alias === remoteAlias,
+    (remote) =>
+      remote.alias === remoteAlias &&
+      (!runtimeKey || remote.runtimeKey === getRuntimeKey(runtimeKey)),
   );
   return remotes.find((remote) => remote.target === target) || remotes.at(-1);
 }
@@ -1999,6 +2027,7 @@ function recordRuntimeLoadError(
     remoteName?: string;
     shareScope?: string;
     target?: FederationRuntimeTarget;
+    runtimeKey?: string;
   } = {},
 ) {
   const debugState = getRuntimeDebugState();
@@ -2006,6 +2035,7 @@ function recordRuntimeLoadError(
   const registeredManifestRemote = findRegisteredManifestRemoteForDebug(
     remoteId,
     context.target || getDefaultTarget(),
+    context.runtimeKey,
   );
 
   debugState.lastLoadError = {
@@ -2016,6 +2046,7 @@ function recordRuntimeLoadError(
     remoteAlias,
     remoteId,
     remoteName: context.remoteName || registeredManifestRemote?.name,
+    runtimeKey: context.runtimeKey || registeredManifestRemote?.runtimeKey,
     shareScope: context.shareScope || registeredManifestRemote?.shareScope,
     target: context.target || registeredManifestRemote?.target,
     timestamp: new Date().toISOString(),
@@ -2083,7 +2114,9 @@ function assertManifestCircuitBreakerAllowsRequest(
   if (!circuitBreakerOptions) return;
 
   const debugState = getRuntimeDebugState();
-  const state = debugState.manifestCircuitBreakers.get(manifestUrl);
+  const cacheKey = getManifestCacheKey(manifestUrl, options.runtimeKey);
+  const runtimeKey = getRuntimeKey(options.runtimeKey);
+  const state = debugState.manifestCircuitBreakers.get(cacheKey);
   if (!state || state.state !== 'open' || !state.nextRetryAt || Date.now() >= state.nextRetryAt) {
     return;
   }
@@ -2097,6 +2130,7 @@ function assertManifestCircuitBreakerAllowsRequest(
     attempt: 0,
     error: error.message,
     manifestUrl,
+    runtimeKey,
     status: 'circuit-open',
     timestamp: new Date().toISOString(),
   });
@@ -2105,6 +2139,7 @@ function assertManifestCircuitBreakerAllowsRequest(
     kind: 'manifest-fetch',
     manifestUrl,
     primaryManifestUrl: manifestUrl,
+    runtimeKey,
     stage: 'error',
     status: 'circuit-open',
   });
@@ -2113,13 +2148,18 @@ function assertManifestCircuitBreakerAllowsRequest(
 
 function recordManifestCircuitBreakerSuccess(manifestUrl: string, options: ManifestFetchOptions) {
   if (!normalizeManifestCircuitBreakerOptions(options.circuitBreaker)) return;
-  getRuntimeDebugState().manifestCircuitBreakers.set(manifestUrl, {
-    failureCount: 0,
-    lastFailureAt: null,
-    nextRetryAt: null,
-    openedAt: null,
-    state: 'closed',
-  });
+  getRuntimeDebugState().manifestCircuitBreakers.set(
+    getManifestCacheKey(manifestUrl, options.runtimeKey),
+    {
+      failureCount: 0,
+      lastFailureAt: null,
+      manifestUrl,
+      nextRetryAt: null,
+      openedAt: null,
+      runtimeKey: getRuntimeKey(options.runtimeKey),
+      state: 'closed',
+    },
+  );
 }
 
 function recordManifestCircuitBreakerFailure(manifestUrl: string, options: ManifestFetchOptions) {
@@ -2127,16 +2167,19 @@ function recordManifestCircuitBreakerFailure(manifestUrl: string, options: Manif
   if (!circuitBreakerOptions) return;
 
   const debugState = getRuntimeDebugState();
-  const current = debugState.manifestCircuitBreakers.get(manifestUrl);
+  const cacheKey = getManifestCacheKey(manifestUrl, options.runtimeKey);
+  const current = debugState.manifestCircuitBreakers.get(cacheKey);
   const failureCount = (current?.failureCount || 0) + 1;
   const now = Date.now();
   const shouldOpen = failureCount >= circuitBreakerOptions.failureThreshold;
 
-  debugState.manifestCircuitBreakers.set(manifestUrl, {
+  debugState.manifestCircuitBreakers.set(cacheKey, {
     failureCount,
     lastFailureAt: now,
+    manifestUrl,
     nextRetryAt: shouldOpen ? now + circuitBreakerOptions.cooldownMs : null,
     openedAt: shouldOpen ? current?.openedAt || now : null,
+    runtimeKey: getRuntimeKey(options.runtimeKey),
     state: shouldOpen ? 'open' : 'closed',
   });
 }
@@ -3364,6 +3407,7 @@ async function fetchManifestJsonWithRetries(
         kind: 'manifest-fetch',
         manifestUrl: candidateUrl,
         primaryManifestUrl: manifestUrl,
+        runtimeKey: getRuntimeKey(options.runtimeKey),
         stage: 'before',
       });
 
@@ -3392,6 +3436,7 @@ async function fetchManifestJsonWithRetries(
           durationMs,
           manifestUrl: candidateUrl,
           primaryManifestUrl: manifestUrl,
+          runtimeKey: getRuntimeKey(options.runtimeKey),
           sourceUrl: candidateUrl,
           status: 'success',
           statusCode: response.status,
@@ -3402,6 +3447,7 @@ async function fetchManifestJsonWithRetries(
           kind: 'manifest-fetch',
           manifestUrl: candidateUrl,
           primaryManifestUrl: manifestUrl,
+          runtimeKey: getRuntimeKey(options.runtimeKey),
           sourceUrl: candidateUrl,
           stage: 'after',
           status: 'success',
@@ -3423,6 +3469,7 @@ async function fetchManifestJsonWithRetries(
           error: error instanceof Error ? error.message : String(error),
           manifestUrl: candidateUrl,
           primaryManifestUrl: manifestUrl,
+          runtimeKey: getRuntimeKey(options.runtimeKey),
           status,
           statusCode: getManifestFetchErrorStatus(error),
           timestamp: new Date().toISOString(),
@@ -3433,6 +3480,7 @@ async function fetchManifestJsonWithRetries(
           kind: 'manifest-fetch',
           manifestUrl: candidateUrl,
           primaryManifestUrl: manifestUrl,
+          runtimeKey: getRuntimeKey(options.runtimeKey),
           stage: 'error',
           status,
           statusCode: getManifestFetchErrorStatus(error),
@@ -3454,7 +3502,8 @@ async function fetchManifestJsonWithRetries(
 
 function revalidateStaleFederationManifest(manifestUrl: string, options: ManifestFetchOptions) {
   const debugState = getRuntimeDebugState();
-  if (debugState.manifestRequests.has(manifestUrl)) return;
+  const cacheKey = getManifestCacheKey(manifestUrl, options.runtimeKey);
+  if (debugState.manifestRequests.has(cacheKey)) return;
 
   const revalidateOptions: ManifestFetchOptions = {
     ...options,
@@ -3464,12 +3513,14 @@ function revalidateStaleFederationManifest(manifestUrl: string, options: Manifes
 
   const revalidatePromise = fetchManifestJsonWithRetries(manifestUrl, revalidateOptions)
     .then(({ manifest, sourceUrl }) => {
-      debugState.manifestSourceUrls.set(manifestUrl, sourceUrl);
+      debugState.manifestSourceUrls.set(cacheKey, sourceUrl);
       if (isManifestCacheEnabled(options)) {
-        debugState.manifestCache.set(manifestUrl, {
+        debugState.manifestCache.set(cacheKey, {
           expiresAt: getManifestCacheExpiry(options),
           fetchedAt: Date.now(),
+          manifestUrl,
           manifest,
+          runtimeKey: getRuntimeKey(options.runtimeKey),
           sourceUrl,
         });
       }
@@ -3483,16 +3534,17 @@ function revalidateStaleFederationManifest(manifestUrl: string, options: Manifes
         manifestUrl,
         message: manifestError.message,
         remoteId: manifestUrl,
+        runtimeKey: getRuntimeKey(options.runtimeKey),
         timestamp: new Date().toISOString(),
       };
       publishRuntimeDebugUpdate('load-error');
-      return debugState.manifestCache.get(manifestUrl)?.manifest as FederationRemoteManifest;
+      return debugState.manifestCache.get(cacheKey)?.manifest as FederationRemoteManifest;
     })
     .finally(() => {
-      debugState.manifestRequests.delete(manifestUrl);
+      debugState.manifestRequests.delete(cacheKey);
     });
 
-  debugState.manifestRequests.set(manifestUrl, revalidatePromise);
+  debugState.manifestRequests.set(cacheKey, revalidatePromise);
 }
 
 export async function fetchFederationManifest(
@@ -3500,13 +3552,15 @@ export async function fetchFederationManifest(
   options: ManifestFetchOptions = {},
 ) {
   const debugState = getRuntimeDebugState();
+  const cacheKey = getManifestCacheKey(manifestUrl, options.runtimeKey);
+  const runtimeKey = getRuntimeKey(options.runtimeKey);
   if (options.force) {
-    debugState.manifestCache.delete(manifestUrl);
-    debugState.manifestRequests.delete(manifestUrl);
-    debugState.manifestSourceUrls.delete(manifestUrl);
+    debugState.manifestCache.delete(cacheKey);
+    debugState.manifestRequests.delete(cacheKey);
+    debugState.manifestSourceUrls.delete(cacheKey);
   }
 
-  const cachedManifest = debugState.manifestCache.get(manifestUrl);
+  const cachedManifest = debugState.manifestCache.get(cacheKey);
   if (
     cachedManifest &&
     !options.force &&
@@ -3516,6 +3570,7 @@ export async function fetchFederationManifest(
     recordManifestFetch({
       attempt: 0,
       manifestUrl,
+      runtimeKey,
       sourceUrl: cachedManifest.sourceUrl,
       status: 'cache-hit',
       timestamp: new Date().toISOString(),
@@ -3528,6 +3583,7 @@ export async function fetchFederationManifest(
       recordManifestFetch({
         attempt: 0,
         manifestUrl,
+        runtimeKey,
         sourceUrl: cachedManifest.sourceUrl,
         status: 'stale-cache-hit',
         timestamp: new Date().toISOString(),
@@ -3535,10 +3591,10 @@ export async function fetchFederationManifest(
       revalidateStaleFederationManifest(manifestUrl, options);
       return cachedManifest.manifest;
     }
-    debugState.manifestCache.delete(manifestUrl);
+    debugState.manifestCache.delete(cacheKey);
   }
 
-  const pendingManifest = debugState.manifestRequests.get(manifestUrl);
+  const pendingManifest = debugState.manifestRequests.get(cacheKey);
   if (pendingManifest && !options.force) {
     return pendingManifest;
   }
@@ -3546,12 +3602,14 @@ export async function fetchFederationManifest(
   const fetchManifestPromise = (async () => {
     try {
       const { manifest, sourceUrl } = await fetchManifestJsonWithRetries(manifestUrl, options);
-      debugState.manifestSourceUrls.set(manifestUrl, sourceUrl);
+      debugState.manifestSourceUrls.set(cacheKey, sourceUrl);
       if (isManifestCacheEnabled(options)) {
-        debugState.manifestCache.set(manifestUrl, {
+        debugState.manifestCache.set(cacheKey, {
           expiresAt: getManifestCacheExpiry(options),
           fetchedAt: Date.now(),
+          manifestUrl,
           manifest,
+          runtimeKey,
           sourceUrl,
         });
       }
@@ -3563,15 +3621,16 @@ export async function fetchFederationManifest(
         code: 'MFV-004',
         message: manifestError.message,
         remoteId: manifestUrl,
+        runtimeKey,
         timestamp: new Date().toISOString(),
       };
       throw manifestError;
     } finally {
-      debugState.manifestRequests.delete(manifestUrl);
+      debugState.manifestRequests.delete(cacheKey);
     }
   })();
 
-  debugState.manifestRequests.set(manifestUrl, fetchManifestPromise);
+  debugState.manifestRequests.set(cacheKey, fetchManifestPromise);
   return fetchManifestPromise;
 }
 
@@ -3582,7 +3641,9 @@ export async function registerManifestRemote(
 ) {
   const debugState = getRuntimeDebugState();
   const target = getDefaultTarget(options.target);
-  const requestKey = getManifestRequestKey(remoteAlias, manifestUrl, target);
+  const runtimeKey = getRuntimeKey(options.runtimeKey);
+  const cacheKey = getManifestCacheKey(manifestUrl, runtimeKey);
+  const requestKey = getManifestRequestKey(remoteAlias, manifestUrl, target, runtimeKey);
 
   if (!options.force) {
     const pendingRegistration = debugState.registrationRequests.get(requestKey);
@@ -3597,6 +3658,7 @@ export async function registerManifestRemote(
       kind: 'remote-register',
       manifestUrl,
       remoteAlias,
+      runtimeKey,
       stage: 'before',
       target,
     });
@@ -3604,7 +3666,7 @@ export async function registerManifestRemote(
     try {
       const manifest = await fetchFederationManifest(manifestUrl, options);
       const selectedEntry = getManifestEntryForTarget(manifestUrl, manifest, target);
-      const manifestSourceUrl = debugState.manifestSourceUrls.get(manifestUrl) || manifestUrl;
+      const manifestSourceUrl = debugState.manifestSourceUrls.get(cacheKey) || manifestUrl;
       const remoteName = options.remoteName || manifest.name || remoteAlias;
       const shareScope = options.shareScope || 'default';
       const remoteEntryUrl = resolveManifestAssetUrl(
@@ -3641,6 +3703,7 @@ export async function registerManifestRemote(
         entryGlobalName: registration.entryGlobalName,
         manifestUrl,
         name: registration.name,
+        runtimeKey,
         shareScope: registration.shareScope,
         sourceUrl: manifestSourceUrl,
         target,
@@ -3654,6 +3717,7 @@ export async function registerManifestRemote(
         manifestUrl,
         remoteAlias,
         remoteName: registration.name,
+        runtimeKey,
         shareScope: registration.shareScope,
         sourceUrl: manifestSourceUrl,
         stage: 'after',
@@ -3666,6 +3730,7 @@ export async function registerManifestRemote(
       recordRuntimeLoadError(remoteAlias, error, {
         manifestUrl,
         remoteAlias,
+        runtimeKey,
         target,
       });
       emitRuntimeHook(options.hooks, {
@@ -3674,6 +3739,7 @@ export async function registerManifestRemote(
         kind: 'remote-register',
         manifestUrl,
         remoteAlias,
+        runtimeKey,
         stage: 'error',
         status: 'failure',
         target,
@@ -3694,10 +3760,18 @@ export interface RefreshRemoteOptions extends RegisterManifestRemoteOptions {
   manifestUrl?: string;
 }
 
-function getRegisteredManifestRemote(remoteAlias: string, target: FederationRuntimeTarget) {
+function getRegisteredManifestRemote(
+  remoteAlias: string,
+  target: FederationRuntimeTarget,
+  runtimeKey?: string,
+) {
   const debugState = getRuntimeDebugState();
   return [...debugState.registeredManifestRemotes.entries()].find(([, remote]) => {
-    return remote.alias === remoteAlias && remote.target === target;
+    return (
+      remote.alias === remoteAlias &&
+      remote.target === target &&
+      (!runtimeKey || remote.runtimeKey === getRuntimeKey(runtimeKey))
+    );
   });
 }
 
@@ -3726,7 +3800,12 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
 
   const startedAt = Date.now();
   const target = getDefaultTarget(options.target);
-  const registeredManifestRemote = getRegisteredManifestRemote(remoteAlias, target);
+  const registeredManifestRemote = getRegisteredManifestRemote(
+    remoteAlias,
+    target,
+    options.runtimeKey,
+  );
+  const runtimeKey = getRuntimeKey(options.runtimeKey || registeredManifestRemote?.[1].runtimeKey);
   const manifestUrl = options.manifestUrl || registeredManifestRemote?.[1].manifestUrl;
 
   emitRuntimeHook(options.hooks, {
@@ -3734,6 +3813,7 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
     manifestUrl,
     remoteAlias,
     remoteId: remoteIdOrAlias,
+    runtimeKey,
     stage: 'before',
     target,
   });
@@ -3742,12 +3822,14 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
     if (manifestUrl) {
       const debugState = getRuntimeDebugState();
       const requestKey =
-        registeredManifestRemote?.[0] || getManifestRequestKey(remoteAlias, manifestUrl, target);
+        registeredManifestRemote?.[0] ||
+        getManifestRequestKey(remoteAlias, manifestUrl, target, runtimeKey);
+      const cacheKey = getManifestCacheKey(manifestUrl, runtimeKey);
 
       if (options.invalidateManifest !== false) {
-        debugState.manifestCache.delete(manifestUrl);
+        debugState.manifestCache.delete(cacheKey);
       }
-      debugState.manifestRequests.delete(manifestUrl);
+      debugState.manifestRequests.delete(cacheKey);
       debugState.registrationRequests.delete(requestKey);
       debugState.registeredManifestRemotes.delete(requestKey);
 
@@ -3755,6 +3837,7 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
         ...options,
         force: true,
         remoteName: options.remoteName || registeredManifestRemote?.[1].name,
+        runtimeKey,
         shareScope: options.shareScope || registeredManifestRemote?.[1].shareScope,
         target,
       });
@@ -3769,6 +3852,7 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
         remoteAlias,
         remoteId: remoteIdOrAlias,
         remoteName: typeof registration.name === 'string' ? registration.name : undefined,
+        runtimeKey,
         shareScope:
           typeof registration.shareScope === 'string' ? registration.shareScope : undefined,
         stage: 'after',
@@ -3798,6 +3882,7 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
           typeof runtimeRemoteRecord.name === 'string'
             ? (runtimeRemoteRecord.name as string)
             : options.remoteName,
+        runtimeKey,
         shareScope:
           typeof runtimeRemoteRecord.shareScope === 'string'
             ? (runtimeRemoteRecord.shareScope as string)
@@ -3815,6 +3900,7 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
         remoteAlias,
         remoteId: remoteIdOrAlias,
         remoteName: typeof registration.name === 'string' ? registration.name : undefined,
+        runtimeKey,
         shareScope:
           typeof registration.shareScope === 'string' ? registration.shareScope : undefined,
         stage: 'after',
@@ -3848,6 +3934,7 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
       kind: 'remote-refresh',
       remoteAlias,
       remoteId: remoteIdOrAlias,
+      runtimeKey,
       stage: 'after',
       status: 'success',
       target,
@@ -3861,6 +3948,7 @@ export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRem
       manifestUrl,
       remoteAlias,
       remoteId: remoteIdOrAlias,
+      runtimeKey,
       stage: 'error',
       status: 'failure',
       target,
@@ -3956,6 +4044,7 @@ export async function loadRemoteFromManifest<T>(
     remoteName,
     retries,
     retryDelay,
+    runtimeKey,
     shareScope,
     staleWhileRevalidate,
     target,
@@ -3982,6 +4071,7 @@ export async function loadRemoteFromManifest<T>(
       remoteName,
       retries,
       retryDelay,
+      runtimeKey,
       shareScope,
       staleWhileRevalidate,
       target,
@@ -3997,6 +4087,7 @@ export async function loadRemoteFromManifest<T>(
       phase: 'register',
       remoteAlias,
       remoteId,
+      runtimeKey: getRuntimeKey(runtimeKey),
       status: 'failure',
       target: getDefaultTarget(target),
       timestamp: new Date(now).toISOString(),
@@ -4015,6 +4106,7 @@ export async function loadRemoteFromManifest<T>(
     manifestUrl,
     remoteAlias,
     remoteId,
+    runtimeKey: getRuntimeKey(runtimeKey),
     stage: 'before',
     target: getDefaultTarget(target),
   });
@@ -4027,12 +4119,16 @@ export async function loadRemoteFromManifest<T>(
       remoteAlias,
       remoteName: typeof registrationRecord.name === 'string' ? registrationRecord.name : undefined,
       registrationDurationMs,
+      runtimeKey: getRuntimeKey(runtimeKey),
       shareScope:
         typeof registrationRecord.shareScope === 'string'
           ? registrationRecord.shareScope
           : shareScope || 'default',
-      sourceUrl: findRegisteredManifestRemoteForDebug(remoteId, getDefaultTarget(target))
-        ?.sourceUrl,
+      sourceUrl: findRegisteredManifestRemoteForDebug(
+        remoteId,
+        getDefaultTarget(target),
+        runtimeKey,
+      )?.sourceUrl,
       target: getDefaultTarget(target),
       totalStartedAt,
     });
@@ -4042,6 +4138,7 @@ export async function loadRemoteFromManifest<T>(
       manifestUrl,
       remoteAlias,
       remoteId,
+      runtimeKey: getRuntimeKey(runtimeKey),
       stage: 'after',
       status: 'success',
       target: getDefaultTarget(target),
@@ -4055,6 +4152,7 @@ export async function loadRemoteFromManifest<T>(
       manifestUrl,
       remoteAlias,
       remoteId,
+      runtimeKey: getRuntimeKey(runtimeKey),
       stage: 'error',
       status: 'failure',
       target: getDefaultTarget(target),
@@ -4099,17 +4197,15 @@ export function getFederationDebugInfo() {
       manifestCache: [...debugState.manifestCache.entries()].map(([manifestUrl, entry]) => ({
         expiresAt: entry.expiresAt,
         fetchedAt: entry.fetchedAt,
-        manifestUrl,
+        manifestUrl: entry.manifestUrl || manifestUrl,
         name: entry.manifest.name,
+        runtimeKey: entry.runtimeKey,
         sourceUrl: entry.sourceUrl,
       })),
       manifestCacheKeys: [...debugState.manifestCache.keys()],
-      manifestCircuitBreakers: [...debugState.manifestCircuitBreakers.entries()].map(
-        ([manifestUrl, entry]) => ({
-          ...entry,
-          manifestUrl,
-        }),
-      ),
+      manifestCircuitBreakers: [...debugState.manifestCircuitBreakers.values()].map((entry) => ({
+        ...entry,
+      })),
       manifestFetches: debugState.manifestFetches.map((entry) => ({ ...entry })),
       manifestIntegrityChecks: debugState.manifestIntegrityChecks.map((entry) => ({ ...entry })),
       pendingManifestRequests: [...debugState.manifestRequests.keys()],
@@ -4137,6 +4233,103 @@ export function getFederationDebugInfo() {
         selected: entry.selected ? { ...entry.selected } : null,
       })),
     },
+  };
+}
+
+function hasRuntimeKey(entry: { runtimeKey?: string }, runtimeKey: string) {
+  return getRuntimeKey(entry.runtimeKey) === runtimeKey;
+}
+
+function keyBelongsToRuntimeKey(key: string, runtimeKey: string) {
+  return key.startsWith(`${runtimeKey}:`);
+}
+
+export function getFederationRuntimeScopeDebugInfo(runtimeKey: string) {
+  const normalizedRuntimeKey = getRuntimeKey(runtimeKey);
+  const debugInfo = getFederationDebugInfo();
+
+  return {
+    ...debugInfo,
+    runtime: {
+      ...debugInfo.runtime,
+      lastLoadError:
+        debugInfo.runtime.lastLoadError &&
+        hasRuntimeKey(debugInfo.runtime.lastLoadError, normalizedRuntimeKey)
+          ? debugInfo.runtime.lastLoadError
+          : null,
+      manifestCache: debugInfo.runtime.manifestCache.filter((entry) =>
+        hasRuntimeKey(entry, normalizedRuntimeKey),
+      ),
+      manifestCacheKeys: debugInfo.runtime.manifestCacheKeys.filter((key) =>
+        keyBelongsToRuntimeKey(key, normalizedRuntimeKey),
+      ),
+      manifestCircuitBreakers: debugInfo.runtime.manifestCircuitBreakers.filter((entry) =>
+        hasRuntimeKey(entry, normalizedRuntimeKey),
+      ),
+      manifestFetches: debugInfo.runtime.manifestFetches.filter((entry) =>
+        hasRuntimeKey(entry, normalizedRuntimeKey),
+      ),
+      pendingManifestRequests: debugInfo.runtime.pendingManifestRequests.filter((key) =>
+        keyBelongsToRuntimeKey(key, normalizedRuntimeKey),
+      ),
+      pendingRemoteRegistrations: debugInfo.runtime.pendingRemoteRegistrations.filter((key) =>
+        keyBelongsToRuntimeKey(key, normalizedRuntimeKey),
+      ),
+      remoteLoadMetrics: debugInfo.runtime.remoteLoadMetrics.filter((entry) =>
+        hasRuntimeKey(entry, normalizedRuntimeKey),
+      ),
+      registeredManifestRemotes: debugInfo.runtime.registeredManifestRemotes.filter((remote) =>
+        hasRuntimeKey(remote, normalizedRuntimeKey),
+      ),
+    },
+  };
+}
+
+function withRuntimeScope<T extends ManifestFetchOptions>(
+  runtimeKey: string,
+  options: T | undefined,
+): T & { runtimeKey: string } {
+  return {
+    ...(options || ({} as T)),
+    runtimeKey,
+  };
+}
+
+export function createFederationRuntimeScope(runtimeKey: string) {
+  const normalizedRuntimeKey = getRuntimeKey(runtimeKey);
+
+  return {
+    fetchFederationManifest: (manifestUrl: string, options?: ManifestFetchOptions) =>
+      fetchFederationManifest(manifestUrl, withRuntimeScope(normalizedRuntimeKey, options)),
+    getFederationDebugInfo: () => getFederationRuntimeScopeDebugInfo(normalizedRuntimeKey),
+    loadRemoteFromManifest: <T>(
+      remoteId: string,
+      manifestUrl: string,
+      options?: RegisterManifestRemoteOptions &
+        Partial<NonNullable<Parameters<ModuleFederation['loadRemote']>[1]>>,
+    ) =>
+      loadRemoteFromManifest<T>(
+        remoteId,
+        manifestUrl,
+        withRuntimeScope(normalizedRuntimeKey, options),
+      ),
+    refreshRemote: (remoteIdOrAlias: string, options?: RefreshRemoteOptions) =>
+      refreshRemote(remoteIdOrAlias, withRuntimeScope(normalizedRuntimeKey, options)),
+    registerManifestRemote: (
+      remoteAlias: string,
+      manifestUrl: string,
+      options?: RegisterManifestRemoteOptions,
+    ) =>
+      registerManifestRemote(
+        remoteAlias,
+        manifestUrl,
+        withRuntimeScope(normalizedRuntimeKey, options),
+      ),
+    runtimeKey: normalizedRuntimeKey,
+    warmFederationRemotes: (
+      remotes: Record<string, string | WarmFederationRemoteConfig> | WarmFederationRemoteConfig[],
+      options?: RegisterManifestRemoteOptions,
+    ) => warmFederationRemotes(remotes, withRuntimeScope(normalizedRuntimeKey, options)),
   };
 }
 

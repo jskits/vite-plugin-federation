@@ -100,6 +100,7 @@ import {
   collectFederationManifestPreloadLinks,
   createFederationManifestPreloadPlan,
   createFederationInstance,
+  createFederationRuntimeScope,
   createServerFederationInstance,
   fetchFederationManifest,
   findFederationManifestExpose,
@@ -1114,6 +1115,74 @@ describe('runtime api', () => {
     expect(manifestA).toEqual(manifestB);
   });
 
+  it('isolates manifest caches and debug snapshots by runtime key', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'tenantRemoteA',
+          metaData: {
+            remoteEntry: {
+              name: 'remoteEntry.js',
+              path: '',
+              type: 'module',
+            },
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          name: 'tenantRemoteB',
+          metaData: {
+            remoteEntry: {
+              name: 'remoteEntry.js',
+              path: '',
+              type: 'module',
+            },
+          },
+        }),
+      });
+    const manifestUrl = 'http://remote.example/mf-manifest.json';
+    const tenantA = createFederationRuntimeScope('tenant-a');
+    const tenantB = createFederationRuntimeScope('tenant-b');
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await tenantA.fetchFederationManifest(manifestUrl, { cacheTtl: 10_000 });
+    await tenantB.fetchFederationManifest(manifestUrl, { cacheTtl: 10_000 });
+    await tenantA.fetchFederationManifest(manifestUrl, { cacheTtl: 10_000 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getFederationDebugInfo().runtime.manifestCache).toEqual([
+      expect.objectContaining({
+        manifestUrl,
+        name: 'tenantRemoteA',
+        runtimeKey: 'tenant-a',
+      }),
+      expect.objectContaining({
+        manifestUrl,
+        name: 'tenantRemoteB',
+        runtimeKey: 'tenant-b',
+      }),
+    ]);
+    expect(tenantA.getFederationDebugInfo().runtime.manifestCache).toEqual([
+      expect.objectContaining({
+        name: 'tenantRemoteA',
+        runtimeKey: 'tenant-a',
+      }),
+    ]);
+    expect(tenantB.getFederationDebugInfo().runtime.manifestCache).toEqual([
+      expect.objectContaining({
+        name: 'tenantRemoteB',
+        runtimeKey: 'tenant-b',
+      }),
+    ]);
+  });
+
   it('retries retriable manifest fetch failures', async () => {
     const fetchMock = vi
       .fn()
@@ -1754,6 +1823,52 @@ describe('runtime api', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(registerRemotesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('tracks same remote aliases separately across runtime keys and share scopes', async () => {
+    const manifestUrl = 'http://remote.example/mf-manifest.json';
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'catalog',
+        metaData: {
+          globalName: 'catalog',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await registerManifestRemote('catalog', manifestUrl, {
+      runtimeKey: 'tenant-a',
+      shareScope: 'tenant-a',
+      target: 'web',
+    });
+    await registerManifestRemote('catalog', manifestUrl, {
+      runtimeKey: 'tenant-b',
+      shareScope: 'tenant-b',
+      target: 'web',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getFederationDebugInfo().runtime.registeredManifestRemotes).toEqual([
+      expect.objectContaining({
+        alias: 'catalog',
+        runtimeKey: 'tenant-a',
+        shareScope: 'tenant-a',
+      }),
+      expect.objectContaining({
+        alias: 'catalog',
+        runtimeKey: 'tenant-b',
+        shareScope: 'tenant-b',
+      }),
+    ]);
   });
 
   it('verifies manifest remoteEntry integrity metadata when enabled', async () => {

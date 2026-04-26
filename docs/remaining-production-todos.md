@@ -556,12 +556,22 @@ Acceptance criteria:
 
 ### 15. Multi-Tenant And Runtime Instance Isolation
 
+Current state:
+
+- Manifest runtime options accept `runtimeKey` for tenant or experiment partitioning.
+- `runtimeKey` isolates manifest caches, pending manifest requests, manifest source URL tracking,
+  circuit breaker state, registered manifest remote debug records, and remote load metrics.
+- `createFederationRuntimeScope(runtimeKey)` exposes scoped wrappers for manifest fetch,
+  registration, remote loading, refresh, warmups, and filtered debug snapshots.
+- Runtime hooks and debug timeline entries include `runtimeKey` when a scoped runtime is used.
+- Unit coverage validates same-URL manifest cache isolation and same-alias registered manifest
+  remote diagnostics across separate runtime keys/share scopes.
+- `docs/multi-tenant.md` documents scoped runtime usage and tenant-specific share scope guidance.
+
 Remaining work:
 
-- Validate multiple federation instances on one page.
-- Add explicit APIs or examples for tenant-specific remote registries.
-- Ensure manifest caches can be isolated by tenant/runtime instance if needed.
-- Add tests for separate share scopes with same remote alias.
+- No further multi-tenant P3 gaps are currently tracked beyond adding a browser example if a
+  concrete tenant shell scenario is added to the example matrix.
 
 Acceptance criteria:
 
