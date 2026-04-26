@@ -157,20 +157,20 @@ const checkout = await loadRemote('checkout/App');
 `fetchFederationManifest`, `registerManifestRemote`, `registerManifestRemotes`, and
 `loadRemoteFromManifest` share the same production fetch controls.
 
-| Option       | Default            | Use case                                                                 |
-| ------------ | ------------------ | ------------------------------------------------------------------------ |
-| `cache`      | `true`             | Set `false` when every call must hit the manifest URL.                   |
-| `cacheTtl`   | no expiry          | Expire cached manifests after a fixed number of milliseconds.            |
-| `fallbackUrls` | `[]`            | Try alternate manifest origins when the primary URL fails.               |
-| `staleWhileRevalidate` | `false` | Return an expired cached manifest immediately and refresh it in the background. |
-| `circuitBreaker` | `false`       | Stop repeatedly failing manifest requests for a cooldown window.         |
-| `force`      | `false`            | Drop cached and pending manifest work before fetching/registering again. |
-| `fetch`      | `globalThis.fetch` | Provide a platform fetch in tests, legacy Node, or custom runtimes.      |
-| `fetchInit`  | `undefined`        | Pass credentials, headers, or request mode to manifest fetches.          |
-| `hooks`      | `undefined`        | Observe manifest fetch, register, load, refresh, and telemetry events.   |
-| `retries`    | `0`                | Retry network failures, timeouts, `408`, `429`, and `5xx` responses.     |
-| `retryDelay` | capped backoff     | Use a fixed delay or function for retry pacing.                          |
-| `timeout`    | no timeout         | Abort and reject slow manifest requests.                                 |
+| Option                 | Default            | Use case                                                                        |
+| ---------------------- | ------------------ | ------------------------------------------------------------------------------- |
+| `cache`                | `true`             | Set `false` when every call must hit the manifest URL.                          |
+| `cacheTtl`             | no expiry          | Expire cached manifests after a fixed number of milliseconds.                   |
+| `fallbackUrls`         | `[]`               | Try alternate manifest origins when the primary URL fails.                      |
+| `staleWhileRevalidate` | `false`            | Return an expired cached manifest immediately and refresh it in the background. |
+| `circuitBreaker`       | `false`            | Stop repeatedly failing manifest requests for a cooldown window.                |
+| `force`                | `false`            | Drop cached and pending manifest work before fetching/registering again.        |
+| `fetch`                | `globalThis.fetch` | Provide a platform fetch in tests, legacy Node, or custom runtimes.             |
+| `fetchInit`            | `undefined`        | Pass credentials, headers, or request mode to manifest fetches.                 |
+| `hooks`                | `undefined`        | Observe manifest fetch, register, load, refresh, and telemetry events.          |
+| `retries`              | `0`                | Retry network failures, timeouts, `408`, `429`, and `5xx` responses.            |
+| `retryDelay`           | capped backoff     | Use a fixed delay or function for retry pacing.                                 |
+| `timeout`              | no timeout         | Abort and reject slow manifest requests.                                        |
 
 Concurrent manifest fetches for the same URL are collapsed into one request. Concurrent manifest
 registrations for the same target, alias, and manifest URL are also collapsed.
@@ -184,9 +184,7 @@ await loadRemoteFromManifest('catalog/Button', catalogManifestUrl, {
     cooldownMs: 30_000,
     failureThreshold: 3,
   },
-  fallbackUrls: [
-    'https://cdn-backup.example.com/catalog/mf-manifest.json',
-  ],
+  fallbackUrls: ['https://cdn-backup.example.com/catalog/mf-manifest.json'],
   fetchInit: {
     credentials: 'include',
     headers: {
@@ -349,6 +347,11 @@ CSS, and sync JS. Set `includeAsyncJs: true` when the host wants to eagerly modu
 chunks as well. Module preload links default to `crossorigin="anonymous"`; set
 `crossorigin: false` to omit the attribute.
 
+For route-aware shells, use `createFederationManifestPreloadPlan` to generate a deduped plan from
+route-to-expose usage and optional manifest `preload` hints. Use `warmFederationRemotes` to register
+and preload selected remotes before a critical navigation. See
+[preload-performance.md](preload-performance.md) for the full API and performance budget guidance.
+
 If browser and remote assets are served from different origins, also account for root-relative
 dependencies emitted inside remote chunks. Either configure the remote so those preloads resolve to
 the remote origin, or proxy the relevant asset paths from the SSR host. The React SSR example proxies
@@ -365,6 +368,7 @@ Use `getFederationDebugInfo()` to inspect the active runtime. The snapshot inclu
 - Manifest cache entries with `manifestUrl`, `name`, `fetchedAt`, and `expiresAt`.
 - Manifest fetch history with `success`, `retry`, `failure`, and `cache-hit` entries.
 - Manifest circuit breaker state and fallback `sourceUrl` when configured.
+- Remote load metrics with registration, load, and total durations.
 - Pending manifest requests and pending remote registrations.
 - Package-level diagnostics emitted through the plugin logger.
 
@@ -372,6 +376,7 @@ Use `getFederationDebugInfo()` to inspect the active runtime. The snapshot inclu
 import { getFederationDebugInfo } from 'vite-plugin-federation/runtime';
 
 console.table(getFederationDebugInfo().runtime.manifestFetches);
+console.table(getFederationDebugInfo().runtime.remoteLoadMetrics);
 console.table(getFederationDebugInfo().runtime.sharedResolutionGraph);
 ```
 

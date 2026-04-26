@@ -5,8 +5,10 @@ Import production runtime helpers from:
 ```ts
 import {
   createFederationInstance,
+  createFederationManifestPreloadPlan,
   createServerFederationInstance,
   loadRemoteFromManifest,
+  warmFederationRemotes,
 } from 'vite-plugin-federation/runtime';
 ```
 
@@ -163,13 +165,46 @@ Options:
 - `includeAsyncJs`
 - `crossorigin`
 
+### `createFederationManifestPreloadPlan(manifestUrl, manifest, routes, options?)`
+
+Builds a route-level preload plan from actual route-to-expose usage and optional manifest
+`preload` hints.
+
+```ts
+const plan = createFederationManifestPreloadPlan(manifestUrl, manifest, {
+  '/checkout': ['./Cart', './PaymentForm'],
+});
+```
+
+Additional options:
+
+- `asyncChunkPolicy`: `'css'` by default, or `'none'`, `'js'`, `'all'`.
+- `includeManifestHints`: set `false` to ignore manifest-level `preload` hints.
+
+### `warmFederationRemotes(remotes, options?)`
+
+Registers selected manifest remotes and optionally calls runtime `preloadRemote` for each one.
+
+```ts
+await warmFederationRemotes({
+  catalog: {
+    manifestUrl: catalogManifestUrl,
+    preload: { resourceCategory: 'sync' },
+  },
+});
+```
+
+Set `preload: false` to warm only the manifest cache and remote registration.
+
 ## Integrity
 
 `registerManifestRemote` and `loadRemoteFromManifest` support:
 
 ```ts
-integrity: true
-integrity: { mode: 'prefer-integrity' | 'integrity' | 'content-hash' | 'both' }
+integrity: true;
+integrity: {
+  mode: 'prefer-integrity' | 'integrity' | 'content-hash' | 'both';
+}
 ```
 
 The runtime verifies `metaData.remoteEntry` or `metaData.ssrRemoteEntry` hashes before
@@ -197,7 +232,8 @@ Events include `kind`, `stage`, `timestamp`, and contextual fields such as `mani
 ### `getFederationDebugInfo()`
 
 Returns diagnostics, runtime instance snapshot, registered remotes, manifest cache, fetch timeline,
-integrity checks, circuit breaker state, shared providers, and shared resolution graph.
+integrity checks, circuit breaker state, remote load metrics, shared providers, and shared
+resolution graph.
 
 ### `clearFederationRuntimeCaches()`
 

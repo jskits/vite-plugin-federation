@@ -88,6 +88,9 @@ format support, CSS migration behavior, and unsupported legacy combinations.
 
 See [docs/troubleshooting.md](docs/troubleshooting.md) for error-code based debugging.
 
+See [docs/preload-performance.md](docs/preload-performance.md) for route-aware preload plans,
+remote warming, and runtime load metrics.
+
 See [docs/dev-hmr.md](docs/dev-hmr.md) for remote dev HMR strategies, batching, and fallback
 rules.
 

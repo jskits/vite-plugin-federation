@@ -502,14 +502,25 @@ These items are valuable, but they can follow after the GA baseline.
 
 ### 13. Advanced Preload And Performance Optimization
 
+Current state:
+
+- `createFederationManifestPreloadPlan()` generates route-level preload plans from actual
+  route-to-expose usage.
+- Preload plans support `asyncChunkPolicy` values for no async chunks, async CSS, async JS, or all
+  async chunks.
+- The manifest schema accepts optional `preload` hints for route-critical assets and shared runtime
+  assets that are not directly tied to one expose.
+- `warmFederationRemotes()` registers selected manifest remotes and optionally calls runtime
+  `preloadRemote` for host-side warmups.
+- `getFederationDebugInfo().runtime.remoteLoadMetrics` records registration, load, and total
+  durations for remote module load waterfalls.
+- Unit coverage validates route preload plans, warm remote behavior, and remote load metrics.
+- `docs/preload-performance.md` documents the API and performance budget guidance.
+
 Remaining work:
 
-- Generate preload plans from actual route/expose usage.
-- Add optional async chunk prefetching policy.
-- Add manifest-level preload hints.
-- Add runtime metrics for remote module load waterfalls.
-- Add host-side APIs for warming selected remotes.
-- Add performance budget tests for runtime bootstrap and manifest fetch overhead.
+- No further advanced preload/performance P3 gaps are currently tracked beyond adding broader
+  browser-level budget checks when the example matrix is expanded.
 
 Acceptance criteria:
 

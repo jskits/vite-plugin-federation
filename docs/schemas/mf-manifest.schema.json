@@ -102,6 +102,9 @@
         "$ref": "#/$defs/expose"
       }
     },
+    "preload": {
+      "$ref": "#/$defs/preloadHints"
+    },
     "release": {
       "type": "object",
       "additionalProperties": true,
@@ -171,6 +174,64 @@
         },
         "css": {
           "$ref": "#/$defs/assetGroup"
+        }
+      }
+    },
+    "preloadHintAssets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "js": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "css": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "preloadHint": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "route": {
+          "type": "string"
+        },
+        "expose": {
+          "type": "string"
+        },
+        "exposes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "loading": {
+          "type": "string",
+          "enum": ["sync", "async"]
+        },
+        "assets": {
+          "$ref": "#/$defs/preloadHintAssets"
+        }
+      }
+    },
+    "preloadHints": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "assets": {
+          "$ref": "#/$defs/preloadHintAssets"
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/preloadHint"
+          }
         }
       }
     },

@@ -98,6 +98,7 @@ import {
   clearFederationRuntimeCaches,
   collectFederationManifestExposeAssets,
   collectFederationManifestPreloadLinks,
+  createFederationManifestPreloadPlan,
   createFederationInstance,
   createServerFederationInstance,
   fetchFederationManifest,
@@ -113,6 +114,7 @@ import {
   registerRemotes,
   registerShared,
   refreshRemote,
+  warmFederationRemotes,
 } from '../index';
 import { clearModuleFederationDebugState } from '../../utils/logger';
 
@@ -2010,6 +2012,91 @@ describe('runtime api', () => {
     expect(result).toEqual({ default: 'button' });
   });
 
+  it('records remote load metrics with manifest registration context', async () => {
+    const manifestUrl = 'http://remote.example/mf-manifest.json';
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          globalName: 'remoteApp',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    loadRemoteMock.mockResolvedValueOnce({ default: 'button' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await loadRemoteFromManifest('remoteApp/Button', manifestUrl, {
+      target: 'web',
+    });
+
+    expect(getFederationDebugInfo().runtime.remoteLoadMetrics).toEqual([
+      expect.objectContaining({
+        entry: 'http://remote.example/remoteEntry.js',
+        loadDurationMs: expect.any(Number),
+        manifestUrl,
+        phase: 'load',
+        registrationDurationMs: expect.any(Number),
+        remoteAlias: 'remoteApp',
+        remoteId: 'remoteApp/Button',
+        remoteName: 'remoteApp',
+        shareScope: 'default',
+        sourceUrl: manifestUrl,
+        status: 'success',
+        target: 'web',
+      }),
+    ]);
+  });
+
+  it('warms selected manifest remotes through registration and runtime preload', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'catalog',
+        metaData: {
+          globalName: 'catalog',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await warmFederationRemotes({
+      catalog: {
+        manifestUrl: 'http://remote.example/mf-manifest.json',
+        preload: {
+          resourceCategory: 'sync',
+        },
+        target: 'web',
+      },
+    });
+
+    expect(registerRemotesMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: 'catalog',
+      }),
+    ]);
+    expect(preloadRemoteMock).toHaveBeenCalledWith([
+      {
+        nameOrAlias: 'catalog',
+        resourceCategory: 'sync',
+      },
+    ]);
+  });
+
   it('emits runtime hooks and telemetry around manifest remote loading', async () => {
     const manifestUrl = 'http://remote.example/mf-manifest.json';
     const events: string[] = [];
@@ -2246,6 +2333,75 @@ describe('runtime api', () => {
         loading: 'async',
         rel: 'modulepreload',
       },
+    ]);
+  });
+
+  it('creates route-level preload plans with async chunk policy and manifest hints', () => {
+    const manifest = {
+      name: 'remoteApp',
+      metaData: {
+        publicPath: 'https://cdn.example/assets/',
+      },
+      preload: {
+        assets: {
+          js: ['runtime-shared.js'],
+        },
+        routes: [
+          {
+            route: '/checkout',
+            expose: './Button',
+            assets: {
+              css: ['checkout-critical.css'],
+            },
+          },
+        ],
+      },
+      exposes: [
+        {
+          name: 'Button',
+          path: './Button',
+          assets: {
+            css: {
+              sync: ['Button.css'],
+              async: ['Button.async.css'],
+            },
+            js: {
+              sync: ['Button.js'],
+              async: ['Button.async.js'],
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const plan = createFederationManifestPreloadPlan(
+      'https://remote.example/mf-manifest.json',
+      manifest,
+      {
+        '/checkout': './Button',
+      },
+      {
+        asyncChunkPolicy: 'all',
+      },
+    );
+
+    expect(plan).toMatchObject({
+      manifestUrl: 'https://remote.example/mf-manifest.json',
+      remoteName: 'remoteApp',
+      routes: [
+        {
+          exposes: ['./Button'],
+          route: '/checkout',
+        },
+      ],
+    });
+    expect(plan.links.map((link) => `${link.loading}:${link.href}`)).toEqual([
+      'sync:https://cdn.example/assets/Button.css',
+      'async:https://cdn.example/assets/Button.async.css',
+      'sync:https://cdn.example/assets/Button.js',
+      'async:https://cdn.example/assets/Button.async.js',
+      'sync:https://cdn.example/assets/runtime-shared.js',
+      'sync:https://cdn.example/assets/checkout-critical.css',
     ]);
   });
 

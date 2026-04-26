@@ -97,12 +97,57 @@ export interface FederationManifestPreloadLink {
   rel: 'modulepreload' | 'stylesheet';
 }
 
+export interface FederationManifestPreloadHint {
+  assets?: {
+    css?: string[];
+    js?: string[];
+  };
+  expose?: string;
+  exposes?: string[];
+  loading?: 'async' | 'sync';
+  route?: string;
+}
+
+export interface FederationManifestPreloadHints {
+  assets?: FederationManifestPreloadHint['assets'];
+  routes?: FederationManifestPreloadHint[];
+}
+
 export interface CollectFederationManifestPreloadLinksOptions {
   crossorigin?: boolean | 'anonymous' | 'use-credentials';
   includeAsyncCss?: boolean;
   includeAsyncJs?: boolean;
   includeCss?: boolean;
   includeJs?: boolean;
+}
+
+export type FederationPreloadAsyncChunkPolicy = 'all' | 'css' | 'js' | 'none';
+
+export interface FederationPreloadRouteConfig {
+  exposes: string | string[];
+  route: string;
+}
+
+export type FederationPreloadRoutes =
+  | FederationPreloadRouteConfig[]
+  | Record<string, string | string[] | { exposes: string | string[] }>;
+
+export interface CreateFederationManifestPreloadPlanOptions extends CollectFederationManifestPreloadLinksOptions {
+  asyncChunkPolicy?: FederationPreloadAsyncChunkPolicy;
+  includeManifestHints?: boolean;
+}
+
+export interface FederationManifestPreloadPlanRoute {
+  exposes: string[];
+  links: FederationManifestPreloadLink[];
+  route: string;
+}
+
+export interface FederationManifestPreloadPlan {
+  links: FederationManifestPreloadLink[];
+  manifestUrl: string;
+  remoteName: string;
+  routes: FederationManifestPreloadPlanRoute[];
 }
 
 export interface FederationRemoteManifest {
@@ -131,6 +176,7 @@ export interface FederationRemoteManifest {
     };
   };
   exposes?: FederationManifestExpose[] | unknown;
+  preload?: FederationManifestPreloadHints;
   shared?: unknown;
   [key: string]: unknown;
 }
@@ -250,6 +296,30 @@ interface ManifestIntegrityCheckLogEntry {
   verifiedWith: Array<'contentHash' | 'integrity'>;
 }
 
+interface RemoteLoadMetricLogEntry {
+  durationMs: number;
+  entry?: string;
+  error?: string;
+  loadDurationMs?: number;
+  manifestUrl?: string;
+  phase: 'load' | 'register';
+  registrationDurationMs?: number;
+  remoteAlias?: string;
+  remoteId: string;
+  remoteName?: string;
+  shareScope?: string;
+  sourceUrl?: string;
+  status: 'failure' | 'success';
+  target?: FederationRuntimeTarget;
+  timestamp: string;
+}
+
+export interface WarmFederationRemoteConfig extends RegisterManifestRemoteOptions {
+  manifestUrl: string;
+  preload?: boolean | Record<string, unknown>;
+  remoteAlias?: string;
+}
+
 interface ManifestCircuitBreakerState {
   failureCount: number;
   lastFailureAt: number | null;
@@ -351,6 +421,7 @@ interface RuntimeDebugState {
   manifestIntegrityChecks: ManifestIntegrityCheckLogEntry[];
   manifestRequests: Map<string, Promise<FederationRemoteManifest>>;
   manifestSourceUrls: Map<string, string>;
+  remoteLoadMetrics: RemoteLoadMetricLogEntry[];
   registrationRequests: Map<string, Promise<Record<string, unknown>>>;
   registeredManifestRemotes: Map<
     string,
@@ -483,6 +554,7 @@ function getRuntimeDebugState(): RuntimeDebugState {
     manifestIntegrityChecks: [],
     manifestRequests: new Map(),
     manifestSourceUrls: new Map(),
+    remoteLoadMetrics: [],
     registrationRequests: new Map(),
     registeredManifestRemotes: new Map(),
   };
@@ -1793,23 +1865,80 @@ export function loadShareSync<T>(...args: Parameters<ModuleFederation['loadShare
   }
 }
 
-export async function loadRemote<T>(...args: Parameters<ModuleFederation['loadRemote']>) {
-  const [remoteId] = args;
+interface RuntimeRemoteLoadMetricContext {
+  entry?: string;
+  manifestUrl?: string;
+  remoteAlias?: string;
+  remoteName?: string;
+  registrationDurationMs?: number;
+  shareScope?: string;
+  sourceUrl?: string;
+  target?: FederationRuntimeTarget;
+  totalStartedAt?: number;
+}
+
+async function loadRemoteWithRuntimeMetrics<T>(
+  remoteId: string,
+  loadOptions: Parameters<ModuleFederation['loadRemote']>[1],
+  context: RuntimeRemoteLoadMetricContext = {},
+) {
   const debugState = getRuntimeDebugState();
+  const loadStartedAt = Date.now();
+  const totalStartedAt = context.totalStartedAt || loadStartedAt;
+  const remoteAlias = context.remoteAlias || remoteId.split('/')[0] || remoteId;
 
   try {
-    const result = await loadRuntimeRemote<T>(...args);
+    const result = await loadRuntimeRemote<T>(remoteId, loadOptions);
+    const now = Date.now();
     debugState.lastLoadRemote = {
       remoteId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(now).toISOString(),
     };
+    recordRemoteLoadMetric({
+      durationMs: now - totalStartedAt,
+      entry: context.entry,
+      loadDurationMs: now - loadStartedAt,
+      manifestUrl: context.manifestUrl,
+      phase: 'load',
+      registrationDurationMs: context.registrationDurationMs,
+      remoteAlias,
+      remoteId,
+      remoteName: context.remoteName,
+      shareScope: context.shareScope,
+      sourceUrl: context.sourceUrl,
+      status: 'success',
+      target: context.target,
+      timestamp: new Date(now).toISOString(),
+    });
     publishRuntimeDebugUpdate('load-remote');
     return result;
   } catch (error) {
-    recordRuntimeLoadError(remoteId, error);
+    const now = Date.now();
+    recordRemoteLoadMetric({
+      durationMs: now - totalStartedAt,
+      entry: context.entry,
+      error: getRuntimeErrorMessage(error),
+      loadDurationMs: now - loadStartedAt,
+      manifestUrl: context.manifestUrl,
+      phase: 'load',
+      registrationDurationMs: context.registrationDurationMs,
+      remoteAlias,
+      remoteId,
+      remoteName: context.remoteName,
+      shareScope: context.shareScope,
+      sourceUrl: context.sourceUrl,
+      status: 'failure',
+      target: context.target,
+      timestamp: new Date(now).toISOString(),
+    });
+    recordRuntimeLoadError(remoteId, error, context);
     publishRuntimeDebugUpdate('load-error');
     throw error;
   }
+}
+
+export async function loadRemote<T>(...args: Parameters<ModuleFederation['loadRemote']>) {
+  return loadRemoteWithRuntimeMetrics<T>(args[0], args[1]);
 }
 
 export function preloadRemote(...args: Parameters<ModuleFederation['preloadRemote']>) {
@@ -1831,10 +1960,7 @@ function getManifestRequestKey(
   return `${target}:${remoteAlias}:${manifestUrl}`;
 }
 
-function findRegisteredManifestRemoteForDebug(
-  remoteId: string,
-  target = getDefaultTarget(),
-) {
+function findRegisteredManifestRemoteForDebug(remoteId: string, target = getDefaultTarget()) {
   const [remoteAlias] = remoteId.split('/');
   if (!remoteAlias) return undefined;
 
@@ -1931,7 +2057,10 @@ function normalizeManifestCircuitBreakerOptions(
   };
 }
 
-function assertManifestCircuitBreakerAllowsRequest(manifestUrl: string, options: ManifestFetchOptions) {
+function assertManifestCircuitBreakerAllowsRequest(
+  manifestUrl: string,
+  options: ManifestFetchOptions,
+) {
   const circuitBreakerOptions = normalizeManifestCircuitBreakerOptions(options.circuitBreaker);
   if (!circuitBreakerOptions) return;
 
@@ -2320,6 +2449,176 @@ export function collectFederationManifestPreloadLinks(
   return links;
 }
 
+function normalizeFederationPreloadRoutes(
+  routes: FederationPreloadRoutes,
+): FederationPreloadRouteConfig[] {
+  if (Array.isArray(routes)) {
+    return routes.map((route) => ({
+      exposes: route.exposes,
+      route: route.route,
+    }));
+  }
+
+  return Object.entries(routes).map(([route, config]) => {
+    if (typeof config === 'object' && !Array.isArray(config)) {
+      return {
+        exposes: config.exposes,
+        route,
+      };
+    }
+    return {
+      exposes: config,
+      route,
+    };
+  });
+}
+
+function normalizeExposeList(exposes: string | string[]) {
+  return Array.isArray(exposes) ? exposes : [exposes];
+}
+
+function resolvePreloadPlanCollectionOptions(
+  options: CreateFederationManifestPreloadPlanOptions,
+): CollectFederationManifestPreloadLinksOptions {
+  const asyncChunkPolicy = options.asyncChunkPolicy || 'css';
+  return {
+    ...options,
+    includeAsyncCss:
+      options.includeAsyncCss ?? (asyncChunkPolicy === 'all' || asyncChunkPolicy === 'css'),
+    includeAsyncJs:
+      options.includeAsyncJs ?? (asyncChunkPolicy === 'all' || asyncChunkPolicy === 'js'),
+  };
+}
+
+function routeMatchesPreloadHint(route: string, hint: FederationManifestPreloadHint) {
+  return !hint.route || hint.route === route;
+}
+
+function hintMatchesExposes(exposes: string[], hint: FederationManifestPreloadHint) {
+  const hintExposes = [
+    ...(hint.expose ? [hint.expose] : []),
+    ...(Array.isArray(hint.exposes) ? hint.exposes : []),
+  ];
+  if (hintExposes.length === 0) {
+    return true;
+  }
+
+  const normalizedExposes = new Set(exposes.map(normalizeExposePath));
+  return hintExposes.some((expose) => normalizedExposes.has(normalizeExposePath(expose)));
+}
+
+function pushFederationManifestHintAssetLinks(
+  links: FederationManifestPreloadLink[],
+  seen: Set<string>,
+  manifestUrl: string,
+  manifest: FederationRemoteManifest,
+  hint: FederationManifestPreloadHint,
+  options: CollectFederationManifestPreloadLinksOptions,
+) {
+  const loading = hint.loading || 'sync';
+  const crossorigin = normalizePreloadCrossorigin(options.crossorigin);
+  const exposePath = hint.expose || hint.exposes?.[0] || '*';
+  const expose = {
+    name: exposePath,
+    path: exposePath,
+  };
+
+  for (const asset of hint.assets?.css || []) {
+    if (options.includeCss === false) continue;
+    pushFederationManifestPreloadLink(links, seen, {
+      assetType: 'css',
+      expose,
+      exposePath,
+      href: resolveFederationManifestAssetUrl(manifestUrl, manifest, asset),
+      loading,
+      rel: 'stylesheet',
+    });
+  }
+
+  for (const asset of hint.assets?.js || []) {
+    if (options.includeJs === false) continue;
+    if (loading === 'async' && options.includeAsyncJs !== true) continue;
+    pushFederationManifestPreloadLink(links, seen, {
+      assetType: 'js',
+      ...(crossorigin ? { crossorigin } : {}),
+      expose,
+      exposePath,
+      href: resolveFederationManifestAssetUrl(manifestUrl, manifest, asset),
+      loading,
+      rel: 'modulepreload',
+    });
+  }
+}
+
+function collectFederationManifestHintLinks(
+  manifestUrl: string,
+  manifest: FederationRemoteManifest,
+  route: FederationPreloadRouteConfig,
+  options: CollectFederationManifestPreloadLinksOptions,
+) {
+  const links: FederationManifestPreloadLink[] = [];
+  const seen = new Set<string>();
+  const exposes = normalizeExposeList(route.exposes);
+  const topLevelHint: FederationManifestPreloadHint | undefined = manifest.preload?.assets
+    ? {
+        assets: manifest.preload.assets,
+      }
+    : undefined;
+  const hints = [...(topLevelHint ? [topLevelHint] : []), ...(manifest.preload?.routes || [])];
+
+  for (const hint of hints) {
+    if (!routeMatchesPreloadHint(route.route, hint) || !hintMatchesExposes(exposes, hint)) {
+      continue;
+    }
+    if (hint.assets) {
+      pushFederationManifestHintAssetLinks(links, seen, manifestUrl, manifest, hint, options);
+    }
+  }
+
+  return links;
+}
+
+export function createFederationManifestPreloadPlan(
+  manifestUrl: string,
+  manifest: FederationRemoteManifest,
+  routes: FederationPreloadRoutes,
+  options: CreateFederationManifestPreloadPlanOptions = {},
+): FederationManifestPreloadPlan {
+  const collectionOptions = resolvePreloadPlanCollectionOptions(options);
+  const includeManifestHints = options.includeManifestHints !== false;
+  const seen = new Set<string>();
+  const allLinks: FederationManifestPreloadLink[] = [];
+  const planRoutes = normalizeFederationPreloadRoutes(routes).map((route) => {
+    const exposes = normalizeExposeList(route.exposes);
+    const routeLinks = [
+      ...collectFederationManifestPreloadLinks(manifestUrl, manifest, exposes, collectionOptions),
+      ...(includeManifestHints
+        ? collectFederationManifestHintLinks(manifestUrl, manifest, route, collectionOptions)
+        : []),
+    ];
+    const dedupedRouteLinks: FederationManifestPreloadLink[] = [];
+    const routeSeen = new Set<string>();
+
+    for (const link of routeLinks) {
+      pushFederationManifestPreloadLink(dedupedRouteLinks, routeSeen, link);
+      pushFederationManifestPreloadLink(allLinks, seen, link);
+    }
+
+    return {
+      exposes,
+      links: dedupedRouteLinks,
+      route: route.route,
+    };
+  });
+
+  return {
+    links: allLinks,
+    manifestUrl,
+    remoteName: manifest.name,
+    routes: planRoutes,
+  };
+}
+
 function appendEntryRefreshTimestamp(
   entryUrl: string,
   target: FederationRuntimeTarget,
@@ -2526,6 +2825,14 @@ function recordManifestIntegrityCheck(entry: ManifestIntegrityCheckLogEntry) {
   debugState.manifestIntegrityChecks.push(entry);
   if (debugState.manifestIntegrityChecks.length > 50) {
     debugState.manifestIntegrityChecks.shift();
+  }
+}
+
+function recordRemoteLoadMetric(entry: RemoteLoadMetricLogEntry) {
+  const debugState = getRuntimeDebugState();
+  debugState.remoteLoadMetrics.push(entry);
+  if (debugState.remoteLoadMetrics.length > 100) {
+    debugState.remoteLoadMetrics.shift();
   }
 }
 
@@ -3383,6 +3690,50 @@ export async function registerManifestRemotes(
   return registrations;
 }
 
+export async function warmFederationRemotes(
+  remotes: Record<string, string | WarmFederationRemoteConfig> | WarmFederationRemoteConfig[],
+  options: RegisterManifestRemoteOptions = {},
+) {
+  const entries = Array.isArray(remotes)
+    ? remotes.map(
+        (remote) =>
+          [remote.remoteAlias || remote.remoteName || remote.manifestUrl, remote] as const,
+      )
+    : Object.entries(remotes);
+
+  const warmed = await Promise.all(
+    entries.map(async ([remoteAlias, remoteConfig]) => {
+      const config =
+        typeof remoteConfig === 'string'
+          ? ({ manifestUrl: remoteConfig } satisfies WarmFederationRemoteConfig)
+          : remoteConfig;
+      const { manifestUrl, preload = true, remoteAlias: _remoteAlias, ...remoteOptions } = config;
+      const registration = await registerManifestRemote(remoteAlias, manifestUrl, {
+        ...options,
+        ...remoteOptions,
+        target: remoteOptions.target || options.target,
+      });
+
+      if (preload !== false) {
+        const preloadConfig =
+          typeof preload === 'object'
+            ? {
+                nameOrAlias: remoteAlias,
+                ...preload,
+              }
+            : {
+                nameOrAlias: remoteAlias,
+              };
+        await preloadRemote([preloadConfig] as Parameters<ModuleFederation['preloadRemote']>[0]);
+      }
+
+      return registration;
+    }),
+  );
+
+  return warmed;
+}
+
 export async function loadRemoteFromManifest<T>(
   remoteId: string,
   manifestUrl: string,
@@ -3414,24 +3765,46 @@ export async function loadRemoteFromManifest<T>(
     ...loadRemoteOptions
   } = options;
 
-  await registerManifestRemote(remoteAlias, manifestUrl, {
-    cache,
-    cacheTtl,
-    circuitBreaker,
-    fallbackUrls,
-    fetch,
-    fetchInit,
-    force,
-    hooks,
-    integrity,
-    remoteName,
-    retries,
-    retryDelay,
-    shareScope,
-    staleWhileRevalidate,
-    target,
-    timeout,
-  });
+  const totalStartedAt = Date.now();
+  let registrationDurationMs: number | undefined;
+  let registration: Awaited<ReturnType<typeof registerManifestRemote>> | undefined;
+
+  try {
+    const registrationStartedAt = Date.now();
+    registration = await registerManifestRemote(remoteAlias, manifestUrl, {
+      cache,
+      cacheTtl,
+      circuitBreaker,
+      fallbackUrls,
+      fetch,
+      fetchInit,
+      force,
+      hooks,
+      integrity,
+      remoteName,
+      retries,
+      retryDelay,
+      shareScope,
+      staleWhileRevalidate,
+      target,
+      timeout,
+    });
+    registrationDurationMs = Date.now() - registrationStartedAt;
+  } catch (error) {
+    const now = Date.now();
+    recordRemoteLoadMetric({
+      durationMs: now - totalStartedAt,
+      error: getRuntimeErrorMessage(error),
+      manifestUrl,
+      phase: 'register',
+      remoteAlias,
+      remoteId,
+      status: 'failure',
+      target: getDefaultTarget(target),
+      timestamp: new Date(now).toISOString(),
+    });
+    throw error;
+  }
 
   const runtimeLoadOptions = {
     from: 'runtime',
@@ -3449,7 +3822,22 @@ export async function loadRemoteFromManifest<T>(
   });
 
   try {
-    const result = await loadRemote<T>(remoteId, runtimeLoadOptions);
+    const registrationRecord = registration as Record<string, unknown>;
+    const result = await loadRemoteWithRuntimeMetrics<T>(remoteId, runtimeLoadOptions, {
+      entry: typeof registrationRecord.entry === 'string' ? registrationRecord.entry : undefined,
+      manifestUrl,
+      remoteAlias,
+      remoteName: typeof registrationRecord.name === 'string' ? registrationRecord.name : undefined,
+      registrationDurationMs,
+      shareScope:
+        typeof registrationRecord.shareScope === 'string'
+          ? registrationRecord.shareScope
+          : shareScope || 'default',
+      sourceUrl: findRegisteredManifestRemoteForDebug(remoteId, getDefaultTarget(target))
+        ?.sourceUrl,
+      target: getDefaultTarget(target),
+      totalStartedAt,
+    });
     emitRuntimeHook(hooks, {
       durationMs: Date.now() - startedAt,
       kind: 'remote-load',
@@ -3494,6 +3882,7 @@ export function clearFederationRuntimeCaches() {
   debugState.manifestIntegrityChecks = [];
   debugState.manifestRequests.clear();
   debugState.manifestSourceUrls.clear();
+  debugState.remoteLoadMetrics = [];
   debugState.registrationRequests.clear();
   debugState.registeredManifestRemotes.clear();
   publishRuntimeDebugUpdate('clear-caches');
@@ -3527,6 +3916,7 @@ export function getFederationDebugInfo() {
       manifestIntegrityChecks: debugState.manifestIntegrityChecks.map((entry) => ({ ...entry })),
       pendingManifestRequests: [...debugState.manifestRequests.keys()],
       pendingRemoteRegistrations: [...debugState.registrationRequests.keys()],
+      remoteLoadMetrics: debugState.remoteLoadMetrics.map((entry) => ({ ...entry })),
       registeredManifestRemotes: [...debugState.registeredManifestRemotes.values()].map(
         (remote) => ({ ...remote }),
       ),
@@ -3564,9 +3954,7 @@ function publishRuntimeDebugUpdate(event: RuntimeDebugEventName) {
   devtoolsGlobal.events ||= [];
   devtoolsGlobal.events.push(payload);
   const eventLimit =
-    typeof devtoolsGlobal.eventLimit === 'number'
-      ? devtoolsGlobal.eventLimit
-      : MAX_DEVTOOLS_EVENTS;
+    typeof devtoolsGlobal.eventLimit === 'number' ? devtoolsGlobal.eventLimit : MAX_DEVTOOLS_EVENTS;
   while (devtoolsGlobal.events.length > eventLimit) {
     devtoolsGlobal.events.shift();
   }
