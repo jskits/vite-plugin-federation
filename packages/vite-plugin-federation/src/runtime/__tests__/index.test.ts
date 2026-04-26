@@ -2076,6 +2076,11 @@ describe('runtime api', () => {
     registerRemotes([{ name: 'remoteApp', entry: 'http://localhost/remoteEntry.js' }] as any);
 
     const devtoolsHook = (globalThis as any).__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
+    expect(devtoolsHook.contractVersion).toBe('1.0.0');
+    expect(devtoolsHook.eventLimit).toBe(50);
+    expect(devtoolsHook.exportSnapshot()).toMatchObject({
+      contractVersion: '1.0.0',
+    });
     expect(devtoolsHook.runtime).toBeTruthy();
     expect(devtoolsHook.events.at(-1)).toMatchObject({
       event: 'register-remotes',
@@ -2083,6 +2088,30 @@ describe('runtime api', () => {
     expect(dispatchEvent).toHaveBeenCalledTimes(1);
     expect(dispatchEvent.mock.calls[0][0]).toMatchObject({
       type: 'vite-plugin-federation:debug',
+    });
+  });
+
+  it('retains devtools runtime events up to the contract event limit', () => {
+    vi.stubGlobal('window', { dispatchEvent: vi.fn() });
+    class MockCustomEvent {
+      constructor(
+        public type: string,
+        public init?: { detail?: unknown },
+      ) {}
+    }
+    vi.stubGlobal('CustomEvent', MockCustomEvent as any);
+
+    for (let index = 0; index < 55; index += 1) {
+      registerRemotes([
+        { name: `remoteApp${index}`, entry: `http://localhost/${index}/remoteEntry.js` },
+      ] as any);
+    }
+
+    const devtoolsHook = (globalThis as any).__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
+    expect(devtoolsHook.events).toHaveLength(50);
+    expect(devtoolsHook.exportSnapshot().events).toHaveLength(50);
+    expect(devtoolsHook.events[0]).toMatchObject({
+      event: 'register-remotes',
     });
   });
 });

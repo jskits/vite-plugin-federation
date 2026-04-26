@@ -290,18 +290,21 @@ Current state:
 - `mf-debug.json` exists.
 - `getFederationDebugInfo()` exposes runtime state.
 - Browser runtime dispatches debug events.
-- A minimal devtools overlay exists.
+- The browser global `window.__VITE_PLUGIN_FEDERATION_DEVTOOLS__` now exposes a documented
+  `contractVersion`, bounded event retention, app payloads, the latest runtime snapshot, and
+  `exportSnapshot()`/`copySnapshot()` helpers.
+- The devtools endpoint advertises overlay capabilities and serves the same payload shape injected
+  into the page.
+- The built-in overlay renders runtime errors, registered remotes, manifest fetch timeline, shared
+  resolution graph, preload state, and recent devtools events.
+- Unit coverage validates endpoint payload shape, injected overlay panels, runtime event publishing,
+  and event retention behavior.
+- `docs/devtools-runtime-contract.md` documents the stable global contract for external tooling.
 
 Remaining work:
 
-- Add shared resolution graph visualization.
-- Add manifest cache and fetch timeline visualization.
-- Add preload graph visualization.
-- Add remote registry and refresh history visualization.
-- Add runtime error panel with error code, remote id, manifest URL, and stack.
-- Add copy/export debug snapshot action.
-- Add a stable `window.__VITE_PLUGIN_FEDERATION_DEVTOOLS__` contract document.
-- Add tests for overlay payload shape and event retention behavior.
+- No further DevTools-specific P1 gaps are currently tracked beyond keeping the overlay optional and
+  the contract backward compatible.
 
 Acceptance criteria:
 

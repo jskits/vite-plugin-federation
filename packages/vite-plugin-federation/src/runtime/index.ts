@@ -39,6 +39,8 @@ const NODE_VM_IMPORT_GLOBAL_KEY = '__VITE_PLUGIN_FEDERATION_IMPORT_NODE_VM__';
 const MANIFEST_URL_RE = /(?:^|\/)(?:mf-)?manifest(?:\.[\w-]+)?\.json(?:$|[?#])/i;
 const SHARED_DIAGNOSTICS_PLUGIN_NAME = 'vite-plugin-federation:shared-diagnostics';
 const MAX_SHARED_RESOLUTION_EVENTS = 100;
+const DEVTOOLS_CONTRACT_VERSION = '1.0.0';
+const MAX_DEVTOOLS_EVENTS = 50;
 
 export type FederationRuntimeTarget = 'web' | 'node';
 
@@ -1523,14 +1525,26 @@ function getDevtoolsGlobal() {
   const state = globalThis as typeof globalThis & {
     __VITE_PLUGIN_FEDERATION_DEVTOOLS__?: {
       apps?: Record<string, unknown>;
+      contractVersion?: string;
+      eventLimit?: number;
       events?: Array<Record<string, unknown>>;
+      exportSnapshot?: () => unknown;
       lastUpdatedAt?: string;
       runtime?: unknown;
     };
   };
 
   state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__ ||= {};
+  state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__.contractVersion = DEVTOOLS_CONTRACT_VERSION;
+  state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__.eventLimit = MAX_DEVTOOLS_EVENTS;
   state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__.events ||= [];
+  state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__.exportSnapshot ||= () => ({
+    apps: state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__?.apps || {},
+    contractVersion: state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__?.contractVersion,
+    events: [...(state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__?.events || [])],
+    lastUpdatedAt: state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__?.lastUpdatedAt || null,
+    runtime: state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__?.runtime || null,
+  });
 
   return state.__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
 }
@@ -3110,7 +3124,11 @@ function publishRuntimeDebugUpdate(event: RuntimeDebugEventName) {
   devtoolsGlobal.runtime = payload.snapshot;
   devtoolsGlobal.events ||= [];
   devtoolsGlobal.events.push(payload);
-  if (devtoolsGlobal.events.length > 20) {
+  const eventLimit =
+    typeof devtoolsGlobal.eventLimit === 'number'
+      ? devtoolsGlobal.eventLimit
+      : MAX_DEVTOOLS_EVENTS;
+  while (devtoolsGlobal.events.length > eventLimit) {
     devtoolsGlobal.events.shift();
   }
   devtoolsGlobal.lastUpdatedAt = payload.timestamp;

@@ -57,8 +57,18 @@ describe('pluginDevtools', () => {
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
     expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
     expect(JSON.parse(res.end.mock.calls[0][0])).toEqual({
+      capabilities: {
+        copySnapshot: true,
+        manifestTimeline: true,
+        preloadGraph: true,
+        remoteRegistry: true,
+        runtimeErrors: true,
+        sharedGraph: true,
+      },
+      contractVersion: '1.0.0',
       debugUrl: '/app/mf-debug.json',
       endpoint: '/app/__mf_devtools',
+      eventLimit: 50,
       exposes: [
         {
           cssMode: 'manual',
@@ -103,8 +113,17 @@ describe('pluginDevtools', () => {
     expect(tags).toHaveLength(1);
     expect(tags[0].tag).toBe('script');
     expect(tags[0].children).toContain('__VITE_PLUGIN_FEDERATION_DEVTOOLS__');
+    expect(tags[0].children).toContain('contractVersion');
+    expect(tags[0].children).toContain('exportSnapshot');
+    expect(tags[0].children).toContain('copySnapshot');
     expect(tags[0].children).toContain('vite-plugin-federation:devtools-ready');
     expect(tags[0].children).toContain('__vite_plugin_federation_devtools_overlay');
+    expect(tags[0].children).toContain('data-mf-copy');
+    expect(tags[0].children).toContain('data-mf-error');
+    expect(tags[0].children).toContain('data-mf-remotes');
+    expect(tags[0].children).toContain('data-mf-manifest-timeline');
+    expect(tags[0].children).toContain('data-mf-shared-graph');
+    expect(tags[0].children).toContain('data-mf-preload-graph');
     expect(tags[0].children).toContain('vite-plugin-federation:remote-update');
     expect(tags[0].children).toContain('"manifestUrl":"/app/federation/manifest.json"');
   });

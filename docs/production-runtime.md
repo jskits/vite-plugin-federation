@@ -323,7 +323,8 @@ console.table(getFederationDebugInfo().runtime.sharedResolutionGraph);
 ```
 
 Browser runtimes also dispatch `vite-plugin-federation:debug` events after runtime mutations. The
-devtools sidecar consumes the same event stream.
+devtools sidecar consumes the same event stream. The stable browser global contract is documented in
+[devtools-runtime-contract.md](devtools-runtime-contract.md).
 
 ## Error Handling
 
