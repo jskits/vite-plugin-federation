@@ -23,7 +23,7 @@ coverage and future maintenance areas to keep guarded as the public API evolves.
 
 ## P0 - GA Blockers
 
-These items should be completed before calling the plugin production complete.
+These items are completed and remain part of the GA regression bar.
 
 ### 1. Shared Runtime Semantics And Diagnostics
 
@@ -65,7 +65,7 @@ Current state:
   and no host provider is available, and normal shared wrappers fall back to the local prebuild
   source when runtime share resolution returns `false`.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further shared runtime P0 gaps are currently tracked beyond keeping unit and e2e shared
   diagnostics coverage green.
@@ -77,7 +77,7 @@ Acceptance criteria:
 - pnpm workspace and symlinked dependency layouts pass both unit and e2e tests.
 - `getFederationDebugInfo()` exposes enough shared graph data to debug production incidents.
 
-Suggested commits:
+Implemented commit themes:
 
 - `feat: add shared resolution graph diagnostics`
 - `feat: support node_modules suffix shared matching`
@@ -112,7 +112,7 @@ Current state:
 - Framework runtime examples are covered separately by Vue/Svelte/Lit production builds; the
   TypeScript/DTS contract is covered by the dedicated TS producer/consumer examples.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further Type System P0 gaps are currently tracked beyond adding framework-specific DTS
   fixtures if a concrete Vue/Svelte/Lit type-generation requirement is introduced later.
@@ -124,7 +124,7 @@ Acceptance criteria:
 - DTS failures have clear diagnostics and predictable `abortOnError` behavior.
 - Type artifacts are covered in CI, not only by unit-level plugin smoke tests.
 
-Suggested commits:
+Implemented commit themes:
 
 - `test: add federation dts generation e2e`
 - `test: add federation dts consumption e2e`
@@ -153,7 +153,7 @@ Current state:
 - The production runtime guide documents SSR deployment patterns, public path/proxy behavior,
   `ssr.external`/`ssr.noExternal` expectations, and the VM module loader migration strategy.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further SSR-specific P0 gaps are currently tracked beyond keeping the SSR example and e2e
   matrix green in CI.
@@ -165,7 +165,7 @@ Acceptance criteria:
 - SSR failure modes produce actionable error codes and debug snapshots.
 - Users have a documented deployment recipe for SSR remotes.
 
-Suggested commits:
+Implemented commit themes:
 
 - `test: add ssr manifest consumption e2e`
 - `feat: improve ssr remote diagnostics`
@@ -194,7 +194,7 @@ Current state:
 - Backward/forward compatibility rules and manifest hosting/cache rules are documented as part of
   the manifest protocol.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further manifest protocol gaps are currently tracked beyond keeping schema and integrity
   checks covered in CI.
@@ -206,7 +206,7 @@ Acceptance criteria:
 - Future schema changes can be tested against fixtures.
 - External tools can safely consume the manifest and stats artifacts.
 
-Suggested commits:
+Implemented commit themes:
 
 - `test: add manifest schema compatibility fixtures`
 - `feat: add target-specific manifest validation`
@@ -239,7 +239,7 @@ Current state:
 - A compatibility matrix documents supported, partially supported, and unsupported remote formats,
   `from` combinations, OriginJS APIs, and CSS migration behavior.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further compatibility-specific gaps are currently tracked beyond keeping the matrix covered in CI.
 
@@ -249,7 +249,7 @@ Acceptance criteria:
 - Unsupported compatibility combinations fail with clear messages.
 - Compatibility logic stays isolated from the main manifest-first runtime path.
 
-Suggested commits:
+Implemented commit themes:
 
 - `test: add originjs compatibility e2e`
 - `feat: harden legacy remote format adapters`
@@ -257,7 +257,7 @@ Suggested commits:
 
 ## P1 - Production Quality Improvements
 
-These are not blockers for a beta, but they are important for a polished production release.
+These production-quality improvements are completed and should stay covered as the plugin evolves.
 
 ### 6. Dev HMR Beyond Full Reload
 
@@ -275,7 +275,7 @@ Current state:
   type data without reloading.
 - `docs/dev-hmr.md` documents strategies, batching, browser events, and fallback rules.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further Dev HMR P1 gaps are currently tracked beyond adding framework-specific HMR e2e if a
   framework-specific HMR contract is introduced later.
@@ -286,7 +286,7 @@ Acceptance criteria:
 - Unsupported HMR cases fall back predictably.
 - Devtools or debug output explains the chosen reload strategy.
 
-Suggested commits:
+Implemented commit themes:
 
 - `feat: add remote expose partial hmr graph`
 - `test: add react remote partial hmr e2e`
@@ -310,7 +310,7 @@ Current state:
   and event retention behavior.
 - `docs/devtools-runtime-contract.md` documents the stable global contract for external tooling.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further DevTools-specific P1 gaps are currently tracked beyond keeping the overlay optional and
   the contract backward compatible.
@@ -321,7 +321,7 @@ Acceptance criteria:
 - Runtime debug information is stable enough for external tooling.
 - DevTools stays optional and has no production overhead when disabled.
 
-Suggested commits:
+Implemented commit themes:
 
 - `feat: expand federation devtools overlay`
 - `docs: document devtools runtime contract`
@@ -346,7 +346,7 @@ Current state:
   verification is enabled.
 - Route-level fallback recipes are documented in the production runtime guide.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further runtime resilience P1 gaps are currently tracked beyond keeping rollout controls
   covered by unit tests and docs.
@@ -357,7 +357,7 @@ Acceptance criteria:
 - Repeated remote failures can be observed and throttled.
 - Runtime controls are documented and covered by unit tests.
 
-Suggested commits:
+Implemented commit themes:
 
 - `feat: add manifest fallback urls`
 - `feat: add runtime telemetry hooks`
@@ -377,7 +377,7 @@ Current state:
 - `docs/compiler-adapter.md` documents Vite/Rolldown adapter rules, control chunk constraints, Vite
   version policy, and the intentional `tsup` CJS named/default export warning.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further compiler adapter P1 gaps are currently tracked beyond adding explicit multi-version
   Vite matrix jobs when the example matrix is expanded.
@@ -388,7 +388,7 @@ Acceptance criteria:
 - Manual chunk customization cannot break federation bootstrap ordering.
 - Transforms preserve useful source maps.
 
-Suggested commits:
+Implemented commit themes:
 
 - `test: add vite version compatibility matrix`
 - `test: add control chunk output snapshots`
@@ -396,7 +396,8 @@ Suggested commits:
 
 ## P2 - Ecosystem And Documentation Completeness
 
-These items make the plugin easier to adopt and maintain across real projects.
+These adoption and maintenance improvements are completed and should stay aligned with real
+projects.
 
 ### 10. Example And E2E Matrix
 
@@ -422,7 +423,7 @@ Current state:
 - `test:e2e:browser-matrix` reuses the multi-remote manifest scenario across Chromium, Firefox,
   and WebKit in the scheduled/manual Extended E2E workflow.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further example/e2e matrix gaps are currently tracked beyond keeping the scheduled browser
   matrix within CI time budgets.
@@ -433,7 +434,7 @@ Acceptance criteria:
 - E2E tests cover at least one path for every production-critical feature.
 - Example commands are documented and run through CI or a scheduled workflow.
 
-Suggested commits:
+Implemented commit themes:
 
 - `example: add vue federation example`
 - `example: add dts federation example`
@@ -459,7 +460,7 @@ Current state:
 - Existing DTS, compatibility matrix, production SSR, devtools contract, and release checklist docs
   are linked from README.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further API/migration documentation gaps are currently tracked beyond keeping references in
   sync with public API changes.
@@ -470,7 +471,7 @@ Acceptance criteria:
 - Error codes link to troubleshooting steps.
 - Migration users can predict required code/config changes.
 
-Suggested commits:
+Implemented commit themes:
 
 - `docs: add plugin api reference`
 - `docs: add originjs migration guide`
@@ -494,7 +495,7 @@ Current state:
 - Package exports include root and runtime entry.
 - Build produces ESM, CJS, and DTS.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further CI/release P1 gaps are currently tracked beyond keeping release docs and workflows
   aligned with package policy.
@@ -505,7 +506,7 @@ Acceptance criteria:
 - CI catches broken exports, missing files, and invalid generated types.
 - Release steps are reproducible and documented.
 
-Suggested commits:
+Implemented commit themes:
 
 - `ci: add package smoke test`
 - `ci: add extended e2e workflow`
@@ -513,7 +514,8 @@ Suggested commits:
 
 ## P3 - Advanced Differentiators
 
-These items are valuable, but they can follow after the GA baseline.
+These differentiators are implemented and remain optional extension points for future concrete
+requirements.
 
 ### 13. Advanced Preload And Performance Optimization
 
@@ -532,7 +534,7 @@ Current state:
 - Unit coverage validates route preload plans, warm remote behavior, and remote load metrics.
 - `docs/preload-performance.md` documents the API and performance budget guidance.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further advanced preload/performance P3 gaps are currently tracked beyond adding broader
   browser-level budget checks when the example matrix is expanded.
@@ -559,7 +561,7 @@ Current state:
 - `docs/security.md` documents CORS, CSP, Trusted Types, remote script policy, private manifests,
   authenticated loading, and signed manifest design notes.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further security/supply-chain P3 gaps are currently tracked beyond integrating signed manifest
   verification if a concrete key-management requirement is added later.
@@ -583,7 +585,7 @@ Current state:
   remote diagnostics across separate runtime keys/share scopes.
 - `docs/multi-tenant.md` documents scoped runtime usage and tenant-specific share scope guidance.
 
-Remaining work:
+Maintenance guardrails:
 
 - No further multi-tenant P3 gaps are currently tracked beyond adding a browser example if a
   concrete tenant shell scenario is added to the example matrix.
