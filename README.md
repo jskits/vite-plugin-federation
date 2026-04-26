@@ -50,6 +50,7 @@ This repo includes a minimal React host/remote verification pair:
 - `examples/svelte-host`
 - `examples/lit-remote`
 - `examples/lit-host`
+- `examples/multi-remote-host`
 - `examples/dts-remote`
 - `examples/dts-host`
 

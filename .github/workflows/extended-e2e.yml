@@ -34,6 +34,9 @@ jobs:
       - name: Shared runtime e2e
         run: pnpm --filter vite-plugin-federation test:e2e:shared
 
+      - name: Multi-remote e2e
+        run: CI=1 pnpm --filter vite-plugin-federation test:e2e:multi-remote
+
       - name: SSR e2e
         run: CI=1 pnpm --filter vite-plugin-federation test:e2e:ssr
 

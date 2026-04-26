@@ -403,12 +403,15 @@ Current state:
   Svelte singleton metadata in production builds.
 - Lit host/remote examples validate web component remotes, manifest consumption, and shared Lit
   singleton metadata in production builds.
+- `examples/multi-remote-host` validates one host consuming React and Lit manifest remotes in the
+  same runtime.
+- A dedicated multi-remote Playwright e2e covers the React + Lit manifest remote combination and is
+  included in the scheduled/manual Extended E2E workflow.
 - React SSR host exists.
 - Dev remote HMR e2e exists.
 
 Remaining work:
 
-- Add multi-remote host example.
 - Add host consuming both manifest and legacy remoteEntry remotes.
 - Add pnpm workspace/symlink shared dependency example.
 - Add DTS producer/consumer example.
