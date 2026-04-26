@@ -877,7 +877,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
         if (isRolldown) {
           implementation = implementation.replace(/\.cjs(\.js)?$/, '.js');
         }
-        // TODO: singleton
+        // Keep every runtime import pinned to the configured bridge so federation state is shared.
         (config.resolve as any).alias.push({
           find: '@module-federation/runtime',
           replacement: implementation,
