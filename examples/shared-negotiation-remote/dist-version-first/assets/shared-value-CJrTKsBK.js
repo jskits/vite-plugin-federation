@@ -1,1 +1,0 @@
-var e={label:`remote shared value`,origin:`remote`,version:`2.0.0`};export{e as default};

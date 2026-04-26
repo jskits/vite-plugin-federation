@@ -8,7 +8,7 @@ debug tooling.
 When devtools are enabled, the plugin creates or reuses:
 
 ```ts
-window.__VITE_PLUGIN_FEDERATION_DEVTOOLS__
+window.__VITE_PLUGIN_FEDERATION_DEVTOOLS__;
 ```
 
 The current contract version is `1.0.0`.

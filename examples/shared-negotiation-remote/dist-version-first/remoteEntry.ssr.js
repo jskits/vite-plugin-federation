@@ -1,1 +1,0 @@
-import{n as e,t}from"./assets/virtual_mf-SSR_REMOTE_ENTRY_ID___mfe_internal__sharedRemote__remoteEntry_js-CDF5Oio3.js";export{t as get,e as init};

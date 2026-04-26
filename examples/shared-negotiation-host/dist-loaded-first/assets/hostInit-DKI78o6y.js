@@ -1,1 +1,0 @@
-await(await import(`./remoteEntry-D406gCEz.js`)).init();

@@ -342,7 +342,13 @@ function classifyRemoteUpdate(
   if (exposeName) {
     return {
       action: 'partial-reload',
-      dependencyGraph: createDependencyGraph(server, options, normalizedFile, exposeName, matchedBy),
+      dependencyGraph: createDependencyGraph(
+        server,
+        options,
+        normalizedFile,
+        exposeName,
+        matchedBy,
+      ),
       expose: exposeName,
       file: normalizedFile,
       kind: 'expose',
@@ -591,8 +597,7 @@ async function triggerHostRemoteExposeUpdate(
       data: {
         ...payload,
         action: 'full-reload',
-        fallbackReason:
-          'No matching host virtual modules were found for the remote expose update.',
+        fallbackReason: 'No matching host virtual modules were found for the remote expose update.',
         strategy: 'full',
       },
     });

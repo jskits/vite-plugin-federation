@@ -243,7 +243,7 @@ describe('virtualRemoteEntry', () => {
     expect(code).toContain(
       'throw new Error("[Module Federation] Shared module \\"host-only-dep\\" must be provided by the host because import: false is configured. requiredVersion=^1.2.3, strictVersion=true");',
     );
-    expect(code).not.toContain("must be provided by host`");
+    expect(code).not.toContain('must be provided by host`');
   });
 
   it('writes host auto init waiting on __tla before init', async () => {

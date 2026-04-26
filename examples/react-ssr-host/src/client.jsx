@@ -83,10 +83,7 @@ async function bootstrap() {
     label: 'SSR rendered via Node runtime',
   };
   const hydrationFederationDebug = createHydrationFederationDebug(remoteManifestUrl);
-  assertHydrationFederationCompatibility(
-    window.__SSR_FEDERATION_DEBUG__,
-    hydrationFederationDebug,
-  );
+  assertHydrationFederationCompatibility(window.__SSR_FEDERATION_DEBUG__, hydrationFederationDebug);
   window.__SSR_HYDRATION_DEBUG__ = hydrationFederationDebug;
 
   hydrateRoot(root, <AppShell RemoteButton={RemoteButton} buttonProps={buttonProps} />);

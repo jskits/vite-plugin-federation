@@ -18,12 +18,12 @@ usage.
 
 Remote updates are classified before they are broadcast to hosts:
 
-| Strategy | Action | Trigger |
-| --- | --- | --- |
+| Strategy  | Action           | Trigger                                                                            |
+| --------- | ---------------- | ---------------------------------------------------------------------------------- |
 | `partial` | `partial-reload` | A changed file is a configured expose entry or is inside an expose importer graph. |
-| `style` | `style-update` | A changed stylesheet belongs to a known expose. |
-| `types` | `types-update` | A declaration file changed. |
-| `full` | `full-reload` | The file is outside the known expose graph or partial reload cannot be applied. |
+| `style`   | `style-update`   | A changed stylesheet belongs to a known expose.                                    |
+| `types`   | `types-update`   | A declaration file changed.                                                        |
+| `full`    | `full-reload`    | The file is outside the known expose graph or partial reload cannot be applied.    |
 
 Every payload includes `reason`, `strategy`, `batchId`, and a small `dependencyGraph` object with
 the matched expose, changed file, importer preview, and match mode.

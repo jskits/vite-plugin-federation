@@ -1,5 +1,8 @@
 .turbo
 coverage
 dist
+**/dist
+**/dist-*
+**/dist-ssr
 node_modules
 package-lock.json

@@ -1,1 +1,0 @@
-var e={label:`host shared value`,origin:`host`,version:`1.0.0`};export{e as default};
