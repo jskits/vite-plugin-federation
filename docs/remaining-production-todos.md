@@ -459,17 +459,21 @@ Current state:
 - CI runs `pnpm check`.
 - CI now installs a clean temporary Vite app from a real `pnpm pack` tarball and verifies the
   package can build there.
+- Package smoke also verifies `sideEffects: false` and checks that production output does not
+  include the devtools overlay bootstrap.
 - Release workflow validates `pnpm pack --dry-run` before publishing.
 - Release workflow is manual-only.
+- A separate manual/scheduled Extended E2E workflow runs compatibility, shared runtime, SSR, and DTS
+  dev e2e suites on Node 22 without adding release workflow pressure to normal pushes.
+- `docs/release-checklist.md` documents Changeset policy, pre-`1.0.0` versioning policy, package
+  quality gates, release steps, and rollback notes.
 - Package exports include root and runtime entry.
 - Build produces ESM, CJS, and DTS.
 
 Remaining work:
 
-- Add scheduled or manual extended e2e workflow for heavier framework matrix tests.
-- Add changeset policy documentation.
-- Validate package side effects and tree-shaking behavior.
-- Decide package versioning policy before first public release.
+- No further CI/release P1 gaps are currently tracked beyond keeping release docs and workflows
+  aligned with package policy.
 
 Acceptance criteria:
 

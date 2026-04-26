@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -9,6 +9,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const packageDir = path.join(repoRoot, 'packages', 'vite-plugin-federation');
 const packageJson = JSON.parse(await readFile(path.join(packageDir, 'package.json'), 'utf8'));
+const productionDevtoolsMarker = '__vite_plugin_federation_devtools_overlay';
 
 function run(command, args, cwd) {
   try {
@@ -26,6 +27,23 @@ function run(command, args, cwd) {
   }
 }
 
+async function readBuiltJavaScriptFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return readBuiltJavaScriptFiles(entryPath);
+      }
+      if (entry.isFile() && entry.name.endsWith('.js')) {
+        return [await readFile(entryPath, 'utf8')];
+      }
+      return [];
+    }),
+  );
+  return files.flat();
+}
+
 async function main() {
   const tempRoot = await mkdtemp(path.join(tmpdir(), 'vite-plugin-federation-smoke-'));
   const packDir = path.join(tempRoot, 'pack');
@@ -34,6 +52,10 @@ async function main() {
   try {
     console.log('Building workspace package...');
     run('pnpm', ['--filter', 'vite-plugin-federation', 'build'], repoRoot);
+
+    if (packageJson.sideEffects !== false) {
+      throw new Error('package.json must declare "sideEffects": false for tree-shaking.');
+    }
 
     console.log('Packing tarball with pnpm pack...');
     await mkdir(packDir, { recursive: true });
@@ -158,6 +180,12 @@ createRoot(document.querySelector('#app')).render(<App />);
       throw new Error(
         `Temporary app build is missing expected outputs: ${missingOutputs.join(', ')}`,
       );
+    }
+
+    const productionJs = (await readBuiltJavaScriptFiles(path.join(appDir, 'dist'))).join('\n');
+
+    if (productionJs.includes(productionDevtoolsMarker)) {
+      throw new Error('Production build unexpectedly includes the devtools overlay bootstrap.');
     }
 
     console.log(`Package smoke test passed using ${path.basename(tarballPath)}`);
