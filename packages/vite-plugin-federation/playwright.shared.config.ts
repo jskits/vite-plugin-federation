@@ -7,7 +7,7 @@ const repoRoot = path.resolve(packageDir, '../..');
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: /shared-(?:negotiation|fallback)\.spec\.ts/,
+  testMatch: /shared-(?:negotiation|fallback|workspace)\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
@@ -80,6 +80,24 @@ export default defineConfig({
       stderr: 'pipe',
       timeout: 60_000,
       url: 'http://localhost:4185/',
+    },
+    {
+      command: 'corepack pnpm --filter example-workspace-shared-remote preview',
+      cwd: repoRoot,
+      reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 60_000,
+      url: 'http://localhost:4200/',
+    },
+    {
+      command: 'corepack pnpm --filter example-workspace-shared-host preview',
+      cwd: repoRoot,
+      reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 60_000,
+      url: 'http://localhost:4201/',
     },
   ],
 });

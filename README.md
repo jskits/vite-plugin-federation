@@ -51,6 +51,9 @@ This repo includes a minimal React host/remote verification pair:
 - `examples/lit-remote`
 - `examples/lit-host`
 - `examples/multi-remote-host`
+- `examples/workspace-shared-lib`
+- `examples/workspace-shared-remote`
+- `examples/workspace-shared-host`
 - `examples/dts-remote`
 - `examples/dts-host`
 

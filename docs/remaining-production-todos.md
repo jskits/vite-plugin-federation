@@ -407,13 +407,16 @@ Current state:
   same runtime.
 - A dedicated multi-remote Playwright e2e covers the React + Lit manifest remote combination and is
   included in the scheduled/manual Extended E2E workflow.
+- `examples/workspace-shared-lib`, `examples/workspace-shared-remote`, and
+  `examples/workspace-shared-host` validate pnpm workspace symlink shared packages, exact subpath
+  matching, `allowNodeModulesSuffixMatch`, and workspace package diagnostics in production
+  build/preview flows.
 - React SSR host exists.
 - Dev remote HMR e2e exists.
 
 Remaining work:
 
 - Add host consuming both manifest and legacy remoteEntry remotes.
-- Add pnpm workspace/symlink shared dependency example.
 - Add DTS producer/consumer example.
 - Add SSR e2e with request-level HTML assertions.
 - Add browser matrix if CI time allows.

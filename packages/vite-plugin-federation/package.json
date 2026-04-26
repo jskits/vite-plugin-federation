@@ -39,7 +39,7 @@
     "test:e2e:compat": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-webpack-systemjs-remote build && pnpm --filter example-originjs-compat-host build && playwright test --config playwright.compat.config.ts",
     "test:e2e:dts:dev": "pnpm build && node e2e/dts-dev-hot-sync.mjs",
     "test:e2e:multi-remote": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-lit-remote build && pnpm --filter example-multi-remote-host build && playwright test --config playwright.multi-remote.config.ts",
-    "test:e2e:shared": "pnpm build && pnpm --filter example-shared-strict-fallback-app build && pnpm --filter example-shared-host-only-remote build && pnpm --filter example-shared-host-only-host build && pnpm --filter example-shared-negotiation-remote build && pnpm --filter example-shared-negotiation-host build && playwright test --config playwright.shared.config.ts",
+    "test:e2e:shared": "pnpm build && pnpm --filter example-shared-strict-fallback-app build && pnpm --filter example-shared-host-only-remote build && pnpm --filter example-shared-host-only-host build && pnpm --filter example-shared-negotiation-remote build && pnpm --filter example-shared-negotiation-host build && pnpm --filter example-workspace-shared-remote build && pnpm --filter example-workspace-shared-host build && playwright test --config playwright.shared.config.ts",
     "test:e2e:ssr": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-react-ssr-host build && playwright test --config playwright.ssr.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "typecheck": "tsc --project tsconfig.json --noEmit"
