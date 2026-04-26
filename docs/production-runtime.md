@@ -243,6 +243,28 @@ const [manifest, remoteModule] = await Promise.all([
 
 Node SSR currently relies on the VM module loader for remote ESM evaluation. Run SSR examples with
 `--experimental-vm-modules` until the Node loading strategy is replaced or no longer needs the flag.
+The VM module loader is treated as a temporary Node bridge hidden behind
+`createServerFederationInstance()`: keep application code on the runtime APIs above so the loader can
+move to native Node import/materialized server chunks later without changing host code.
+
+Production SSR hosts should keep the server and browser federation paths explicitly comparable:
+
+- The server should inject the manifest URL it used into the HTML, and the browser should hydrate
+  with the same value.
+- The server target selects `metaData.ssrRemoteEntry` first; the browser target selects
+  `metaData.remoteEntry` first. The runtime debug snapshot records the selected `entry`, `target`,
+  `manifestUrl`, and `shareScope` under `registeredManifestRemotes`.
+- React, Vue, or other framework runtimes should use the same share scope and compatible singleton
+  versions on both sides. The React SSR example fails hydration early if the manifest URL, remote id,
+  share scope, or React version diverges.
+- The host SSR build should leave `vite-plugin-federation/runtime` external so Node uses the package
+  runtime entry and a single debug state. The React remote example keeps React SSR packages in
+  `ssr.noExternal` and validates the generated `ssrRemoteEntry` through the SSR e2e test.
+
+When SSR remote loading fails, `getFederationDebugInfo().runtime.lastLoadError` includes the error
+code, `remoteId`, `remoteAlias`, selected `entry`, `manifestUrl`, `target`, and `shareScope` when
+that context is available. Node entry loader failures are wrapped as `MFV-004` with guidance to
+check server-side fetch reachability, ESM SSR output, and the `--experimental-vm-modules` flag.
 
 ## SSR Asset Collection
 

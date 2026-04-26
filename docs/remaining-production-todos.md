@@ -134,17 +134,23 @@ Current state:
 - Manifest-driven asset/preload helper exists.
 - A dedicated SSR Playwright config validates manifest remote server rendering and browser
   hydration.
+- Runtime SSR diagnostics preserve manifest URL, selected remote entry, target, share scope, and
+  remote alias/name on `lastLoadError`.
+- Node SSR entry loader failures are wrapped with actionable `MFV-004` guidance for server-side
+  fetch reachability, ESM SSR output, and the current `--experimental-vm-modules` requirement.
+- The React SSR example injects server-side federation debug data into the HTML, recreates matching
+  browser-side hydration debug data, and fails hydration early if manifest URL, remote id, share
+  scope, or React version diverges.
+- SSR e2e validates request-level HTML, server/client manifest consistency, React singleton version
+  consistency, selected node/web entries, remote preload links, host `ssr.external`, and remote
+  `ssrRemoteEntry` output.
+- The production runtime guide documents SSR deployment patterns, public path/proxy behavior,
+  `ssr.external`/`ssr.noExternal` expectations, and the VM module loader migration strategy.
 
 Remaining work:
 
-- Validate hydration uses the same manifest URL and compatible share scope.
-- Validate React singleton sharing across server render and browser hydration.
-- Add tests for `ssr.external` and `ssr.noExternal` interactions.
-- Add tests for server-only remote entry failure and fallback behavior.
-- Decide whether Node VM module loading is a permanent strategy or a temporary bridge.
-- If temporary, design a path to remove or hide the `--experimental-vm-modules` requirement.
-- Validate SSR public path behavior when browser and server assets are served from different origins.
-- Add SSR failure diagnostics for entry selection, node loader failures, and hydration mismatch risks.
+- No further SSR-specific P0 gaps are currently tracked beyond keeping the SSR example and e2e
+  matrix green in CI.
 
 Acceptance criteria:
 

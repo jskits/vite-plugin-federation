@@ -101,3 +101,7 @@ export function getRemoteManifestUrl() {
 export function getRemoteRequestId() {
   return REMOTE_REQUEST_ID;
 }
+
+export function getRemoteAlias() {
+  return REMOTE_REQUEST_ID.split('/')[0];
+}

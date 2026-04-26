@@ -263,8 +263,14 @@ interface RuntimeSharedResolutionEntry {
 interface RuntimeDebugState {
   lastLoadError: {
     code: ModuleFederationErrorCode;
+    entry?: string;
+    manifestUrl?: string;
     message: string;
+    remoteAlias?: string;
     remoteId: string;
+    remoteName?: string;
+    shareScope?: string;
+    target?: FederationRuntimeTarget;
     timestamp: string;
   } | null;
   lastLoadRemote: {
@@ -866,7 +872,31 @@ function getDistinctRejectedVersions(rejected: RuntimeSharedCandidateSnapshot[])
 }
 
 function isModuleFederationErrorCode(error: unknown, code: ModuleFederationErrorCode) {
-  return error instanceof Error && (error as Error & { code?: unknown }).code === code;
+  return getModuleFederationErrorCode(error) === code;
+}
+
+function getModuleFederationErrorCode(error: unknown): ModuleFederationErrorCode | undefined {
+  const code = error instanceof Error ? (error as Error & { code?: unknown }).code : undefined;
+  if (
+    code === 'MFV-001' ||
+    code === 'MFV-002' ||
+    code === 'MFV-003' ||
+    code === 'MFV-004' ||
+    code === 'MFV-005' ||
+    code === 'MFV-006' ||
+    code === 'MFV-007'
+  ) {
+    return code;
+  }
+  return undefined;
+}
+
+function getRuntimeErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function stripFormattedModuleFederationPrefix(message: string) {
+  return message.replace(/^\[Module Federation\](?:\s+MFV-\d{3})?\s+/, '');
 }
 
 function reportSingletonConflict(
@@ -1432,9 +1462,17 @@ async function loadNodeRuntimeModule(url: string): Promise<any> {
 }
 
 async function loadNodeRuntimeModuleNamespace(url: string) {
-  const module = await loadNodeRuntimeModule(url);
-  await module.evaluate();
-  return module.namespace;
+  try {
+    const module = await loadNodeRuntimeModule(url);
+    await module.evaluate();
+    return module.namespace;
+  } catch (error) {
+    const cause = stripFormattedModuleFederationPrefix(getRuntimeErrorMessage(error));
+    throw createModuleFederationError(
+      'MFV-004',
+      `Failed to load node federation entry "${url}". Ensure the SSR host can fetch the remote entry from the server process, the remote exposes an ESM SSR entry, and Node is started with --experimental-vm-modules when SourceTextModule is required. Cause: ${cause}`,
+    );
+  }
 }
 
 function createNodeRuntimeEntryLoaderPlugin(): FederationRuntimePluginLike {
@@ -1689,12 +1727,7 @@ export async function loadRemote<T>(...args: Parameters<ModuleFederation['loadRe
     publishRuntimeDebugUpdate('load-remote');
     return result;
   } catch (error) {
-    debugState.lastLoadError = {
-      code: 'MFV-004',
-      message: error instanceof Error ? error.message : String(error),
-      remoteId,
-      timestamp: new Date().toISOString(),
-    };
+    recordRuntimeLoadError(remoteId, error);
     publishRuntimeDebugUpdate('load-error');
     throw error;
   }
@@ -1717,6 +1750,53 @@ function getManifestRequestKey(
   target: FederationRuntimeTarget,
 ) {
   return `${target}:${remoteAlias}:${manifestUrl}`;
+}
+
+function findRegisteredManifestRemoteForDebug(
+  remoteId: string,
+  target = getDefaultTarget(),
+) {
+  const [remoteAlias] = remoteId.split('/');
+  if (!remoteAlias) return undefined;
+
+  const debugState = getRuntimeDebugState();
+  const remotes = [...debugState.registeredManifestRemotes.values()].filter(
+    (remote) => remote.alias === remoteAlias,
+  );
+  return remotes.find((remote) => remote.target === target) || remotes.at(-1);
+}
+
+function recordRuntimeLoadError(
+  remoteId: string,
+  error: unknown,
+  context: {
+    entry?: string;
+    manifestUrl?: string;
+    remoteAlias?: string;
+    remoteName?: string;
+    shareScope?: string;
+    target?: FederationRuntimeTarget;
+  } = {},
+) {
+  const debugState = getRuntimeDebugState();
+  const remoteAlias = context.remoteAlias || remoteId.split('/')[0] || remoteId;
+  const registeredManifestRemote = findRegisteredManifestRemoteForDebug(
+    remoteId,
+    context.target || getDefaultTarget(),
+  );
+
+  debugState.lastLoadError = {
+    code: getModuleFederationErrorCode(error) || 'MFV-004',
+    entry: context.entry || registeredManifestRemote?.entry,
+    manifestUrl: context.manifestUrl || registeredManifestRemote?.manifestUrl,
+    message: getRuntimeErrorMessage(error),
+    remoteAlias,
+    remoteId,
+    remoteName: context.remoteName || registeredManifestRemote?.name,
+    shareScope: context.shareScope || registeredManifestRemote?.shareScope,
+    target: context.target || registeredManifestRemote?.target,
+    timestamp: new Date().toISOString(),
+  };
 }
 
 function getManifestFetchImplementation(fetchOverride?: typeof fetch) {
@@ -2707,45 +2787,61 @@ export async function registerManifestRemote(
   }
 
   const registerPromise = (async () => {
-    const manifest = await fetchFederationManifest(manifestUrl, options);
-    const selectedEntry = getManifestEntryForTarget(manifestUrl, manifest, target);
-    const remoteName = options.remoteName || manifest.name || remoteAlias;
-    const shareScope = options.shareScope || 'default';
-    const remoteEntryUrl = resolveManifestAssetUrl(
-      manifestUrl,
-      selectedEntry,
-      manifest.metaData.publicPath,
-    );
+    try {
+      const manifest = await fetchFederationManifest(manifestUrl, options);
+      const selectedEntry = getManifestEntryForTarget(manifestUrl, manifest, target);
+      const remoteName = options.remoteName || manifest.name || remoteAlias;
+      const shareScope = options.shareScope || 'default';
+      const remoteEntryUrl = resolveManifestAssetUrl(
+        manifestUrl,
+        selectedEntry,
+        manifest.metaData.publicPath,
+      );
 
-    await verifyManifestEntryIntegrity(manifestUrl, remoteEntryUrl, selectedEntry, target, options);
+      await verifyManifestEntryIntegrity(
+        manifestUrl,
+        remoteEntryUrl,
+        selectedEntry,
+        target,
+        options,
+      );
 
-    const registration = {
-      alias: remoteAlias === remoteName ? undefined : remoteAlias,
-      entry: appendEntryRefreshTimestamp(remoteEntryUrl, target, options.force),
-      entryGlobalName: manifest.metaData.globalName || remoteName,
-      name: remoteName,
-      shareScope,
-      type: selectedEntry.type || 'module',
-    };
+      const registration = {
+        alias: remoteAlias === remoteName ? undefined : remoteAlias,
+        entry: appendEntryRefreshTimestamp(remoteEntryUrl, target, options.force),
+        entryGlobalName: manifest.metaData.globalName || remoteName,
+        name: remoteName,
+        shareScope,
+        type: selectedEntry.type || 'module',
+      };
 
-    registerRuntimeRemoteWithReplace(registration, {
-      force: options.force,
-      remoteIdentifier: remoteAlias,
-    });
+      registerRuntimeRemoteWithReplace(registration, {
+        force: options.force,
+        remoteIdentifier: remoteAlias,
+      });
 
-    debugState.registeredManifestRemotes.set(requestKey, {
-      alias: remoteAlias,
-      entry: registration.entry,
-      entryGlobalName: registration.entryGlobalName,
-      manifestUrl,
-      name: registration.name,
-      shareScope: registration.shareScope,
-      target,
-      type: registration.type,
-    });
-    publishRuntimeDebugUpdate('manifest-registered');
+      debugState.registeredManifestRemotes.set(requestKey, {
+        alias: remoteAlias,
+        entry: registration.entry,
+        entryGlobalName: registration.entryGlobalName,
+        manifestUrl,
+        name: registration.name,
+        shareScope: registration.shareScope,
+        target,
+        type: registration.type,
+      });
+      publishRuntimeDebugUpdate('manifest-registered');
 
-    return registration;
+      return registration;
+    } catch (error) {
+      recordRuntimeLoadError(remoteAlias, error, {
+        manifestUrl,
+        remoteAlias,
+        target,
+      });
+      publishRuntimeDebugUpdate('load-error');
+      throw error;
+    }
   })().finally(() => {
     debugState.registrationRequests.delete(requestKey);
   });

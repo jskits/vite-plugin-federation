@@ -128,16 +128,28 @@ async function renderDocument() {
     readFile(clientManifestPath, 'utf-8').then((content) => JSON.parse(content)),
   ]);
 
-  const [{ appHtml, buttonProps, remoteManifest }, clientAssets] = await Promise.all([
-    render(remoteManifestUrl),
-    Promise.resolve(collectClientEntryAssets(clientManifest, 'index.html')),
-  ]);
+  const [{ appHtml, buttonProps, federationDebug, remoteManifest }, clientAssets] =
+    await Promise.all([
+      render(remoteManifestUrl),
+      Promise.resolve(collectClientEntryAssets(clientManifest, 'index.html')),
+    ]);
 
   const remotePreloadLinks = collectFederationManifestPreloadLinks(
     remoteManifestUrl,
     remoteManifest,
     './Button',
   );
+  const ssrFederationDebug = {
+    ...federationDebug,
+    preloadLinks: remotePreloadLinks.map((link) => ({
+      assetType: link.assetType,
+      crossorigin: link.crossorigin,
+      exposePath: link.exposePath,
+      href: link.href,
+      loading: link.loading,
+      rel: link.rel,
+    })),
+  };
   const entry = clientManifest['index.html'];
 
   const clientCssLinks = [...clientAssets.css]
@@ -175,6 +187,7 @@ async function renderDocument() {
     <script>
       window.__REMOTE_MANIFEST_URL__ = ${serializeForInlineScript(remoteManifestUrl)};
       window.__REMOTE_BUTTON_PROPS__ = ${serializeForInlineScript(buttonProps)};
+      window.__SSR_FEDERATION_DEBUG__ = ${serializeForInlineScript(ssrFederationDebug)};
     </script>
     <script type="module" src="/${entry.file}"></script>
   </body>

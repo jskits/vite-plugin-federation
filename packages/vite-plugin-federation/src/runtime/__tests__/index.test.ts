@@ -1053,6 +1053,36 @@ describe('runtime api', () => {
     expect(namespace).toBeTruthy();
   });
 
+  it('reports actionable diagnostics when node entry loading fails', async () => {
+    createServerFederationInstance({
+      name: 'server-host',
+      remotes: [],
+      shared: {},
+      plugins: [],
+      inBrowser: true,
+    });
+
+    const initOptions = initMock.mock.calls.at(-1)?.[0];
+    const normalizerPlugin = initOptions.plugins.find(
+      (plugin: { name: string }) => plugin.name === 'vite-plugin-federation:node-entry-loader',
+    );
+    const fetchMock = vi.fn(async () => new Response('missing', { status: 404 }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      normalizerPlugin.loadEntry({
+        remoteInfo: {
+          entry: 'http://127.0.0.1:4175/remoteEntry.ssr.js?mf_target=node',
+          type: 'module',
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'MFV-004',
+      message: expect.stringContaining('Failed to load node federation entry'),
+    });
+  });
+
   it('collapses concurrent manifest fetches into a single request', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -1255,6 +1285,14 @@ describe('runtime api', () => {
         target: 'web',
       }),
     ).rejects.toThrow('usable remoteEntry or ssrRemoteEntry fallback for target "web"');
+
+    expect(getFederationDebugInfo().runtime.lastLoadError).toMatchObject({
+      code: 'MFV-004',
+      manifestUrl: 'http://remote.example/mf-manifest.json',
+      remoteAlias: 'remoteApp',
+      remoteId: 'remoteApp',
+      target: 'web',
+    });
   });
 
   it('times out manifest fetches even when fetch ignores abort signals', async () => {
@@ -1402,6 +1440,14 @@ describe('runtime api', () => {
         target: 'node',
       }),
     ).rejects.toThrow('usable ssrRemoteEntry or remoteEntry fallback for target "node"');
+
+    expect(getFederationDebugInfo().runtime.lastLoadError).toMatchObject({
+      code: 'MFV-006',
+      manifestUrl: 'https://remote.example/mf-manifest.json',
+      remoteAlias: 'catalog',
+      remoteId: 'catalog',
+      target: 'node',
+    });
   });
 
   it('registers manifest remotes with the node entry when target=node', async () => {
@@ -1449,6 +1495,52 @@ describe('runtime api', () => {
         target: 'node',
       }),
     ]);
+  });
+
+  it('keeps manifest and entry context on node remote load failures', async () => {
+    const manifestUrl = 'https://remote.example/mf-manifest.json';
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        name: 'remoteApp',
+        metaData: {
+          globalName: 'remote-app',
+          publicPath: 'https://cdn.example/assets/',
+          remoteEntry: {
+            name: 'remoteEntry.js',
+            path: '',
+            type: 'module',
+          },
+          ssrRemoteEntry: {
+            name: 'remoteEntry.ssr.js',
+            path: 'server',
+            type: 'module',
+          },
+        },
+      }),
+    }));
+    const loadError = Object.assign(new Error('server entry failed'), { code: 'MFV-004' });
+
+    vi.stubGlobal('fetch', fetchMock);
+    loadRemoteMock.mockRejectedValueOnce(loadError);
+
+    await expect(
+      loadRemoteFromManifest('catalog/Button', manifestUrl, {
+        target: 'node',
+      }),
+    ).rejects.toThrow('server entry failed');
+
+    expect(getFederationDebugInfo().runtime.lastLoadError).toMatchObject({
+      code: 'MFV-004',
+      entry: 'https://cdn.example/assets/server/remoteEntry.ssr.js',
+      manifestUrl,
+      remoteAlias: 'catalog',
+      remoteId: 'catalog/Button',
+      remoteName: 'remoteApp',
+      shareScope: 'default',
+      target: 'node',
+    });
   });
 
   it('resolves relative manifest public paths against the manifest url', async () => {
