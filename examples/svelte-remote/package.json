@@ -1,0 +1,20 @@
+{
+  "name": "example-svelte-remote",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rimraf dist",
+    "dev": "vite",
+    "preview": "vite preview --port 4192"
+  },
+  "dependencies": {
+    "svelte": "5.55.5",
+    "vite-plugin-federation": "workspace:*"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.0.0",
+    "vite": "8.0.8"
+  }
+}
