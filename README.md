@@ -44,6 +44,8 @@ This repo includes a minimal React host/remote verification pair:
 - `examples/react-remote`
 - `examples/react-host`
 - `examples/react-ssr-host`
+- `examples/vue-remote`
+- `examples/vue-host`
 - `examples/dts-remote`
 - `examples/dts-host`
 

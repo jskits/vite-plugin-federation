@@ -397,12 +397,13 @@ These items make the plugin easier to adopt and maintain across real projects.
 Current state:
 
 - React host/remote examples exist.
+- Vue host/remote examples validate SFC remotes, manifest consumption, and shared Vue singleton
+  metadata in production builds.
 - React SSR host exists.
 - Dev remote HMR e2e exists.
 
 Remaining work:
 
-- Add Vue host/remote example.
 - Add Svelte host/remote example.
 - Add Lit host/remote example.
 - Add multi-remote host example.
