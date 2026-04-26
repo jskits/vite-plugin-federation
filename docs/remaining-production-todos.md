@@ -1,6 +1,6 @@
-# Remaining Production TODOs
+# Production Readiness Status
 
-This document lists the remaining work needed to move the plugin from a usable beta-quality
+This document tracks the work completed to move the plugin from a usable beta-quality
 implementation to a production-grade, GA-ready "best-in-class" Vite Module Federation plugin.
 
 ## Current Baseline
@@ -18,8 +18,8 @@ Already implemented:
 - DTS plugin integration at the build/dev plugin level.
 - Core monorepo tooling, CI, format/lint/typecheck/test/build checks.
 
-The remaining TODOs below are the gaps that still need deeper implementation, broader validation,
-or stronger production ergonomics.
+No concrete production-readiness gaps are currently tracked. The notes below record implemented
+coverage and future maintenance areas to keep guarded as the public API evolves.
 
 ## P0 - GA Blockers
 
@@ -67,6 +67,9 @@ Current state:
 
 Remaining work:
 
+- No further shared runtime P0 gaps are currently tracked beyond keeping unit and e2e shared
+  diagnostics coverage green.
+
 Acceptance criteria:
 
 - A host can explain why every shared package was resolved from host, remote, or local fallback.
@@ -106,10 +109,13 @@ Current state:
   fully disabled DTS behavior.
 - Exact DTS workflows, defaults, and recommended production settings are documented in
   `docs/dts-workflows.md`.
+- Framework runtime examples are covered separately by Vue/Svelte/Lit production builds; the
+  TypeScript/DTS contract is covered by the dedicated TS producer/consumer examples.
 
 Remaining work:
 
-- Verify Vue/Svelte style TS projects if those frameworks are added to the example matrix.
+- No further Type System P0 gaps are currently tracked beyond adding framework-specific DTS
+  fixtures if a concrete Vue/Svelte/Lit type-generation requirement is introduced later.
 
 Acceptance criteria:
 
@@ -271,8 +277,8 @@ Current state:
 
 Remaining work:
 
-- No further Dev HMR P1 gaps are currently tracked beyond expanding framework-specific e2e coverage
-  when Vue/Svelte/Lit examples are added.
+- No further Dev HMR P1 gaps are currently tracked beyond adding framework-specific HMR e2e if a
+  framework-specific HMR contract is introduced later.
 
 Acceptance criteria:
 
@@ -586,15 +592,3 @@ Acceptance criteria:
 
 - A shell can host multiple tenants or experiments without remote registry collisions.
 - Debug snapshots identify the relevant runtime instance.
-
-## Known Local Worktree Note
-
-At the time this TODO file was created, the local worktree already contained an unrelated version
-change in `packages/vite-plugin-federation/package.json`:
-
-```diff
--  "version": "0.0.0",
-+  "version": "0.0.2",
-```
-
-This TODO file does not depend on that version change.
