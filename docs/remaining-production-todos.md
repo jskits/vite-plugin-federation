@@ -413,13 +413,13 @@ Current state:
   build/preview flows.
 - React SSR host exists.
 - Dev remote HMR e2e exists.
+- `test:e2e:browser-matrix` reuses the multi-remote manifest scenario across Chromium, Firefox,
+  and WebKit in the scheduled/manual Extended E2E workflow.
 
 Remaining work:
 
-- Add host consuming both manifest and legacy remoteEntry remotes.
-- Add DTS producer/consumer example.
-- Add SSR e2e with request-level HTML assertions.
-- Add browser matrix if CI time allows.
+- No further example/e2e matrix gaps are currently tracked beyond keeping the scheduled browser
+  matrix within CI time budgets.
 
 Acceptance criteria:
 

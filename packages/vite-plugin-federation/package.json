@@ -36,6 +36,7 @@
     "lint": "eslint .",
     "test": "vitest --config vitest.config.ts run",
     "test:e2e": "pnpm build && playwright test --config playwright.config.ts && pnpm test:e2e:compat && pnpm test:e2e:shared && pnpm test:e2e:dts:dev",
+    "test:e2e:browser-matrix": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-lit-remote build && pnpm --filter example-multi-remote-host build && playwright test --config playwright.browser-matrix.config.ts",
     "test:e2e:compat": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-webpack-systemjs-remote build && pnpm --filter example-originjs-compat-host build && playwright test --config playwright.compat.config.ts",
     "test:e2e:dts:dev": "pnpm build && node e2e/dts-dev-hot-sync.mjs",
     "test:e2e:multi-remote": "pnpm build && pnpm --filter example-react-remote build && pnpm --filter example-lit-remote build && pnpm --filter example-multi-remote-host build && playwright test --config playwright.multi-remote.config.ts",

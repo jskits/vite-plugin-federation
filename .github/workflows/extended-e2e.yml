@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
       - name: Compatibility e2e
         run: pnpm --filter vite-plugin-federation test:e2e:compat
 
@@ -36,6 +39,9 @@ jobs:
 
       - name: Multi-remote e2e
         run: CI=1 pnpm --filter vite-plugin-federation test:e2e:multi-remote
+
+      - name: Browser matrix e2e
+        run: CI=1 pnpm --filter vite-plugin-federation test:e2e:browser-matrix
 
       - name: SSR e2e
         run: CI=1 pnpm --filter vite-plugin-federation test:e2e:ssr

@@ -64,6 +64,9 @@ pnpm examples:build
 pnpm examples:dts:build
 pnpm examples:dev
 pnpm examples:ssr:build
+pnpm --filter vite-plugin-federation test:e2e:browser-matrix
+pnpm --filter vite-plugin-federation test:e2e:multi-remote
+pnpm --filter vite-plugin-federation test:e2e:shared
 pnpm --filter vite-plugin-federation test:e2e:ssr
 ```
 
