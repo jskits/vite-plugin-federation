@@ -38,6 +38,10 @@ Generated manifests also include `release.id`, `metaData.buildInfo.releaseId`, a
 the build output. Set `VITE_PLUGIN_FEDERATION_RELEASE_ID` or `MF_RELEASE_ID` in CI for a stable
 application release id; otherwise it defaults to `buildName:buildVersion`.
 
+Expose assets and manifest preload hints can also declare optional integrity metadata. Use
+`verifyFederationManifestAssets()` for annotated asset verification. See
+[security.md](security.md) for private manifests, CSP, Trusted Types, and signed manifest guidance.
+
 ## Manifest Hosting Rules
 
 Host `mf-manifest.json` with a short cache TTL or `no-cache`, because hosts use it as the deployment

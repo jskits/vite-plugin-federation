@@ -153,16 +153,47 @@
         "async": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/assetReference"
           }
         },
         "sync": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/assetReference"
           }
         }
       }
+    },
+    "assetReference": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "href": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "integrity": {
+              "type": "string"
+            },
+            "contentHash": {
+              "type": "string"
+            }
+          }
+        }
+      ]
     },
     "assets": {
       "type": "object",
@@ -184,13 +215,13 @@
         "js": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/assetReference"
           }
         },
         "css": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/assetReference"
           }
         }
       }

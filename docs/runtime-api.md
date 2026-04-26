@@ -210,6 +210,19 @@ integrity: {
 The runtime verifies `metaData.remoteEntry` or `metaData.ssrRemoteEntry` hashes before
 registration. Results are visible in `getFederationDebugInfo().runtime.manifestIntegrityChecks`.
 
+### `verifyFederationManifestAssets(manifestUrl, manifest, options?)`
+
+Verifies annotated expose and preload assets declared in a manifest. String assets are skipped by
+default; set `requireIntegrity: true` when every declared asset must include `integrity` or
+`contentHash` metadata.
+
+```ts
+await verifyFederationManifestAssets(manifestUrl, manifest, {
+  integrity: { mode: 'both' },
+  requireIntegrity: true,
+});
+```
+
 ## Hooks And Telemetry
 
 Manifest runtime controls accept:

@@ -46,15 +46,19 @@ export type FederationRuntimeTarget = 'web' | 'node';
 
 export interface FederationRemoteManifestEntry {
   contentHash?: string;
+  href?: string;
   integrity?: string;
   name?: string;
   path?: string;
   type?: string;
+  url?: string;
 }
 
+export type FederationManifestAssetReference = string | FederationRemoteManifestEntry;
+
 export interface FederationManifestAssetGroup {
-  async?: string[];
-  sync?: string[];
+  async?: FederationManifestAssetReference[];
+  sync?: FederationManifestAssetReference[];
 }
 
 export interface FederationManifestAssets {
@@ -99,8 +103,8 @@ export interface FederationManifestPreloadLink {
 
 export interface FederationManifestPreloadHint {
   assets?: {
-    css?: string[];
-    js?: string[];
+    css?: FederationManifestAssetReference[];
+    js?: FederationManifestAssetReference[];
   };
   expose?: string;
   exposes?: string[];
@@ -318,6 +322,20 @@ export interface WarmFederationRemoteConfig extends RegisterManifestRemoteOption
   manifestUrl: string;
   preload?: boolean | Record<string, unknown>;
   remoteAlias?: string;
+}
+
+export interface VerifyFederationManifestAssetsOptions extends ManifestFetchOptions {
+  includeExposes?: boolean;
+  includePreloadHints?: boolean;
+  integrity?: boolean | ManifestIntegrityOptions;
+  requireIntegrity?: boolean;
+  target?: FederationRuntimeTarget;
+}
+
+export interface VerifyFederationManifestAssetsResult {
+  checked: number;
+  skipped: number;
+  verifiedAssets: string[];
 }
 
 interface ManifestCircuitBreakerState {
@@ -2282,6 +2300,34 @@ export function resolveFederationManifestAssetUrl(
   return new URL(assetPath, manifestUrl).toString();
 }
 
+function getManifestAssetReferencePath(asset: FederationManifestAssetReference) {
+  if (typeof asset === 'string') {
+    return asset;
+  }
+
+  if (typeof asset.url === 'string' && asset.url.length > 0) {
+    return asset.url;
+  }
+
+  if (typeof asset.href === 'string' && asset.href.length > 0) {
+    return asset.href;
+  }
+
+  return joinUrlPath(asset.path, asset.name);
+}
+
+function resolveFederationManifestAssetReferenceUrl(
+  manifestUrl: string,
+  manifest: Pick<FederationRemoteManifest, 'metaData'>,
+  asset: FederationManifestAssetReference,
+) {
+  return resolveFederationManifestAssetUrl(
+    manifestUrl,
+    manifest,
+    getManifestAssetReferencePath(asset),
+  );
+}
+
 function normalizeExposePath(exposePath: string) {
   return exposePath.startsWith('./') ? exposePath : `./${exposePath}`;
 }
@@ -2317,10 +2363,10 @@ function resolveManifestAssetGroup(
   group: FederationManifestAssetGroup | undefined,
 ) {
   const sync = (group?.sync || []).map((asset) =>
-    resolveFederationManifestAssetUrl(manifestUrl, manifest, asset),
+    resolveFederationManifestAssetReferenceUrl(manifestUrl, manifest, asset),
   );
   const async = (group?.async || []).map((asset) =>
-    resolveFederationManifestAssetUrl(manifestUrl, manifest, asset),
+    resolveFederationManifestAssetReferenceUrl(manifestUrl, manifest, asset),
   );
 
   return {
@@ -2529,7 +2575,7 @@ function pushFederationManifestHintAssetLinks(
       assetType: 'css',
       expose,
       exposePath,
-      href: resolveFederationManifestAssetUrl(manifestUrl, manifest, asset),
+      href: resolveFederationManifestAssetReferenceUrl(manifestUrl, manifest, asset),
       loading,
       rel: 'stylesheet',
     });
@@ -2543,7 +2589,7 @@ function pushFederationManifestHintAssetLinks(
       ...(crossorigin ? { crossorigin } : {}),
       expose,
       exposePath,
-      href: resolveFederationManifestAssetUrl(manifestUrl, manifest, asset),
+      href: resolveFederationManifestAssetReferenceUrl(manifestUrl, manifest, asset),
       loading,
       rel: 'modulepreload',
     });
@@ -3025,6 +3071,7 @@ async function verifyManifestEntryIntegrity(
   entry: FederationRemoteManifestEntry,
   target: FederationRuntimeTarget,
   options: RegisterManifestRemoteOptions,
+  fieldPath = `metaData.${target === 'node' ? 'ssrRemoteEntry' : 'remoteEntry'}`,
 ) {
   const integrityOptions = normalizeManifestIntegrityOptions(options.integrity);
   if (!integrityOptions) {
@@ -3052,14 +3099,14 @@ async function verifyManifestEntryIntegrity(
     if (requiresIntegrity && !expectedIntegrity) {
       throw createModuleFederationError(
         'MFV-004',
-        `Federation manifest "${manifestUrl}" does not declare metaData.${target === 'node' ? 'ssrRemoteEntry' : 'remoteEntry'}.integrity for "${assetUrl}".`,
+        `Federation manifest "${manifestUrl}" does not declare ${fieldPath}.integrity for "${assetUrl}".`,
       );
     }
 
     if (requiresContentHash && !expectedContentHash) {
       throw createModuleFederationError(
         'MFV-004',
-        `Federation manifest "${manifestUrl}" does not declare metaData.${target === 'node' ? 'ssrRemoteEntry' : 'remoteEntry'}.contentHash for "${assetUrl}".`,
+        `Federation manifest "${manifestUrl}" does not declare ${fieldPath}.contentHash for "${assetUrl}".`,
       );
     }
 
@@ -3145,6 +3192,157 @@ async function verifyManifestEntryIntegrity(
     publishRuntimeDebugUpdate('manifest-integrity');
     throw error;
   }
+}
+
+interface ManifestAssetIntegrityTarget {
+  asset: FederationManifestAssetReference;
+  fieldPath: string;
+}
+
+function pushManifestAssetIntegrityTargets(
+  targets: ManifestAssetIntegrityTarget[],
+  assets: FederationManifestAssetReference[] | undefined,
+  fieldPath: string,
+) {
+  assets?.forEach((asset, index) => {
+    targets.push({
+      asset,
+      fieldPath: `${fieldPath}[${index}]`,
+    });
+  });
+}
+
+function collectManifestAssetIntegrityTargets(
+  manifest: FederationRemoteManifest,
+  options: VerifyFederationManifestAssetsOptions,
+) {
+  const targets: ManifestAssetIntegrityTarget[] = [];
+
+  if (options.includeExposes !== false && Array.isArray(manifest.exposes)) {
+    manifest.exposes.forEach((expose, exposeIndex) => {
+      pushManifestAssetIntegrityTargets(
+        targets,
+        expose.assets?.css?.sync,
+        `exposes[${exposeIndex}].assets.css.sync`,
+      );
+      pushManifestAssetIntegrityTargets(
+        targets,
+        expose.assets?.css?.async,
+        `exposes[${exposeIndex}].assets.css.async`,
+      );
+      pushManifestAssetIntegrityTargets(
+        targets,
+        expose.assets?.js?.sync,
+        `exposes[${exposeIndex}].assets.js.sync`,
+      );
+      pushManifestAssetIntegrityTargets(
+        targets,
+        expose.assets?.js?.async,
+        `exposes[${exposeIndex}].assets.js.async`,
+      );
+    });
+  }
+
+  if (options.includePreloadHints !== false) {
+    pushManifestAssetIntegrityTargets(targets, manifest.preload?.assets?.css, 'preload.assets.css');
+    pushManifestAssetIntegrityTargets(targets, manifest.preload?.assets?.js, 'preload.assets.js');
+
+    manifest.preload?.routes?.forEach((hint, hintIndex) => {
+      pushManifestAssetIntegrityTargets(
+        targets,
+        hint.assets?.css,
+        `preload.routes[${hintIndex}].assets.css`,
+      );
+      pushManifestAssetIntegrityTargets(
+        targets,
+        hint.assets?.js,
+        `preload.routes[${hintIndex}].assets.js`,
+      );
+    });
+  }
+
+  return targets;
+}
+
+function getManifestAssetIntegrityEntry(
+  manifestUrl: string,
+  target: ManifestAssetIntegrityTarget,
+  requireIntegrity: boolean,
+) {
+  if (typeof target.asset === 'string') {
+    if (requireIntegrity) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Federation manifest "${manifestUrl}" does not declare integrity metadata for ${target.fieldPath}.`,
+      );
+    }
+    return null;
+  }
+
+  if (!target.asset.integrity && !target.asset.contentHash) {
+    if (requireIntegrity) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Federation manifest "${manifestUrl}" does not declare integrity metadata for ${target.fieldPath}.`,
+      );
+    }
+    return null;
+  }
+
+  return target.asset;
+}
+
+export async function verifyFederationManifestAssets(
+  manifestUrl: string,
+  manifest: FederationRemoteManifest,
+  options: VerifyFederationManifestAssetsOptions = {},
+): Promise<VerifyFederationManifestAssetsResult> {
+  const verificationOptions = {
+    ...options,
+    integrity: options.integrity ?? true,
+  };
+  const target = getDefaultTarget(options.target);
+  let checked = 0;
+  let skipped = 0;
+  const verifiedAssets: string[] = [];
+
+  for (const assetTarget of collectManifestAssetIntegrityTargets(manifest, options)) {
+    const entry = getManifestAssetIntegrityEntry(
+      manifestUrl,
+      assetTarget,
+      options.requireIntegrity === true,
+    );
+    if (!entry) {
+      skipped += 1;
+      continue;
+    }
+
+    const assetPath = getManifestAssetReferencePath(entry);
+    if (!assetPath) {
+      throw createModuleFederationError(
+        'MFV-004',
+        `Federation manifest "${manifestUrl}" does not declare a usable asset path for ${assetTarget.fieldPath}.`,
+      );
+    }
+
+    const assetUrl = resolveFederationManifestAssetReferenceUrl(manifestUrl, manifest, entry);
+    await verifyManifestEntryIntegrity(
+      manifestUrl,
+      assetUrl,
+      entry,
+      target,
+      verificationOptions,
+      assetTarget.fieldPath,
+    );
+    checked += 1;
+    verifiedAssets.push(assetUrl);
+  }
+
+  return {
+    checked,
+    skipped,
+    verifiedAssets,
+  };
 }
 
 async function fetchManifestJsonWithRetries(

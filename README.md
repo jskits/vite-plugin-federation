@@ -91,6 +91,9 @@ See [docs/troubleshooting.md](docs/troubleshooting.md) for error-code based debu
 See [docs/preload-performance.md](docs/preload-performance.md) for route-aware preload plans,
 remote warming, and runtime load metrics.
 
+See [docs/security.md](docs/security.md) for integrity verification, private manifests, CSP,
+Trusted Types, and signed manifest guidance.
+
 See [docs/dev-hmr.md](docs/dev-hmr.md) for remote dev HMR strategies, batching, and fallback
 rules.
 

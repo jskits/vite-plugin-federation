@@ -114,6 +114,7 @@ import {
   registerRemotes,
   registerShared,
   refreshRemote,
+  verifyFederationManifestAssets,
   warmFederationRemotes,
 } from '../index';
 import { clearModuleFederationDebugState } from '../../utils/logger';
@@ -1923,6 +1924,118 @@ describe('runtime api', () => {
         verifiedWith: ['integrity'],
       }),
     ]);
+  });
+
+  it('verifies annotated manifest-declared expose and preload assets', async () => {
+    const buttonSource = 'export const Button = "verified";';
+    const preloadSource = 'export const shared = "verified";';
+    const manifestUrl = 'http://remote.example/mf-manifest.json';
+    const manifest = {
+      name: 'remoteApp',
+      metaData: {},
+      preload: {
+        assets: {
+          js: [
+            {
+              name: 'shared.js',
+              path: 'assets',
+              contentHash: toSha256ContentHash(preloadSource),
+            },
+          ],
+        },
+      },
+      exposes: [
+        {
+          name: 'Button',
+          path: './Button',
+          assets: {
+            css: {
+              sync: ['Button.css'],
+            },
+            js: {
+              sync: [
+                {
+                  name: 'Button.js',
+                  path: 'assets',
+                  integrity: toSha384Integrity(buttonSource),
+                },
+              ],
+            },
+          },
+        },
+      ],
+    } as any;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'http://remote.example/assets/Button.js') {
+        return {
+          ok: true,
+          status: 200,
+          arrayBuffer: async () => toArrayBuffer(buttonSource),
+        };
+      }
+
+      if (url === 'http://remote.example/assets/shared.js') {
+        return {
+          ok: true,
+          status: 200,
+          arrayBuffer: async () => toArrayBuffer(preloadSource),
+        };
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(verifyFederationManifestAssets(manifestUrl, manifest)).resolves.toEqual({
+      checked: 2,
+      skipped: 1,
+      verifiedAssets: [
+        'http://remote.example/assets/Button.js',
+        'http://remote.example/assets/shared.js',
+      ],
+    });
+    expect(getFederationDebugInfo().runtime.manifestIntegrityChecks).toEqual([
+      expect.objectContaining({
+        assetUrl: 'http://remote.example/assets/Button.js',
+        status: 'success',
+        verifiedWith: ['integrity'],
+      }),
+      expect.objectContaining({
+        assetUrl: 'http://remote.example/assets/shared.js',
+        status: 'success',
+        verifiedWith: ['contentHash'],
+      }),
+    ]);
+  });
+
+  it('requires manifest asset integrity metadata when configured', async () => {
+    await expect(
+      verifyFederationManifestAssets(
+        'http://remote.example/mf-manifest.json',
+        {
+          name: 'remoteApp',
+          metaData: {},
+          exposes: [
+            {
+              name: 'Button',
+              path: './Button',
+              assets: {
+                css: {
+                  sync: ['Button.css'],
+                },
+                js: {
+                  sync: [],
+                },
+              },
+            },
+          ],
+        } as any,
+        {
+          requireIntegrity: true,
+        },
+      ),
+    ).rejects.toThrow('does not declare integrity metadata');
   });
 
   it('refreshes registered manifest remotes and invalidates the manifest cache', async () => {

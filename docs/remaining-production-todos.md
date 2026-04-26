@@ -529,13 +529,25 @@ Acceptance criteria:
 
 ### 14. Security And Supply Chain Controls
 
+Current state:
+
+- Manifest schema defines optional `integrity` and `contentHash` fields for remote entries.
+- Manifest schema also accepts object-form expose/preload asset references with optional
+  `integrity` and `contentHash` metadata.
+- `registerManifestRemote(..., { integrity })` verifies manifest-declared remote entries before
+  registration.
+- `verifyFederationManifestAssets()` verifies annotated expose and preload assets, supports
+  `prefer-integrity`, `integrity`, `content-hash`, and `both` modes, and can require integrity
+  metadata for every declared asset.
+- Debug snapshots record successful and failed integrity checks in
+  `runtime.manifestIntegrityChecks`.
+- `docs/security.md` documents CORS, CSP, Trusted Types, remote script policy, private manifests,
+  authenticated loading, and signed manifest design notes.
+
 Remaining work:
 
-- Define optional integrity fields in manifest schema.
-- Add optional runtime integrity verification for manifest-declared assets.
-- Document CORS, CSP, Trusted Types, and remote script policies.
-- Add guidance for private manifests and authenticated remote loading.
-- Add signed manifest design notes if needed.
+- No further security/supply-chain P3 gaps are currently tracked beyond integrating signed manifest
+  verification if a concrete key-management requirement is added later.
 
 Acceptance criteria:
 
