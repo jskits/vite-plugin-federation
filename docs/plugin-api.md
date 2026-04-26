@@ -50,23 +50,23 @@ federation({
 | Option                   | Type                                                 | Default               | Description                                                                              |
 | ------------------------ | ---------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------- |
 | `name`                   | `string`                                             | required              | Public application/container name.                                                       |
-| `filename`               | `string`                                             | `remoteEntry.js`      | Browser remote entry filename.                                                           |
+| `filename`               | `string`                                             | `remoteEntry-[hash]`  | Browser remote entry filename.                                                           |
 | `varFilename`            | `string`                                             | `undefined`           | Emits an additional var-style remote entry for legacy hosts.                             |
 | `exposes`                | `Record<string, string \| ExposeConfig>`             | `{}`                  | Remote expose map. Keys should usually start with `./`.                                  |
 | `remotes`                | `Record<string, string \| RemoteObjectConfig>`       | `{}`                  | Host remote map. Values may be manifest URLs or object configs.                          |
 | `shared`                 | `string[] \| Record<string, string \| SharedConfig>` | `{}`                  | Shared dependency providers/consumers.                                                   |
 | `manifest`               | `boolean \| PluginManifestOptions`                   | `true`                | Emits `mf-manifest.json`, `mf-stats.json`, and `mf-debug.json` when enabled.             |
-| `dts`                    | `boolean \| PluginDtsOptions`                        | `false`               | Enables type generation and/or type consumption through `@module-federation/dts-plugin`. |
-| `dev`                    | `boolean \| PluginDevOptions`                        | `true`                | Controls devtools, live reload, remote HMR, type hints, and hot type reload.             |
+| `dts`                    | `boolean \| PluginDtsOptions`                        | auto for TS projects  | Enables type generation and/or type consumption through `@module-federation/dts-plugin`. |
+| `dev`                    | `boolean \| PluginDevOptions`                        | enabled               | Controls devtools, live reload, remote HMR, type hints, and hot type reload.             |
 | `compat`                 | `boolean \| CompatibilityOptions`                    | `true`                | Enables OriginJS-compatible virtual federation APIs.                                     |
-| `shareStrategy`          | `'loaded-first' \| 'version-first'`                  | runtime default       | Shared provider selection strategy passed to the runtime.                                |
+| `shareStrategy`          | `'loaded-first' \| 'version-first'`                  | `version-first`       | Shared provider selection strategy passed to the runtime.                                |
 | `shareScope`             | `string`                                             | `default`             | Default share scope.                                                                     |
 | `publicPath`             | `string`                                             | Vite `base` or `auto` | Public path used for generated manifest asset URLs.                                      |
 | `bundleAllCSS`           | `boolean`                                            | `false`               | Adds all CSS assets from the bundle to every expose manifest entry.                      |
 | `runtimePlugins`         | `Array<string \| [string, object]>`                  | `[]`                  | Runtime plugin imports passed to Module Federation runtime init.                         |
 | `target`                 | `'web' \| 'node'`                                    | build target          | Overrides generated remote target. SSR builds normally use `node`.                       |
-| `virtualModuleDir`       | `string`                                             | internal default      | Internal virtual module directory name. It cannot contain `/`.                           |
-| `hostInitInjectLocation` | `'entry' \| 'html'`                                  | `entry`               | Where host runtime initialization is injected.                                           |
+| `virtualModuleDir`       | `string`                                             | `__mf__virtual`       | Internal virtual module directory name. It cannot contain `/`.                           |
+| `hostInitInjectLocation` | `'entry' \| 'html'`                                  | `html`                | Where host runtime initialization is injected.                                           |
 | `moduleParseTimeout`     | `number`                                             | `10`                  | Total module parsing timeout in seconds.                                                 |
 | `moduleParseIdleTimeout` | `number`                                             | `undefined`           | Idle parsing timeout in seconds, reset after every parsed module.                        |
 
@@ -176,16 +176,18 @@ Manifest builds also emit `mf-stats.json` and `mf-debug.json`. See
 
 ```ts
 dev: {
-  remoteHmr: true,
-  devtools: true,
-  disableLiveReload: false,
+  remoteHmr: true, // opt in to host <-> remote HMR wiring
+  devtools: true, // default; set false to disable the devtools endpoint/overlay
+  disableLiveReload: true,
   disableHotTypesReload: false,
   disableDynamicRemoteTypeHints: false,
 }
 ```
 
-The devtools contract is documented in
-[devtools-runtime-contract.md](devtools-runtime-contract.md).
+Devtools and DTS type hints are enabled by default in dev. Remote HMR is opt-in and only runs
+when `dev.remoteHmr: true`.
+
+The devtools contract is documented in [devtools-runtime-contract.md](devtools-runtime-contract.md).
 
 ## DTS Options
 
@@ -201,6 +203,7 @@ dts: {
 }
 ```
 
+In TypeScript projects, DTS support is enabled automatically unless `dts: false` is configured.
 See [dts-workflows.md](dts-workflows.md) for complete DTS workflows and defaults.
 
 ## Compatibility Options
