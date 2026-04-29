@@ -772,7 +772,7 @@ tag. The full policy, quality gates, and step-by-step instructions live in
 ## CI / CD
 
 - **`.github/workflows/ci.yml`** — runs `pnpm check` on PRs and pushes to `main`; Node 22 also
-  runs the package smoke test and Vite peer matrix smoke.
+  runs the package smoke test and Vite peer runtime matrix smoke.
 - **`.github/workflows/extended-e2e.yml`** — manual and weekly Playwright coverage for compat,
   shared runtime, multi-remote, browser matrix, SSR, and DTS dev sync on Node 20 and 22.
 - **`.github/workflows/release.yml`** — publishes matching `v*.*.*` tags or a manual tag dispatch.

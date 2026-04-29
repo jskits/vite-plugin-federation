@@ -33,9 +33,10 @@ The package smoke test validates:
 - `package.json` declares `sideEffects: false`.
 - Production output does not include the devtools overlay bootstrap.
 
-The Vite peer matrix smoke test validates that the packed tarball installs and builds in isolated
-temporary apps using pinned Vite 5, 6, 7, and 8 versions. It is a packaging/compiler-adapter gate;
-the Playwright examples remain the browser behavior gate.
+The Vite peer matrix smoke test validates that the packed tarball installs, builds, previews, and
+loads a manifest remote in Chromium using pinned Vite 5, 6, 7, and 8 versions. It is a compact
+packaging/compiler-adapter runtime gate; the Playwright examples remain the broader browser
+behavior gate.
 
 Run the manual `Extended E2E` workflow before publishing a release candidate or stable release when
 changes touched runtime loading, shared resolution, DTS, SSR, or compatibility behavior.

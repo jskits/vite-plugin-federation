@@ -41,6 +41,10 @@ jobs:
         if: matrix.node-version == 22
         run: pnpm test:package:smoke
 
+      - name: Install Playwright Chromium
+        if: matrix.node-version == 22
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Smoke test Vite peer matrix
         if: matrix.node-version == 22
         run: pnpm test:vite-matrix:smoke

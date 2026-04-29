@@ -257,7 +257,7 @@ import {
 | Browser e2e (Playwright)           | ✅ 6 configs: default, compat, multi-remote, shared, ssr, browser-matrix |       ✅ vite-vite + vite-webpack-rspack        |                 ✅                 |
 | SSR e2e                            |                                    ✅                                    |                       ❌                        |                 ❌                 |
 | Browser matrix                     |                      ✅ Chromium / Firefox / WebKit                      |                ❌ Chromium only                 |                 ❌                 |
-| Vite peer-version smoke            |           ✅ packed tarball builds against Vite 5 / 6 / 7 / 8            | ✅ Vite 6 / 7 / 8 in `vite-webpack-rspack` [12] |         ❌ Vite 4-focused          |
+| Vite peer-version smoke            |       ✅ packed tarball builds and runs against Vite 5 / 6 / 7 / 8       | ✅ Vite 6 / 7 / 8 in `vite-webpack-rspack` [12] |         ❌ Vite 4-focused          |
 | Webpack-remote interop e2e         |        ✅ `examples/webpack-systemjs-remote` through compat shim         |          ✅ `vite-webpack-rspack` [12]          | ✅ webpack/SystemJS examples [13]  |
 | Workspace / pnpm-symlink shared    |                     ✅ `examples/workspace-shared-*`                     |       ✅ `@vite-vite/shared-lib` e2e [12]       |                 ❌                 |
 | DTS hot-sync e2e                   |                      ✅ `e2e/dts-dev-hot-sync.mjs`                       |                       ❌                        |                 ❌                 |
