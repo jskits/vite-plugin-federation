@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { getE2eLocalhostUrl } from '../../../examples/e2ePorts.mjs';
+
+const hostUrl = getE2eLocalhostUrl('MULTI_REMOTE_HOST');
+const litRemoteManifestUrl = getE2eLocalhostUrl('LIT_REMOTE', '/mf-manifest.json');
+const reactRemoteManifestUrl = getE2eLocalhostUrl('REACT_REMOTE', '/mf-manifest.json');
 
 test.describe('multi-remote manifest host', () => {
   test('loads React and Lit remotes from one host runtime', async ({ page }) => {
-    await page.goto('http://localhost:4196');
+    await page.goto(hostUrl);
 
     await expect(page.getByTestId('react-remote-panel')).toContainText('React manifest remote');
     await expect(
@@ -33,11 +38,11 @@ test.describe('multi-remote manifest host', () => {
       expect.arrayContaining([
         expect.objectContaining({
           alias: 'reactRemote',
-          manifestUrl: 'http://localhost:4174/mf-manifest.json',
+          manifestUrl: reactRemoteManifestUrl,
         }),
         expect.objectContaining({
           alias: 'litRemote',
-          manifestUrl: 'http://localhost:4194/mf-manifest.json',
+          manifestUrl: litRemoteManifestUrl,
         }),
       ]),
     );

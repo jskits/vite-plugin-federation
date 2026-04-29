@@ -1,5 +1,8 @@
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
+import { getE2ePort } from '../e2ePorts.mjs';
+
+const port = getE2ePort('SHARED_HOST_ONLY_REMOTE');
 
 export default defineConfig({
   plugins: [
@@ -22,9 +25,9 @@ export default defineConfig({
     }),
   ],
   preview: {
-    port: 4191,
+    port,
   },
   server: {
-    port: 4191,
+    port,
   },
 });

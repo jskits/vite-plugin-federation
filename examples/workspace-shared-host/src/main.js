@@ -6,7 +6,7 @@ import {
 } from 'vite-plugin-federation/runtime';
 import './style.css';
 
-const remoteManifestUrl = 'http://localhost:4200/mf-manifest.json';
+const remoteManifestUrl = __MF_WORKSPACE_REMOTE_MANIFEST_URL__;
 
 function setText(testId, value) {
   document.querySelector(`[data-testid="${testId}"]`).textContent = value;

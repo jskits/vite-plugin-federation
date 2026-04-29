@@ -886,6 +886,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           commonjsOptions: {
             strictRequires: 'auto',
           },
+          target: 'esnext',
         });
         const virtualDir = options.virtualModuleDir || '__mf__virtual';
         config.optimizeDeps ||= {};
@@ -919,10 +920,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           }
         });
 
-        if (isRolldown) {
-          // Vite 8+: virtual modules use ESM, set target for top-level await
-          config.build = defu(config.build || {}, { target: 'esnext' });
-        } else {
+        if (!isRolldown) {
           // Vite 5-7: virtual modules use CJS for dev, need interop
           config.optimizeDeps.needsInterop ||= [];
           config.optimizeDeps.needsInterop.push(virtualDir);

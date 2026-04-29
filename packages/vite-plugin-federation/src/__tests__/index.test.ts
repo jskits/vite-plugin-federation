@@ -464,6 +464,8 @@ describe('vite:module-federation-early-init', () => {
   });
 
   it('excludes lit shared ids from optimizeDeps in serve', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const plugin = getEarlyInitPluginWithLitShare();
     const config: any = {
       root: process.cwd(),
@@ -473,22 +475,30 @@ describe('vite:module-federation-early-init', () => {
       },
     };
 
-    const configHook = typeof plugin.config === 'function' ? plugin.config : plugin.config?.handler;
-    configHook?.call({ meta: {} } as any, config, {
-      command: 'serve',
-      mode: 'test',
-    });
+    try {
+      const configHook =
+        typeof plugin.config === 'function' ? plugin.config : plugin.config?.handler;
+      configHook?.call({ meta: {} } as any, config, {
+        command: 'serve',
+        mode: 'test',
+      });
 
-    expect(config.optimizeDeps.exclude).toContain('lit');
-    expect(config.optimizeDeps.exclude).toContain('lit/directives/class-map.js');
-    expect(config.optimizeDeps.include).toContain(getPreBuildLibImportId('lit'));
-    expect(config.optimizeDeps.include).toContain(
-      getPreBuildLibImportId('lit/directives/class-map.js'),
-    );
-    expect(config.optimizeDeps.include).not.toContain(getLoadShareImportId('lit', false, 'serve'));
-    expect(config.optimizeDeps.include).not.toContain(
-      getLoadShareImportId('lit/directives/class-map.js', false, 'serve'),
-    );
+      expect(config.optimizeDeps.exclude).toContain('lit');
+      expect(config.optimizeDeps.exclude).toContain('lit/directives/class-map.js');
+      expect(config.optimizeDeps.include).toContain(getPreBuildLibImportId('lit'));
+      expect(config.optimizeDeps.include).toContain(
+        getPreBuildLibImportId('lit/directives/class-map.js'),
+      );
+      expect(config.optimizeDeps.include).not.toContain(
+        getLoadShareImportId('lit', false, 'serve'),
+      );
+      expect(config.optimizeDeps.include).not.toContain(
+        getLoadShareImportId('lit/directives/class-map.js', false, 'serve'),
+      );
+    } finally {
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
   });
 
   it('excludes bare remote ids from optimizeDeps in Rolldown serve', () => {
@@ -595,6 +605,45 @@ describe('vite:module-federation-early-init', () => {
     });
 
     expect(config.define.ENV_TARGET).toBe('"node"');
+  });
+
+  it('defaults build target to esnext for top-level await control chunks', () => {
+    const plugin = getModuleFederationVitePlugin();
+    const config: any = {
+      root: process.cwd(),
+      resolve: {
+        alias: [],
+      },
+    };
+
+    const configHook = typeof plugin.config === 'function' ? plugin.config : plugin.config?.handler;
+    configHook?.call({ meta: {} } as any, config, {
+      command: 'build',
+      mode: 'test',
+    });
+
+    expect(config.build.target).toBe('esnext');
+  });
+
+  it('keeps an explicit user build target', () => {
+    const plugin = getModuleFederationVitePlugin();
+    const config: any = {
+      build: {
+        target: 'es2022',
+      },
+      root: process.cwd(),
+      resolve: {
+        alias: [],
+      },
+    };
+
+    const configHook = typeof plugin.config === 'function' ? plugin.config : plugin.config?.handler;
+    configHook?.call({ meta: {} } as any, config, {
+      command: 'build',
+      mode: 'test',
+    });
+
+    expect(config.build.target).toBe('es2022');
   });
 });
 

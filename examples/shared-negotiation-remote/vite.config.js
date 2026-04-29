@@ -2,10 +2,16 @@ import { fileURLToPath } from 'node:url';
 import path from 'pathe';
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
+import { getE2ePort } from '../e2ePorts.mjs';
 
 const scenario =
   process.env.MF_SHARE_SCENARIO === 'version-first' ? 'version-first' : 'loaded-first';
 const outDir = process.env.MF_OUT_DIR || `dist-${scenario}`;
+const port = getE2ePort(
+  scenario === 'version-first'
+    ? 'SHARED_NEGOTIATION_VERSION_REMOTE'
+    : 'SHARED_NEGOTIATION_LOADED_REMOTE',
+);
 const packageDir = path.dirname(fileURLToPath(import.meta.url));
 const sharedValuePath = path.join(packageDir, 'src/shared-value.js');
 
@@ -14,10 +20,10 @@ export default defineConfig({
     outDir,
   },
   preview: {
-    port: scenario === 'version-first' ? 4186 : 4184,
+    port,
   },
   server: {
-    port: scenario === 'version-first' ? 4186 : 4184,
+    port,
   },
   define: {
     __MF_SHARE_SCENARIO__: JSON.stringify(scenario),

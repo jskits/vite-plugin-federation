@@ -10,9 +10,10 @@ import { getFederationDebugInfo, loadRemoteFromManifest } from 'vite-plugin-fede
 import systemJsRuntimeUrl from 'systemjs/dist/system.min.js?url';
 import './app.css';
 
-const VAR_REMOTE_URL = 'http://localhost:4174/remoteEntry.var.js';
-const MANIFEST_REMOTE_URL = 'http://localhost:4174/mf-manifest.json';
-const WEBPACK_SYSTEM_REMOTE_URL = 'http://localhost:4195/remoteEntry.js';
+/* global __MF_ORIGINJS_REACT_REMOTE_ORIGIN__, __MF_ORIGINJS_WEBPACK_SYSTEM_REMOTE_ORIGIN__ */
+const VAR_REMOTE_URL = `${__MF_ORIGINJS_REACT_REMOTE_ORIGIN__}/remoteEntry.var.js`;
+const MANIFEST_REMOTE_URL = `${__MF_ORIGINJS_REACT_REMOTE_ORIGIN__}/mf-manifest.json`;
+const WEBPACK_SYSTEM_REMOTE_URL = `${__MF_ORIGINJS_WEBPACK_SYSTEM_REMOTE_ORIGIN__}/remoteEntry.js`;
 const MANUAL_CSS_BUCKET_KEY = 'css__reactRemote__./ManualCssButton';
 const SYSTEM_JS_RUNTIME_DATA_ATTR = 'data-mf-systemjs-runtime';
 
@@ -177,7 +178,7 @@ export default function App() {
       const nextDebug = {
         esm: {
           containerReady: typeof esmContainer?.get === 'function',
-          entry: 'http://localhost:4174/remoteEntry.js',
+          entry: `${__MF_ORIGINJS_REACT_REMOTE_ORIGIN__}/remoteEntry.js`,
           request: 'reactRemote/Button',
           resolvedType: typeof unwrappedEsmModule,
         },

@@ -1,12 +1,15 @@
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
+import { getE2ePort } from '../e2ePorts.mjs';
+
+const port = getE2ePort('WORKSPACE_SHARED_REMOTE');
 
 export default defineConfig({
   preview: {
-    port: 4200,
+    port,
   },
   server: {
-    port: 4200,
+    port,
   },
   plugins: [
     federation({

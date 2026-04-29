@@ -1,9 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import path from 'pathe';
 import { defineConfig } from '@playwright/test';
+import { getE2eLocalhostUrl, getE2ePort } from '../../examples/e2ePorts.mjs';
 
 const packageDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(packageDir, '../..');
+const litRemotePort = getE2ePort('LIT_REMOTE');
+const multiRemoteHostPort = getE2ePort('MULTI_REMOTE_HOST');
+const reactRemotePort = getE2ePort('REACT_REMOTE');
 
 export default defineConfig({
   testDir: './e2e',
@@ -19,31 +23,31 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'corepack pnpm --filter example-react-remote preview -- --host localhost',
+      command: `corepack pnpm --filter example-react-remote exec vite preview --host localhost --port ${reactRemotePort}`,
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 60_000,
-      url: 'http://localhost:4174/',
+      url: getE2eLocalhostUrl('REACT_REMOTE'),
     },
     {
-      command: 'corepack pnpm --filter example-lit-remote preview -- --host localhost',
+      command: `corepack pnpm --filter example-lit-remote exec vite preview --host localhost --port ${litRemotePort}`,
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 60_000,
-      url: 'http://localhost:4194/',
+      url: getE2eLocalhostUrl('LIT_REMOTE'),
     },
     {
-      command: 'corepack pnpm --filter example-multi-remote-host preview -- --host localhost',
+      command: `corepack pnpm --filter example-multi-remote-host exec vite preview --host localhost --port ${multiRemoteHostPort}`,
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 60_000,
-      url: 'http://localhost:4196/',
+      url: getE2eLocalhostUrl('MULTI_REMOTE_HOST'),
     },
   ],
 });

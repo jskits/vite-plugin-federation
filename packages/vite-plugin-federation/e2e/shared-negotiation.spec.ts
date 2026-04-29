@@ -1,16 +1,17 @@
 import { expect, test } from '@playwright/test';
+import { getE2eLocalhostUrl } from '../../../examples/e2ePorts.mjs';
 
 const scenarios = [
   {
     expectedProvider: 'host',
     expectedVersion: '1.0.0',
-    hostUrl: 'http://localhost:4183',
+    hostUrl: getE2eLocalhostUrl('SHARED_NEGOTIATION_LOADED_HOST'),
     name: 'loaded-first',
   },
   {
     expectedProvider: 'remote',
     expectedVersion: '2.0.0',
-    hostUrl: 'http://localhost:4185',
+    hostUrl: getE2eLocalhostUrl('SHARED_NEGOTIATION_VERSION_HOST'),
     name: 'version-first',
   },
 ] as const;

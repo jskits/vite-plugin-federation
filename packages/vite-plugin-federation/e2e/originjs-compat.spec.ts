@@ -1,8 +1,15 @@
 import { expect, test } from '@playwright/test';
+import { getE2eLocalhostUrl } from '../../../examples/e2ePorts.mjs';
+
+const hostUrl = getE2eLocalhostUrl('ORIGINJS_HOST');
+const reactRemoteEntryUrl = getE2eLocalhostUrl('REACT_REMOTE', '/remoteEntry.js');
+const reactRemoteManifestUrl = getE2eLocalhostUrl('REACT_REMOTE', '/mf-manifest.json');
+const reactRemoteVarEntryUrl = getE2eLocalhostUrl('REACT_REMOTE', '/remoteEntry.var.js');
+const webpackSystemRemoteEntryUrl = getE2eLocalhostUrl('WEBPACK_SYSTEM_REMOTE', '/remoteEntry.js');
 
 test.describe('originjs compatibility shim', () => {
   test('loads remoteEntry-first and manifest-first remotes on the same host', async ({ page }) => {
-    await page.goto('http://localhost:4193');
+    await page.goto(hostUrl);
 
     await expect(page.getByTestId('status')).toHaveText('ready');
     await expect(page.getByTestId('esm-ensure')).toHaveText('container-ready');
@@ -69,7 +76,7 @@ test.describe('originjs compatibility shim', () => {
     expect(debugInfo).toMatchObject({
       esm: {
         containerReady: true,
-        entry: 'http://localhost:4174/remoteEntry.js',
+        entry: reactRemoteEntryUrl,
         request: 'reactRemote/Button',
         resolvedType: 'function',
       },
@@ -85,14 +92,14 @@ test.describe('originjs compatibility shim', () => {
         manualInjectedAfterHost: true,
       },
       manifest: {
-        entry: 'http://localhost:4174/mf-manifest.json',
+        entry: reactRemoteManifestUrl,
         registeredAlias: 'reactManifest',
         request: 'reactManifest/Button',
         resolvedType: 'function',
       },
       systemjs: {
         containerReady: true,
-        entry: 'http://localhost:4195/remoteEntry.js',
+        entry: webpackSystemRemoteEntryUrl,
         format: 'systemjs',
         from: 'webpack',
         request: 'webpackSystemRemote/message',
@@ -101,7 +108,7 @@ test.describe('originjs compatibility shim', () => {
       },
       var: {
         containerReady: true,
-        entry: 'http://localhost:4174/remoteEntry.var.js',
+        entry: reactRemoteVarEntryUrl,
         request: 'reactRemoteVar/Button',
         resolvedType: 'function',
       },

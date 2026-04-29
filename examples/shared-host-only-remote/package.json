@@ -12,6 +12,7 @@
     "vite-plugin-federation": "workspace:*"
   },
   "devDependencies": {
+    "host-only-dep": "workspace:*",
     "vite": "8.0.8"
   }
 }

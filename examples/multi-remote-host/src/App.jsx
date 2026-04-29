@@ -2,8 +2,9 @@ import { startTransition, useEffect, useState } from 'react';
 import { loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
 import './style.css';
 
-const REACT_REMOTE_MANIFEST_URL = 'http://localhost:4174/mf-manifest.json';
-const LIT_REMOTE_MANIFEST_URL = 'http://localhost:4194/mf-manifest.json';
+/* global __MF_LIT_REMOTE_MANIFEST_URL__, __MF_REACT_REMOTE_MANIFEST_URL__ */
+const REACT_REMOTE_MANIFEST_URL = __MF_REACT_REMOTE_MANIFEST_URL__;
+const LIT_REMOTE_MANIFEST_URL = __MF_LIT_REMOTE_MANIFEST_URL__;
 
 export default function App() {
   const [ReactButton, setReactButton] = useState(null);

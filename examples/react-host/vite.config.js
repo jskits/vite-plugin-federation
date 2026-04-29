@@ -1,13 +1,17 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
+import { getE2eLocalhostUrl, getE2ePort } from '../e2ePorts.mjs';
+
+const port = getE2ePort('REACT_HOST');
+const reactRemoteManifestUrl = getE2eLocalhostUrl('REACT_REMOTE', '/mf-manifest.json');
 
 export default defineConfig({
   server: {
-    port: 4173,
+    port,
   },
   preview: {
-    port: 4173,
+    port,
   },
   plugins: [
     react(),
@@ -19,7 +23,7 @@ export default defineConfig({
       },
       shareStrategy: 'loaded-first',
       remotes: {
-        reactRemote: 'http://localhost:4174/mf-manifest.json',
+        reactRemote: reactRemoteManifestUrl,
       },
       shared: {
         react: {

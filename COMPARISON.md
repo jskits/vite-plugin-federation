@@ -20,7 +20,7 @@ checked-in comparison snapshots and npm metadata where noted.
 
 |                          | **`vite-plugin-federation`** (this repo)                         | **`@module-federation/vite`**                                   | **`@originjs/vite-plugin-federation`** |
 | ------------------------ | ---------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------- |
-| Reviewed version         | `0.0.3` [1]                                                      | `1.14.4` snapshot (`1.14.5` latest npm) [2]                     | `1.4.1` [3]                            |
+| Reviewed version         | `0.0.4` [1]                                                      | `1.14.4` snapshot (`1.14.5` latest npm) [2]                     | `1.4.1` [3]                            |
 | Vite peer range          | `^5 \|\| ^6 \|\| ^7 \|\| ^8` [1]                                 | `^5 \|\| ^6 \|\| ^7 \|\| ^8` [2]                                | not declared (devDep `^4.0.5`) [3]     |
 | Rolldown / Vite 8        | ✅ first-class compiler adapter                                  | ✅ supported                                                    | ❌ not targeted                        |
 | Underlying MF runtime    | `@module-federation/runtime@2.3.3` (wrapped + extended)          | `@module-federation/runtime@2.3.3` (passthrough)                | hand-rolled (`virtual:__federation__`) |
@@ -257,7 +257,7 @@ import {
 | Browser e2e (Playwright)           | ✅ 6 configs: default, compat, multi-remote, shared, ssr, browser-matrix |       ✅ vite-vite + vite-webpack-rspack        |                 ✅                 |
 | SSR e2e                            |                                    ✅                                    |                       ❌                        |                 ❌                 |
 | Browser matrix                     |                      ✅ Chromium / Firefox / WebKit                      |                ❌ Chromium only                 |                 ❌                 |
-| Mixed Vite-version e2e             |                       ❌ local examples use Vite 8                       | ✅ Vite 6 / 7 / 8 in `vite-webpack-rspack` [12] |         ❌ Vite 4-focused          |
+| Vite peer-version smoke            |           ✅ packed tarball builds against Vite 5 / 6 / 7 / 8            | ✅ Vite 6 / 7 / 8 in `vite-webpack-rspack` [12] |         ❌ Vite 4-focused          |
 | Webpack-remote interop e2e         |        ✅ `examples/webpack-systemjs-remote` through compat shim         |          ✅ `vite-webpack-rspack` [12]          | ✅ webpack/SystemJS examples [13]  |
 | Workspace / pnpm-symlink shared    |                     ✅ `examples/workspace-shared-*`                     |       ✅ `@vite-vite/shared-lib` e2e [12]       |                 ❌                 |
 | DTS hot-sync e2e                   |                      ✅ `e2e/dts-dev-hot-sync.mjs`                       |                       ❌                        |                 ❌                 |
@@ -279,7 +279,7 @@ import {
 
 ### Pick `vite-plugin-federation` (this repo) when…
 
-- You need **production-grade host loading** with cache TTL, retries, circuit breaker, fallback
+- You need **production-oriented host loading** with cache TTL, retries, circuit breaker, fallback
   URLs, and integrity verification.
 - You ship to **multiple tenants on the same page** and need scoped manifest caches and share
   scopes.

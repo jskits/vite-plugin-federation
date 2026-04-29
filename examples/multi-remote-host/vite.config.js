@@ -1,13 +1,24 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
+import { getE2eLocalhostUrl, getE2ePort } from '../e2ePorts.mjs';
+
+const port = getE2ePort('MULTI_REMOTE_HOST');
 
 export default defineConfig({
   server: {
-    port: 4196,
+    port,
   },
   preview: {
-    port: 4196,
+    port,
+  },
+  define: {
+    __MF_LIT_REMOTE_MANIFEST_URL__: JSON.stringify(
+      getE2eLocalhostUrl('LIT_REMOTE', '/mf-manifest.json'),
+    ),
+    __MF_REACT_REMOTE_MANIFEST_URL__: JSON.stringify(
+      getE2eLocalhostUrl('REACT_REMOTE', '/mf-manifest.json'),
+    ),
   },
   plugins: [
     react(),

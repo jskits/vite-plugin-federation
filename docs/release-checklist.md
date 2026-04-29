@@ -21,6 +21,7 @@ Run these locally before creating a release tag:
 pnpm install --frozen-lockfile
 pnpm check
 pnpm test:package:smoke
+pnpm test:vite-matrix:smoke
 pnpm --filter vite-plugin-federation pack --dry-run
 ```
 
@@ -32,13 +33,22 @@ The package smoke test validates:
 - `package.json` declares `sideEffects: false`.
 - Production output does not include the devtools overlay bootstrap.
 
+The Vite peer matrix smoke test validates that the packed tarball installs and builds in isolated
+temporary apps using pinned Vite 5, 6, 7, and 8 versions. It is a packaging/compiler-adapter gate;
+the Playwright examples remain the browser behavior gate.
+
 Run the manual `Extended E2E` workflow before publishing a release candidate or stable release when
 changes touched runtime loading, shared resolution, DTS, SSR, or compatibility behavior.
+
+The Extended E2E workflow runs on Node 20 and 22. Local runs use fixed default ports but support
+`MF_E2E_<NAME>_PORT` overrides; the package scripts run a port preflight before Playwright starts so
+port collisions fail with a direct override hint.
 
 ## Release Steps
 
 1. Confirm the worktree is clean.
-2. Add or review Changesets with `pnpm changeset`.
+2. Add or review Changesets with `pnpm changeset`; document the user-visible change in
+   `CHANGELOG.md` or the generated package changelog during versioning.
 3. Version packages with `pnpm version-packages`.
 4. Run the package quality gates above.
 5. Commit the version and changelog changes.

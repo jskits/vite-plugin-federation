@@ -4,9 +4,9 @@
 [![npm](https://img.shields.io/npm/v/vite-plugin-federation.svg)](https://www.npmjs.com/package/vite-plugin-federation)
 ![license](https://img.shields.io/npm/l/vite-plugin-federation)
 
-> A production-grade [Module Federation 2.0][mf2] plugin for **Vite 5 / 6 / 7 / 8** (including
-> Rolldown). Manifest-first. SSR-aware. Multi-tenant. Includes an OriginJS-compatible
-> `virtual:__federation__` migration shim.
+> A production-oriented beta [Module Federation 2.0][mf2] plugin for **Vite 5 / 6 / 7 / 8**
+> (including Rolldown). Manifest-first. SSR-aware. Multi-tenant. Includes an
+> OriginJS-compatible `virtual:__federation__` migration shim.
 
 ```bash
 pnpm add -D vite-plugin-federation
@@ -48,20 +48,28 @@ pnpm add -D vite-plugin-federation
 
 ## Why this plugin
 
-| Need                                            | What this plugin gives you                                                                                                                  |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Vite 5 / 6 / 7 / 8 + Rolldown** in one plugin | First-class compiler adapter, including the Vite 8 module-preload helper rewrite and `rolldownOptions` handling.                            |
-| **Manifest-first remote loading**               | Builds emit `mf-manifest.json` + `mf-stats.json` + `mf-debug.json`. Hosts consume via curated `vite-plugin-federation/runtime` helpers.     |
-| **Real dev HMR for remotes**                    | Sidecar dev runtime with classified updates when `dev.remoteHmr: true`: `partial`, `style`, `types`, `full`.                                |
-| **SSR (Node)**                                  | Dedicated `ssrRemoteEntry`, `createServerFederationInstance`, asset-preload collection for streaming HTML.                                  |
-| **Production-grade host loader**                | Cache TTL, `staleWhileRevalidate`, retries with jitter, timeouts, fallback URLs, circuit breaker, request collapsing.                       |
-| **Multi-tenant**                                | `createFederationRuntimeScope(runtimeKey)` for isolated manifest cache, breaker, and debug records per tenant on a single page.             |
-| **Security**                                    | SRI / SHA-256 integrity verification (multi-mode), private/authenticated manifests, signed-manifest workflow, CSP & Trusted Types guidance. |
-| **Observability**                               | `getFederationDebugInfo()`, telemetry hooks, dev devtools panel, stable error codes (`MFV-001` … `MFV-007`).                                |
-| **OriginJS migration shim**                     | `virtual:__federation__` and `__federation_method_*` shim enabled by default for common OriginJS migration paths.                           |
+| Need                                            | What this plugin gives you                                                                                                                      |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vite 5 / 6 / 7 / 8 + Rolldown** in one plugin | First-class compiler adapter, including the Vite 8 module-preload helper rewrite and `rolldownOptions` handling.                                |
+| **Manifest-first remote loading**               | Builds emit `mf-manifest.json` + `mf-stats.json` + `mf-debug.json`. Hosts consume via curated `vite-plugin-federation/runtime` helpers.         |
+| **Real dev HMR for remotes**                    | Sidecar dev runtime with classified updates when `dev.remoteHmr: true`: `partial`, `style`, `types`, `full`.                                    |
+| **SSR (Node)**                                  | Dedicated `ssrRemoteEntry`, `createServerFederationInstance`, asset-preload collection for streaming HTML.                                      |
+| **Production-grade host loader**                | Cache TTL, `staleWhileRevalidate`, retries with jitter, timeouts, fallback URLs, circuit breaker, request collapsing.                           |
+| **Multi-tenant**                                | `createFederationRuntimeScope(runtimeKey)` for isolated manifest cache, breaker, and debug records per tenant on a single page.                 |
+| **Security**                                    | SRI / SHA-256 integrity verification (multi-mode), private/authenticated manifests, CSP & Trusted Types guidance, and a signed-manifest recipe. |
+| **Observability**                               | `getFederationDebugInfo()`, telemetry hooks, dev devtools panel, stable error codes (`MFV-001` … `MFV-007`).                                    |
+| **OriginJS migration shim**                     | `virtual:__federation__` and `__federation_method_*` shim enabled by default for common OriginJS migration paths.                               |
 
 A side-by-side feature table against `@module-federation/vite` and
 `@originjs/vite-plugin-federation` lives in [`COMPARISON.md`](COMPARISON.md).
+
+### Beta Scope
+
+The beta support target is manifest-first Vite remotes, browser hosts, Node SSR hosts, DTS
+generation/consumption, dev remote HMR, and the curated runtime APIs. Webpack/SystemJS/`var` remotes
+are compatibility paths covered by e2e but should be validated in each migration. Signed manifests
+are a documented supply-chain pattern; signature verification is intentionally provided through a
+custom fetch wrapper rather than built into the default runtime.
 
 ---
 
@@ -717,7 +725,12 @@ pnpm --filter vite-plugin-federation test:e2e:shared
 pnpm --filter vite-plugin-federation test:e2e:ssr
 pnpm --filter vite-plugin-federation test:e2e:compat
 pnpm --filter vite-plugin-federation test:e2e:dts:dev
+pnpm test:vite-matrix:smoke
 ```
+
+E2E ports default to the documented local ports. If a local process already owns one of them, set
+the matching `MF_E2E_<NAME>_PORT` variable before running the suite, for example
+`MF_E2E_REACT_REMOTE_PORT=5274 pnpm --filter vite-plugin-federation test:e2e:multi-remote`.
 
 To run an SSR example by hand:
 
@@ -759,9 +772,9 @@ tag. The full policy, quality gates, and step-by-step instructions live in
 ## CI / CD
 
 - **`.github/workflows/ci.yml`** — runs `pnpm check` on PRs and pushes to `main`; Node 22 also
-  runs the package smoke test.
+  runs the package smoke test and Vite peer matrix smoke.
 - **`.github/workflows/extended-e2e.yml`** — manual and weekly Playwright coverage for compat,
-  shared runtime, multi-remote, browser matrix, SSR, and DTS dev sync.
+  shared runtime, multi-remote, browser matrix, SSR, and DTS dev sync on Node 20 and 22.
 - **`.github/workflows/release.yml`** — publishes matching `v*.*.*` tags or a manual tag dispatch.
 - Publishing requires `NPM_AUTH_TOKEN` / `NODE_AUTH_TOKEN` to be configured in GitHub secrets.
 - Published packages use `provenance: true`.

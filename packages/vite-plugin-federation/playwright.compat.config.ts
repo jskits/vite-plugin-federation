@@ -1,9 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import path from 'pathe';
 import { defineConfig } from '@playwright/test';
+import { getE2eLocalhostUrl, getE2ePort } from '../../examples/e2ePorts.mjs';
 
 const packageDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(packageDir, '../..');
+const originjsHostPort = getE2ePort('ORIGINJS_HOST');
+const reactRemotePort = getE2ePort('REACT_REMOTE');
+const webpackSystemRemotePort = getE2ePort('WEBPACK_SYSTEM_REMOTE');
 
 export default defineConfig({
   testDir: './e2e',
@@ -15,36 +19,36 @@ export default defineConfig({
   reporter: 'list',
   outputDir: './test-results/compat',
   use: {
-    baseURL: 'http://localhost:4193',
+    baseURL: getE2eLocalhostUrl('ORIGINJS_HOST'),
     headless: true,
   },
   webServer: [
     {
-      command: 'corepack pnpm --filter example-react-remote preview -- --host localhost',
+      command: `corepack pnpm --filter example-react-remote exec vite preview --host localhost --port ${reactRemotePort}`,
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 60_000,
-      url: 'http://localhost:4174/',
+      url: getE2eLocalhostUrl('REACT_REMOTE'),
     },
     {
-      command: 'corepack pnpm --filter example-webpack-systemjs-remote preview',
+      command: `NODE_OPTIONS=--no-deprecation corepack pnpm --filter example-webpack-systemjs-remote exec http-server dist -a localhost -p ${webpackSystemRemotePort} -c-1 --cors`,
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 60_000,
-      url: 'http://localhost:4195/remoteEntry.js',
+      url: getE2eLocalhostUrl('WEBPACK_SYSTEM_REMOTE', '/remoteEntry.js'),
     },
     {
-      command: 'corepack pnpm --filter example-originjs-compat-host preview',
+      command: `corepack pnpm --filter example-originjs-compat-host exec vite preview --host localhost --port ${originjsHostPort}`,
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 60_000,
-      url: 'http://localhost:4193/',
+      url: getE2eLocalhostUrl('ORIGINJS_HOST'),
     },
   ],
 });

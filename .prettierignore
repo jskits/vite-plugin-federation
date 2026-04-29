@@ -5,4 +5,5 @@ dist
 **/dist-*
 **/dist-ssr
 node_modules
+.pnpm-store
 package-lock.json

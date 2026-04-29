@@ -40,3 +40,7 @@ jobs:
       - name: Smoke test packed package
         if: matrix.node-version == 22
         run: pnpm test:package:smoke
+
+      - name: Smoke test Vite peer matrix
+        if: matrix.node-version == 22
+        run: pnpm test:vite-matrix:smoke

@@ -8,7 +8,13 @@ on:
 jobs:
   extended-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 20
+          - 22
 
     steps:
       - name: Checkout
@@ -22,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - name: Install dependencies
@@ -48,3 +54,7 @@ jobs:
 
       - name: DTS dev e2e
         run: pnpm --filter vite-plugin-federation test:e2e:dts:dev
+
+      - name: Vite peer matrix smoke
+        if: matrix.node-version == 22
+        run: pnpm test:vite-matrix:smoke

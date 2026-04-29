@@ -2,13 +2,15 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'pathe';
 import { expect, test } from '@playwright/test';
+import { getE2eLocalhostUrl } from '../../../examples/e2ePorts.mjs';
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(e2eDir, '../../..');
+const workspaceSharedHostUrl = getE2eLocalhostUrl('WORKSPACE_SHARED_HOST');
 
 test.describe('workspace shared dependencies', () => {
   test('loads a pnpm workspace symlinked shared package in production builds', async ({ page }) => {
-    await page.goto('http://localhost:4201');
+    await page.goto(workspaceSharedHostUrl);
 
     await expect(page.getByTestId('host-report')).toHaveText('@mf-examples/workspace-shared@1.0.0');
     await expect(page.getByTestId('host-preload')).toHaveText(

@@ -97,7 +97,9 @@ function createProcess(command, args, options) {
     if (logs.length > 200) {
       logs.shift();
     }
-    process.stdout.write(text);
+    if (process.env.DTS_DEV_HOT_SYNC_VERBOSE) {
+      process.stdout.write(text);
+    }
   };
 
   child.stdout?.on('data', onData);
@@ -266,7 +268,7 @@ export const proofAnswer: FederationAnswer = {
 
   await runHostTypecheck();
 
-  console.log('DTS dev hot sync verified.');
+  process.stdout.write('DTS dev hot sync verified.\n');
 } catch (error) {
   const remoteLogs = remoteServer?.getLogs?.() || '';
   const hostLogs = hostServer?.getLogs?.() || '';

@@ -36,9 +36,7 @@ describe('generateRuntimePluginOption - safe JS literal', () => {
       megaObject,
     };
 
-    console.time('bench-test');
     const code = serializeRuntimeOptions(input);
-    console.timeEnd('bench-test');
 
     // Simple checks that key features exist
     expect(normalizeWhitespace(code)).toContain(

@@ -11,6 +11,7 @@
 
 import { existsSync, readFileSync, statSync } from 'fs';
 import { createRequire } from 'module';
+import { pathToFileURL } from 'url';
 import type * as EsModuleLexer from 'es-module-lexer';
 import path from 'pathe';
 import { mfWarn } from '../utils/logger';
@@ -211,6 +212,17 @@ function resolveRelativeModule(filePath: string, specifier: string): string | un
   return undefined;
 }
 
+function resolveReExportModule(filePath: string, specifier: string): string | undefined {
+  if (specifier.startsWith('.')) return resolveRelativeModule(filePath, specifier);
+
+  try {
+    const resolved = createRequire(pathToFileURL(filePath)).resolve(specifier);
+    return path.isAbsolute(resolved) ? resolved : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function getNamedExportsViaRegex(
   source: string,
   filePath?: string,
@@ -254,12 +266,10 @@ function getNamedExportsViaRegex(
 
   // Handle `export * from './module'` re-exports
   if (filePath) {
-    const starExportRegex = /export\s+\*\s+from\s+['"]([^'"]+)['"]/g;
+    const starExportRegex = /export\s*\*\s*from\s*['"]([^'"]+)['"]/g;
     while ((match = starExportRegex.exec(source)) !== null) {
       const specifier = match[1];
-      // Only resolve relative imports (starting with . or ..)
-      if (!specifier.startsWith('.')) continue;
-      const resolvedPath = resolveRelativeModule(filePath, specifier);
+      const resolvedPath = resolveReExportModule(filePath, specifier);
       if (!resolvedPath || visited.has(resolvedPath)) continue;
       try {
         const reExportSource = readFileSync(resolvedPath, 'utf-8');
@@ -277,6 +287,11 @@ function getNamedExportsViaRegex(
 }
 
 function getPackageNamedExports(pkg: string): string[] {
+  // Lit's node development entry warns on import, so inspect its ESM source statically.
+  if (pkg === 'lit' || pkg.startsWith('lit/')) {
+    return getEsmNamedExports(pkg);
+  }
+
   try {
     // Resolve from the project root (process.cwd()) so that shared packages
     // like react are found even when the plugin is installed in a nested

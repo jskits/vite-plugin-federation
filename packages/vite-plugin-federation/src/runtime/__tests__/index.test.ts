@@ -815,35 +815,40 @@ describe('runtime api', () => {
   });
 
   it('classifies import:false host-only provider errors as host-only fallbacks', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     loadShareMock.mockRejectedValueOnce(
       new Error(
         '[Module Federation] Shared module "host-only-dep" must be provided by the host because import: false is configured. requiredVersion=^1.2.3, strictVersion=true',
       ),
     );
 
-    await expect(
-      loadShare(
-        'host-only-dep' as any,
-        {
-          customShareInfo: {
-            shareConfig: {
-              import: false,
-              requiredVersion: '^1.2.3',
-              singleton: true,
-              strictVersion: true,
+    try {
+      await expect(
+        loadShare(
+          'host-only-dep' as any,
+          {
+            customShareInfo: {
+              shareConfig: {
+                import: false,
+                requiredVersion: '^1.2.3',
+                singleton: true,
+                strictVersion: true,
+              },
             },
-          },
-        } as any,
-      ),
-    ).rejects.toThrow('must be provided by the host because import: false is configured');
+          } as any,
+        ),
+      ).rejects.toThrow('must be provided by the host because import: false is configured');
 
-    expect(getFederationDebugInfo().runtime.sharedResolutionGraph.at(-1)).toMatchObject({
-      fallbackSource: 'host-only',
-      pkgName: 'host-only-dep',
-      requestedVersion: '^1.2.3',
-      status: 'fallback',
-      strictVersion: true,
-    });
+      expect(getFederationDebugInfo().runtime.sharedResolutionGraph.at(-1)).toMatchObject({
+        fallbackSource: 'host-only',
+        pkgName: 'host-only-dep',
+        requestedVersion: '^1.2.3',
+        status: 'fallback',
+        strictVersion: true,
+      });
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it('refreshes registered runtime remotes with force enabled', async () => {

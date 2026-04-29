@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,21 +10,36 @@ const repoRoot = path.resolve(scriptDir, '..');
 const packageDir = path.join(repoRoot, 'packages', 'vite-plugin-federation');
 const packageJson = JSON.parse(await readFile(path.join(packageDir, 'package.json'), 'utf8'));
 const productionDevtoolsMarker = '__vite_plugin_federation_devtools_overlay';
+const commandTimeoutMs = Number(process.env.PACKAGE_SMOKE_COMMAND_TIMEOUT_MS || 180_000);
 
-function run(command, args, cwd) {
-  try {
-    return execFileSync(command, args, {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-  } catch (error) {
-    const stdout = error.stdout?.toString() || '';
-    const stderr = error.stderr?.toString() || '';
-    if (stdout) process.stdout.write(stdout);
-    if (stderr) process.stderr.write(stderr);
-    throw error;
+function run(command, args, cwd, options = {}) {
+  const captureOutput = options.captureOutput ?? false;
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      CI: process.env.CI || '1',
+      ...options.env,
+    },
+    shell: process.platform === 'win32',
+    stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    timeout: options.timeoutMs ?? commandTimeoutMs,
+  });
+
+  if (result.error) {
+    throw result.error;
   }
+
+  if (result.status !== 0) {
+    if (captureOutput) {
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+    }
+    throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}`);
+  }
+
+  return captureOutput ? result.stdout.trim() : '';
 }
 
 async function readBuiltJavaScriptFiles(directory) {
@@ -48,6 +63,7 @@ async function main() {
   const tempRoot = await mkdtemp(path.join(tmpdir(), 'vite-plugin-federation-smoke-'));
   const packDir = path.join(tempRoot, 'pack');
   const appDir = path.join(tempRoot, 'app');
+  const storeDir = path.join(tempRoot, 'pnpm-store');
 
   try {
     console.log('Building workspace package...');
@@ -60,7 +76,9 @@ async function main() {
     console.log('Packing tarball with pnpm pack...');
     await mkdir(packDir, { recursive: true });
     const packInfo = JSON.parse(
-      run('pnpm', ['pack', '--json', '--pack-destination', packDir], packageDir),
+      run('pnpm', ['pack', '--json', '--pack-destination', packDir], packageDir, {
+        captureOutput: true,
+      }),
     );
     const tarballPath = packInfo.filename;
     const tarballUrl = pathToFileURL(tarballPath).href;
@@ -90,6 +108,9 @@ async function main() {
           private: true,
           type: 'module',
           packageManager: 'pnpm@10.33.0',
+          pnpm: {
+            onlyBuiltDependencies: ['esbuild'],
+          },
           scripts: {
             build: 'vite build',
           },
@@ -99,7 +120,7 @@ async function main() {
             [packageJson.name]: tarballUrl,
           },
           devDependencies: {
-            '@vitejs/plugin-react': '5.1.2',
+            '@vitejs/plugin-react': '6.0.1',
             vite: '8.0.8',
           },
         },
@@ -166,7 +187,20 @@ createRoot(document.querySelector('#app')).render(<App />);
     );
 
     console.log('Installing tarball into temporary app...');
-    run('pnpm', ['install', '--prefer-offline'], appDir);
+    run(
+      'pnpm',
+      [
+        'install',
+        '--prefer-offline',
+        '--no-frozen-lockfile',
+        '--reporter',
+        'append-only',
+        '--store-dir',
+        storeDir,
+      ],
+      appDir,
+      { timeoutMs: Number(process.env.PACKAGE_SMOKE_INSTALL_TIMEOUT_MS || 240_000) },
+    );
 
     console.log('Building temporary app...');
     run('pnpm', ['build'], appDir);

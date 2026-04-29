@@ -110,7 +110,9 @@ script creation hooks.
 ## Signed Manifest Design
 
 For high-assurance deployments, sign the manifest body outside this plugin and verify it in a custom
-`fetch` wrapper before returning the `Response` to the runtime. The recommended shape is detached:
+`fetch` wrapper before returning the `Response` to the runtime. Built-in signature verification is
+not part of the beta runtime surface; this keeps the default loader key-management-neutral. The
+recommended shape is detached:
 
 - Manifest body stays valid JSON and schema-compatible.
 - Signature, key id, and algorithm are delivered by headers or a sidecar file.

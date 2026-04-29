@@ -1,8 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { getE2eLocalhostUrl } from '../../../examples/e2ePorts.mjs';
+
+const hostOnlyHostUrl = getE2eLocalhostUrl('SHARED_HOST_ONLY_HOST');
+const strictFallbackUrl = getE2eLocalhostUrl('SHARED_STRICT_FALLBACK');
 
 test.describe('shared fallback diagnostics', () => {
   test('records strictVersion local fallback decisions in browser builds', async ({ page }) => {
-    await page.goto('http://localhost:4190');
+    await page.goto(strictFallbackUrl);
 
     await expect(page.getByTestId('result')).toHaveText('local fallback local@1.0.0');
 
@@ -43,7 +47,7 @@ test.describe('shared fallback diagnostics', () => {
   test('surfaces actionable host-only shared provider errors in browser builds', async ({
     page,
   }) => {
-    await page.goto('http://localhost:4192');
+    await page.goto(hostOnlyHostUrl);
 
     await expect(page.getByTestId('status')).toContainText(
       'must be provided by the host because import: false is configured',

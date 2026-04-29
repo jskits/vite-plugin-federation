@@ -14,7 +14,7 @@ A full feature comparison lives in [`../COMPARISON.md`](../COMPARISON.md).
 
 ```diff
 - "@module-federation/vite": "1.14.4"
-+ "vite-plugin-federation": "^0.0.3"
++ "vite-plugin-federation": "^0.0.4"
 ```
 
 The `@module-federation/runtime`, `@module-federation/sdk`, and `@module-federation/dts-plugin`

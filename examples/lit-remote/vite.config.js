@@ -1,13 +1,16 @@
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
+import { getE2eOrigin, getE2ePort } from '../e2ePorts.mjs';
+
+const port = getE2ePort('LIT_REMOTE');
 
 export default defineConfig({
   server: {
-    origin: 'http://localhost:4194',
-    port: 4194,
+    origin: getE2eOrigin('LIT_REMOTE'),
+    port,
   },
   preview: {
-    port: 4194,
+    port,
   },
   plugins: [
     federation({

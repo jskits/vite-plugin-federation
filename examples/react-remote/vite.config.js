@@ -1,14 +1,17 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
+import { getE2eOrigin, getE2ePort } from '../e2ePorts.mjs';
+
+const port = getE2ePort('REACT_REMOTE');
 
 export default defineConfig({
   server: {
-    origin: 'http://localhost:4174',
-    port: 4174,
+    origin: getE2eOrigin('REACT_REMOTE'),
+    port,
   },
   preview: {
-    port: 4174,
+    port,
   },
   ssr: {
     noExternal: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],

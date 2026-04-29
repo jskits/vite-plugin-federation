@@ -39,6 +39,10 @@ vi.mock('fs', () => ({
       filePath.endsWith('/lit/package.json') ||
       filePath.endsWith('node_modules/lit/index.js') ||
       filePath.endsWith('/lit/index.js') ||
+      filePath.endsWith('node_modules/lit-element/lit-element.js') ||
+      filePath.endsWith('/lit-element/lit-element.js') ||
+      filePath.endsWith('node_modules/lit-html/lit-html.js') ||
+      filePath.endsWith('/lit-html/lit-html.js') ||
       filePath.endsWith('node_modules/lit/directives/class-map.js') ||
       filePath.endsWith('/lit/directives/class-map.js') ||
       filePath.endsWith('node_modules/mock-package-esm-only/package.json') ||
@@ -66,7 +70,19 @@ vi.mock('fs', () => ({
       });
     }
     if (filePath.endsWith('node_modules/lit/index.js') || filePath.endsWith('/lit/index.js')) {
-      return 'export const useCounter = () => 1; export function useLogger() {}';
+      return 'export*from"lit-element/lit-element.js";export*from"lit-html";';
+    }
+    if (
+      filePath.endsWith('node_modules/lit-element/lit-element.js') ||
+      filePath.endsWith('/lit-element/lit-element.js')
+    ) {
+      return 'export{i as LitElement,n as _$LE};';
+    }
+    if (
+      filePath.endsWith('node_modules/lit-html/lit-html.js') ||
+      filePath.endsWith('/lit-html/lit-html.js')
+    ) {
+      return 'export{b as html,t as css,D as render};';
     }
     if (
       filePath.endsWith('node_modules/lit/directives/class-map.js') ||
@@ -263,6 +279,12 @@ vi.mock('module', async (importOriginal) => {
         }
         if (pkg === 'lit/directives/class-map.js') {
           return '/repo/apps/remote/node_modules/lit/directives/class-map.js';
+        }
+        if (pkg === 'lit-element/lit-element.js') {
+          return '/repo/apps/remote/node_modules/lit-element/lit-element.js';
+        }
+        if (pkg === 'lit-html') {
+          return '/repo/apps/remote/node_modules/lit-html/lit-html.js';
         }
         if (pkg === 'mock-package-typeonly' || pkg.startsWith('mock-package-typeonly/')) {
           return '/repo/apps/remote/node_modules/mock-package-typeonly/src/index.jsx';
@@ -917,7 +939,9 @@ describe('writeLoadShareModule', () => {
 
     expect(generatedCode).toContain('const { initPromise } = globalThis[globalKey];');
     expect(generatedCode).toContain('export default exportModule.default ?? exportModule;');
-    expect(generatedCode).toContain('export { __mf_0 as useCounter, __mf_1 as useLogger };');
+    expect(generatedCode).toContain(
+      'export { __mf_0 as LitElement, __mf_1 as _$LE, __mf_2 as html, __mf_3 as css, __mf_4 as render };',
+    );
     expect(generatedCode).not.toContain('__prebuild__');
     expect(generatedCode).not.toContain('import("lit")');
     expect(generatedCode).not.toContain('const {initPromise} = require(');

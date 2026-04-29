@@ -36,8 +36,11 @@ The package peer range is:
 ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
 ```
 
-The extended e2e workflow runs the current repository-pinned Vite version. Add explicit version
-matrix jobs when the examples are expanded to install multiple Vite versions in isolated workspaces.
+`pnpm test:vite-matrix:smoke` packs the package and builds isolated temporary apps against pinned
+Vite 5 / 6 / 7 / 8 versions. The smoke app exercises the root export, runtime export, manifest
+emission, dynamic imports, and a user `manualChunks` rule. The full Playwright examples still run
+against the repository-pinned Vite version because they validate framework and browser behavior,
+not every peer major.
 
 ## Known `tsup` CJS Warning
 

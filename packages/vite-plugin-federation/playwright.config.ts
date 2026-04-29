@@ -1,9 +1,12 @@
 import { fileURLToPath } from 'node:url';
 import path from 'pathe';
 import { defineConfig } from '@playwright/test';
+import { getE2eLocalhostUrl, getE2ePort } from '../../examples/e2ePorts.mjs';
 
 const packageDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(packageDir, '../..');
+const reactHostPort = getE2ePort('REACT_HOST');
+const reactRemotePort = getE2ePort('REACT_REMOTE');
 
 export default defineConfig({
   testDir: './e2e',
@@ -14,27 +17,27 @@ export default defineConfig({
   reporter: 'list',
   outputDir: './test-results',
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: getE2eLocalhostUrl('REACT_HOST'),
     headless: true,
   },
   webServer: [
     {
-      command: 'corepack pnpm --filter example-react-remote dev -- --host localhost --port 4174',
+      command: `corepack pnpm --filter example-react-remote exec vite --host localhost --port ${reactRemotePort}`,
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 60_000,
-      url: 'http://localhost:4174/',
+      url: getE2eLocalhostUrl('REACT_REMOTE'),
     },
     {
-      command: 'corepack pnpm --filter example-react-host dev -- --host localhost --port 4173',
+      command: `corepack pnpm --filter example-react-host exec vite --host localhost --port ${reactHostPort}`,
       cwd: repoRoot,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 60_000,
-      url: 'http://localhost:4173/',
+      url: getE2eLocalhostUrl('REACT_HOST'),
     },
   ],
 });

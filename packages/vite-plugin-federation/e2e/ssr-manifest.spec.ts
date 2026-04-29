@@ -2,8 +2,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
+import { getE2eLocalhostUrl } from '../../../examples/e2ePorts.mjs';
 
-const remoteManifestUrl = 'http://localhost:4174/mf-manifest.json';
+const remoteManifestUrl = getE2eLocalhostUrl('REACT_REMOTE', '/mf-manifest.json');
+const remoteAssetBaseUrl = getE2eLocalhostUrl('REACT_REMOTE', '/assets/Button-');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
 
@@ -29,7 +31,7 @@ test.describe('ssr manifest consumption', () => {
     expect(html).toContain(`window.__REMOTE_MANIFEST_URL__ = "${remoteManifestUrl}"`);
     expect(html).toContain('window.__SSR_FEDERATION_DEBUG__ = ');
     expect(html).toContain('"target":"node"');
-    expect(html).toContain('data-mf-href="http://localhost:4174/assets/Button-');
+    expect(html).toContain(`data-mf-href="${remoteAssetBaseUrl}`);
     expect(html).toContain('rel="modulepreload" crossorigin="anonymous"');
 
     const consoleErrors: string[] = [];
@@ -79,7 +81,7 @@ test.describe('ssr manifest consumption', () => {
       expect.arrayContaining([
         expect.objectContaining({
           assetType: 'js',
-          href: expect.stringContaining('http://localhost:4174/assets/Button-'),
+          href: expect.stringContaining(remoteAssetBaseUrl),
           rel: 'modulepreload',
         }),
       ]),

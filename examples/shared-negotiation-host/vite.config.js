@@ -2,12 +2,20 @@ import { fileURLToPath } from 'node:url';
 import path from 'pathe';
 import { defineConfig } from 'vite';
 import federation from 'vite-plugin-federation';
+import { getE2eLocalhostUrl, getE2ePort } from '../e2ePorts.mjs';
 
 const scenario =
   process.env.MF_SHARE_SCENARIO === 'version-first' ? 'version-first' : 'loaded-first';
 const outDir = process.env.MF_OUT_DIR || `dist-${scenario}`;
-const remotePort = scenario === 'version-first' ? 4186 : 4184;
-const hostPort = scenario === 'version-first' ? 4185 : 4183;
+const remotePortKey =
+  scenario === 'version-first'
+    ? 'SHARED_NEGOTIATION_VERSION_REMOTE'
+    : 'SHARED_NEGOTIATION_LOADED_REMOTE';
+const hostPort = getE2ePort(
+  scenario === 'version-first'
+    ? 'SHARED_NEGOTIATION_VERSION_HOST'
+    : 'SHARED_NEGOTIATION_LOADED_HOST',
+);
 const packageDir = path.dirname(fileURLToPath(import.meta.url));
 const sharedValuePath = path.join(packageDir, 'src/shared-value.js');
 
@@ -22,7 +30,9 @@ export default defineConfig({
     port: hostPort,
   },
   define: {
-    __MF_REMOTE_MANIFEST_URL__: JSON.stringify(`http://localhost:${remotePort}/mf-manifest.json`),
+    __MF_REMOTE_MANIFEST_URL__: JSON.stringify(
+      getE2eLocalhostUrl(remotePortKey, '/mf-manifest.json'),
+    ),
     __MF_SHARE_SCENARIO__: JSON.stringify(scenario),
   },
   plugins: [
