@@ -1,10 +1,29 @@
 import { startTransition, useEffect, useState } from 'react';
-import { loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
+import { getFederationDebugInfo, loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
 import './style.css';
 
 /* global __MF_LIT_REMOTE_MANIFEST_URL__, __MF_REACT_REMOTE_MANIFEST_URL__ */
 const REACT_REMOTE_MANIFEST_URL = __MF_REACT_REMOTE_MANIFEST_URL__;
 const LIT_REMOTE_MANIFEST_URL = __MF_LIT_REMOTE_MANIFEST_URL__;
+
+if (typeof window !== 'undefined') {
+  window.__MF_SECURITY_E2E__ = {
+    getDebugInfo() {
+      return getFederationDebugInfo();
+    },
+    async loadReactButtonWithIntegrity(manifestUrl, integrity) {
+      const module = await loadRemoteFromManifest('reactRemote/Button', manifestUrl, {
+        force: true,
+        integrity,
+        remoteName: 'reactRemote',
+      });
+      return {
+        debugInfo: getFederationDebugInfo(),
+        exportType: typeof (module.default ?? module),
+      };
+    },
+  };
+}
 
 export default function App() {
   const [ReactButton, setReactButton] = useState(null);
