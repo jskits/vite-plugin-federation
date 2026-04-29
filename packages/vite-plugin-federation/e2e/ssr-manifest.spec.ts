@@ -2,21 +2,31 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
-import { getE2eLocalhostUrl } from '../../../examples/e2ePorts.mjs';
+import { getE2eLocalhostUrl, getE2eLoopbackUrl } from '../../../examples/e2ePorts.mjs';
 
 const remoteManifestUrl = getE2eLocalhostUrl('REACT_REMOTE', '/mf-manifest.json');
 const remoteAssetBaseUrl = getE2eLocalhostUrl('REACT_REMOTE', '/assets/Button-');
+const missingRemoteManifestUrl = getE2eLoopbackUrl('SSR_HOST', '/missing-mf-manifest.json');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
 
 interface SsrFederationDebug {
   manifestUrl: string;
+  manifestSourceUrl?: string;
   react: {
     version: string;
+  };
+  registeredRemote?: {
+    entry?: string;
+    manifestUrl?: string;
+    shareScope?: string;
+    sourceUrl?: string;
+    target?: string;
   };
   remoteAlias: string;
   remoteId: string;
   shareScope: string;
+  target: string;
 }
 
 test.describe('ssr manifest consumption', () => {
@@ -102,6 +112,70 @@ test.describe('ssr manifest consumption', () => {
       target: 'web',
     });
     expect(consoleErrors.filter((message) => !message.includes('favicon.ico'))).toEqual([]);
+  });
+
+  test('falls back to a secondary manifest URL during SSR and hydration', async ({
+    page,
+    request,
+  }) => {
+    const fallbackPath = `/?manifestUrl=${encodeURIComponent(
+      missingRemoteManifestUrl,
+    )}&fallbackUrl=${encodeURIComponent(remoteManifestUrl)}&forceManifest=1`;
+
+    const htmlResponse = await request.get(fallbackPath);
+    expect(htmlResponse.ok()).toBe(true);
+
+    const html = await htmlResponse.text();
+    expect(html).toContain(`window.__REMOTE_MANIFEST_URL__ = "${missingRemoteManifestUrl}"`);
+    expect(html).toContain(`window.__REMOTE_MANIFEST_FALLBACK_URLS__ = ["${remoteManifestUrl}"]`);
+    expect(html).toContain(`"manifestSourceUrl":"${remoteManifestUrl}"`);
+    expect(html).toContain(`data-mf-href="${remoteAssetBaseUrl}`);
+
+    await page.goto(fallbackPath);
+    await expect(page.getByRole('button', { name: 'SSR rendered via Node runtime' })).toBeVisible();
+
+    const ssrDebug = await page.evaluate<SsrFederationDebug>(
+      () =>
+        (window as unknown as { __SSR_FEDERATION_DEBUG__?: SsrFederationDebug })
+          .__SSR_FEDERATION_DEBUG__!,
+    );
+    const hydrationDebugHandle = await page.waitForFunction(
+      () => (window as unknown as { __SSR_HYDRATION_DEBUG__?: unknown }).__SSR_HYDRATION_DEBUG__,
+    );
+    const hydrationDebug = (await hydrationDebugHandle.jsonValue()) as SsrFederationDebug;
+
+    expect(ssrDebug).toMatchObject({
+      manifestSourceUrl: remoteManifestUrl,
+      manifestUrl: missingRemoteManifestUrl,
+      target: 'node',
+    });
+    expect(ssrDebug.registeredRemote).toMatchObject({
+      manifestUrl: missingRemoteManifestUrl,
+      sourceUrl: remoteManifestUrl,
+      target: 'node',
+    });
+    expect(hydrationDebug).toMatchObject({
+      manifestUrl: missingRemoteManifestUrl,
+      target: 'web',
+    });
+    expect(hydrationDebug.registeredRemote).toMatchObject({
+      manifestUrl: missingRemoteManifestUrl,
+      sourceUrl: remoteManifestUrl,
+      target: 'web',
+    });
+  });
+
+  test('returns a clear 500 when every SSR manifest source fails', async ({ request }) => {
+    const failurePath = `/?manifestUrl=${encodeURIComponent(
+      missingRemoteManifestUrl,
+    )}&forceManifest=1`;
+
+    const htmlResponse = await request.get(failurePath);
+    expect(htmlResponse.status()).toBe(500);
+
+    const body = await htmlResponse.text();
+    expect(body).toContain('Failed to fetch federation manifest');
+    expect(body).toContain(missingRemoteManifestUrl);
   });
 
   test('keeps the SSR bundling and remote entry contracts explicit', async () => {

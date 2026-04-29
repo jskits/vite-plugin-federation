@@ -10,6 +10,12 @@ import {
 
 export const DEFAULT_REMOTE_MANIFEST_URL =
   process.env.REACT_REMOTE_MANIFEST_URL || 'http://localhost:4174/mf-manifest.json';
+export const DEFAULT_REMOTE_MANIFEST_FALLBACK_URLS = (
+  process.env.REACT_REMOTE_MANIFEST_FALLBACK_URLS || ''
+)
+  .split(',')
+  .map((url) => url.trim())
+  .filter(Boolean);
 
 const REMOTE_REQUEST_ID = 'reactRemote/Button';
 
@@ -96,6 +102,13 @@ export function getRemoteManifestUrl() {
     return window.__REMOTE_MANIFEST_URL__;
   }
   return DEFAULT_REMOTE_MANIFEST_URL;
+}
+
+export function getRemoteManifestFallbackUrls() {
+  if (typeof window !== 'undefined' && Array.isArray(window.__REMOTE_MANIFEST_FALLBACK_URLS__)) {
+    return window.__REMOTE_MANIFEST_FALLBACK_URLS__;
+  }
+  return DEFAULT_REMOTE_MANIFEST_FALLBACK_URLS;
 }
 
 export function getRemoteRequestId() {

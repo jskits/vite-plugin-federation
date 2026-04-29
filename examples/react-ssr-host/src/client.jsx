@@ -5,6 +5,7 @@ import { AppShell } from './AppShell.jsx';
 import {
   ensureBrowserFederation,
   getRemoteAlias,
+  getRemoteManifestFallbackUrls,
   getRemoteManifestUrl,
   getRemoteRequestId,
 } from './federationRuntime.js';
@@ -20,10 +21,13 @@ function getReactSharedProvider(snapshot) {
 function createHydrationFederationDebug(manifestUrl) {
   const snapshot = getFederationDebugInfo();
   const remoteAlias = getRemoteAlias();
+  const registeredRemotes = snapshot.runtime.registeredManifestRemotes.filter(
+    (remote) => remote.alias === remoteAlias && remote.target === 'web',
+  );
   const registeredRemote =
-    snapshot.runtime.registeredManifestRemotes.find(
-      (remote) => remote.alias === remoteAlias && remote.target === 'web',
-    ) || null;
+    registeredRemotes.find((remote) => remote.manifestUrl === manifestUrl) ||
+    registeredRemotes.at(-1) ||
+    null;
 
   return {
     manifestUrl,
@@ -77,7 +81,9 @@ async function bootstrap() {
 
   ensureBrowserFederation();
   const remoteManifestUrl = getRemoteManifestUrl();
-  const remoteModule = await loadRemoteFromManifest(getRemoteRequestId(), remoteManifestUrl);
+  const remoteModule = await loadRemoteFromManifest(getRemoteRequestId(), remoteManifestUrl, {
+    fallbackUrls: getRemoteManifestFallbackUrls(),
+  });
   const RemoteButton = remoteModule.default ?? remoteModule;
   const buttonProps = window.__REMOTE_BUTTON_PROPS__ || {
     label: 'SSR rendered via Node runtime',

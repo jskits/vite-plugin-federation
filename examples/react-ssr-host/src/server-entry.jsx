@@ -23,10 +23,13 @@ function getReactSharedProvider(snapshot) {
 function createServerFederationDebug(remoteManifestUrl) {
   const snapshot = getFederationDebugInfo();
   const remoteAlias = getRemoteAlias();
+  const registeredRemotes = snapshot.runtime.registeredManifestRemotes.filter(
+    (remote) => remote.alias === remoteAlias && remote.target === 'node',
+  );
   const registeredRemote =
-    snapshot.runtime.registeredManifestRemotes.find(
-      (remote) => remote.alias === remoteAlias && remote.target === 'node',
-    ) || null;
+    registeredRemotes.find((remote) => remote.manifestUrl === remoteManifestUrl) ||
+    registeredRemotes.at(-1) ||
+    null;
 
   return {
     manifestUrl: remoteManifestUrl,
@@ -42,12 +45,16 @@ function createServerFederationDebug(remoteManifestUrl) {
   };
 }
 
-export async function render(remoteManifestUrl = DEFAULT_REMOTE_MANIFEST_URL) {
+export async function render(
+  remoteManifestUrl = DEFAULT_REMOTE_MANIFEST_URL,
+  manifestOptions = {},
+) {
   ensureServerFederation();
 
   const [remoteManifest, remoteModule] = await Promise.all([
-    fetchFederationManifest(remoteManifestUrl),
+    fetchFederationManifest(remoteManifestUrl, manifestOptions),
     loadRemoteFromManifest(getRemoteRequestId(), remoteManifestUrl, {
+      ...manifestOptions,
       target: 'node',
     }),
   ]);

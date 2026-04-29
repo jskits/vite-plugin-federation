@@ -8,8 +8,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.join(__dirname, 'dist', 'client');
 const clientManifestPath = path.join(clientDir, '.vite', 'manifest.json');
 const serverEntryPath = path.join(__dirname, 'dist', 'server', 'server-entry.js');
-const remoteManifestUrl =
+const defaultRemoteManifestUrl =
   process.env.REACT_REMOTE_MANIFEST_URL || 'http://localhost:4174/mf-manifest.json';
+const defaultRemoteManifestFallbackUrls = (process.env.REACT_REMOTE_MANIFEST_FALLBACK_URLS || '')
+  .split(',')
+  .map((url) => url.trim())
+  .filter(Boolean);
 const port = Number(process.env.PORT || 4180);
 
 const MIME_TYPES = {
@@ -88,12 +92,23 @@ async function serveStaticFile(reqPath, res) {
   }
 }
 
+function getRequestFederationConfig(requestUrl) {
+  const manifestUrl = requestUrl.searchParams.get('manifestUrl') || defaultRemoteManifestUrl;
+  const fallbackUrls = requestUrl.searchParams.getAll('fallbackUrl');
+
+  return {
+    fallbackUrls: fallbackUrls.length > 0 ? fallbackUrls : defaultRemoteManifestFallbackUrls,
+    force: requestUrl.searchParams.get('forceManifest') === '1',
+    manifestUrl,
+  };
+}
+
 async function proxyRemoteAsset(reqPath, res) {
   if (!reqPath.startsWith('assets/')) {
     return false;
   }
 
-  const remoteAssetUrl = new URL(reqPath, remoteManifestUrl);
+  const remoteAssetUrl = new URL(reqPath, defaultRemoteManifestUrl);
 
   try {
     const response = await fetch(remoteAssetUrl);
@@ -122,7 +137,12 @@ async function proxyRemoteAsset(reqPath, res) {
   }
 }
 
-async function renderDocument() {
+async function renderDocument(requestUrl) {
+  const {
+    fallbackUrls,
+    force,
+    manifestUrl: remoteManifestUrl,
+  } = getRequestFederationConfig(requestUrl);
   const [{ render }, clientManifest] = await Promise.all([
     import(pathToFileURL(serverEntryPath).href),
     readFile(clientManifestPath, 'utf-8').then((content) => JSON.parse(content)),
@@ -130,12 +150,16 @@ async function renderDocument() {
 
   const [{ appHtml, buttonProps, federationDebug, remoteManifest }, clientAssets] =
     await Promise.all([
-      render(remoteManifestUrl),
+      render(remoteManifestUrl, {
+        fallbackUrls,
+        force,
+      }),
       Promise.resolve(collectClientEntryAssets(clientManifest, 'index.html')),
     ]);
+  const remoteManifestSourceUrl = federationDebug.registeredRemote?.sourceUrl || remoteManifestUrl;
 
   const remotePreloadLinks = collectFederationManifestPreloadLinks(
-    remoteManifestUrl,
+    remoteManifestSourceUrl,
     remoteManifest,
     './Button',
   );
@@ -149,6 +173,8 @@ async function renderDocument() {
       loading: link.loading,
       rel: link.rel,
     })),
+    fallbackUrls,
+    manifestSourceUrl: remoteManifestSourceUrl,
   };
   const entry = clientManifest['index.html'];
 
@@ -186,6 +212,7 @@ async function renderDocument() {
     <div id="root">${appHtml}</div>
     <script>
       window.__REMOTE_MANIFEST_URL__ = ${serializeForInlineScript(remoteManifestUrl)};
+      window.__REMOTE_MANIFEST_FALLBACK_URLS__ = ${serializeForInlineScript(fallbackUrls)};
       window.__REMOTE_BUTTON_PROPS__ = ${serializeForInlineScript(buttonProps)};
       window.__SSR_FEDERATION_DEBUG__ = ${serializeForInlineScript(ssrFederationDebug)};
     </script>
@@ -215,7 +242,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    const html = await renderDocument();
+    const html = await renderDocument(requestUrl);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
   } catch (error) {
@@ -226,5 +253,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`[react-ssr-host] listening on http://127.0.0.1:${port}`);
-  console.log(`[react-ssr-host] remote manifest: ${remoteManifestUrl}`);
+  console.log(`[react-ssr-host] remote manifest: ${defaultRemoteManifestUrl}`);
 });
