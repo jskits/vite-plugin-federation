@@ -783,4 +783,4 @@ tag. The full policy, quality gates, and step-by-step instructions live in
 
 ## License
 
-[`MIT`](https://github.com/jskits/vite-plugin-federation/blob/main/LICENSE).
+[MIT](https://github.com/jskits/vite-plugin-federation/blob/main/LICENSE)
