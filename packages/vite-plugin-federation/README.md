@@ -10,22 +10,6 @@ It is built around manifest-first remote loading, Node SSR, live DTS workflows, 
 multi-tenant runtime scopes, and operational runtime controls. It also includes an
 OriginJS-compatible `virtual:__federation__` migration shim for existing Vite federation apps.
 
-## Status
-
-`vite-plugin-federation@0.1.x` is a beta release.
-
-The supported beta scope is:
-
-- Manifest-first Vite remotes and browser hosts.
-- Node SSR hosts using the runtime helpers.
-- DTS generation and consumption.
-- Dev remote HMR.
-- The curated `vite-plugin-federation/runtime` APIs.
-
-Compatibility paths for Webpack/SystemJS/`var` remotes are covered by E2E tests, but should still
-be validated during each migration. Signed manifests are supported as a documented custom-fetch
-verification recipe, not as a built-in key-management feature.
-
 ## Install
 
 ```bash
