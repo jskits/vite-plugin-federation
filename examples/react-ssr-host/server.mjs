@@ -14,6 +14,7 @@ const defaultRemoteManifestFallbackUrls = (process.env.REACT_REMOTE_MANIFEST_FAL
   .split(',')
   .map((url) => url.trim())
   .filter(Boolean);
+const allowManifestQueryOverrides = process.env.REACT_REMOTE_MANIFEST_QUERY_OVERRIDES === '1';
 const port = Number(process.env.PORT || 4180);
 
 const MIME_TYPES = {
@@ -38,6 +39,60 @@ function serializeForInlineScript(value) {
   return JSON.stringify(value)
     .replace(/</g, '\\u003C')
     .replace(/\u2028/g, '\\u2028');
+}
+
+function createHttpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function getHttpStatusCode(error) {
+  const statusCode = error && typeof error === 'object' ? error.statusCode : undefined;
+  return Number.isInteger(statusCode) && statusCode >= 400 && statusCode <= 599 ? statusCode : 500;
+}
+
+function getAllowedManifestOrigins() {
+  const configuredOrigins = (process.env.REACT_REMOTE_MANIFEST_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const manifestUrls = [
+    defaultRemoteManifestUrl,
+    ...defaultRemoteManifestFallbackUrls,
+    ...configuredOrigins,
+  ];
+
+  return new Set(
+    manifestUrls.map((value) => {
+      try {
+        return new URL(value).origin;
+      } catch {
+        throw createHttpError(500, `Invalid SSR manifest allowlist URL or origin: ${value}`);
+      }
+    }),
+  );
+}
+
+const allowedManifestOrigins = getAllowedManifestOrigins();
+
+function normalizeManifestOverrideUrl(rawUrl, parameterName) {
+  let url;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw createHttpError(400, `Invalid ${parameterName} query parameter.`);
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw createHttpError(400, `${parameterName} must use http: or https:.`);
+  }
+
+  if (!allowedManifestOrigins.has(url.origin)) {
+    throw createHttpError(400, `${parameterName} origin is not allowed: ${url.origin}`);
+  }
+
+  return url.href;
 }
 
 function collectClientEntryAssets(manifest, entryKey, seen = new Set()) {
@@ -93,13 +148,26 @@ async function serveStaticFile(reqPath, res) {
 }
 
 function getRequestFederationConfig(requestUrl) {
-  const manifestUrl = requestUrl.searchParams.get('manifestUrl') || defaultRemoteManifestUrl;
-  const fallbackUrls = requestUrl.searchParams.getAll('fallbackUrl');
+  const manifestUrlOverride = requestUrl.searchParams.get('manifestUrl');
+  const fallbackUrlOverrides = requestUrl.searchParams.getAll('fallbackUrl');
+  const hasUrlOverrides = Boolean(manifestUrlOverride) || fallbackUrlOverrides.length > 0;
+
+  if (hasUrlOverrides && !allowManifestQueryOverrides) {
+    throw createHttpError(
+      400,
+      'SSR manifest URL query overrides are disabled. Configure server-side manifest URLs instead.',
+    );
+  }
 
   return {
-    fallbackUrls: fallbackUrls.length > 0 ? fallbackUrls : defaultRemoteManifestFallbackUrls,
+    fallbackUrls:
+      fallbackUrlOverrides.length > 0
+        ? fallbackUrlOverrides.map((url) => normalizeManifestOverrideUrl(url, 'fallbackUrl'))
+        : defaultRemoteManifestFallbackUrls,
     force: requestUrl.searchParams.get('forceManifest') === '1',
-    manifestUrl,
+    manifestUrl: manifestUrlOverride
+      ? normalizeManifestOverrideUrl(manifestUrlOverride, 'manifestUrl')
+      : defaultRemoteManifestUrl,
   };
 }
 
@@ -246,8 +314,11 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
   } catch (error) {
-    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end(error instanceof Error ? error.stack || error.message : String(error));
+    const statusCode = getHttpStatusCode(error);
+    res.writeHead(statusCode, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end(
+      error instanceof Error && statusCode >= 500 ? error.stack || error.message : String(error),
+    );
   }
 });
 

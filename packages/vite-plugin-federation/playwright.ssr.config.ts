@@ -39,6 +39,7 @@ export default defineConfig({
         ...process.env,
         PORT: String(ssrHostPort),
         REACT_REMOTE_MANIFEST_URL: reactRemoteManifestUrl,
+        REACT_REMOTE_MANIFEST_QUERY_OVERRIDES: '1',
       },
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',

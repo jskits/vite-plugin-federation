@@ -89,6 +89,15 @@ await registerManifestRemote('tenantCatalog', manifestUrl, {
 Keep private manifests cacheable only by the intended tenant or user. If a CDN is involved, vary the
 cache by authorization context and avoid sharing tenant-specific manifests through public cache keys.
 
+## SSR Manifest URLs
+
+Never accept tenant- or user-controlled manifest URLs directly in Node SSR. A manifest remote runs
+code in the server runtime, so request-level URL overrides can become SSRF or remote code execution.
+The React SSR example keeps query-string manifest overrides disabled by default. Its E2E suite
+enables them with `REACT_REMOTE_MANIFEST_QUERY_OVERRIDES=1` and still restricts override URLs to the
+configured manifest origins. Add trusted origins through `REACT_REMOTE_MANIFEST_ALLOWED_ORIGINS` only
+for controlled test or operator workflows.
+
 ## CORS And CSP
 
 Recommended browser policy:

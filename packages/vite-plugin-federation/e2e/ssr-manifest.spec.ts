@@ -2,11 +2,11 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
-import { getE2eLocalhostUrl, getE2eLoopbackUrl } from '../../../examples/e2ePorts.mjs';
+import { getE2eLocalhostUrl } from '../../../examples/e2ePorts.mjs';
 
 const remoteManifestUrl = getE2eLocalhostUrl('REACT_REMOTE', '/mf-manifest.json');
 const remoteAssetBaseUrl = getE2eLocalhostUrl('REACT_REMOTE', '/assets/Button-');
-const missingRemoteManifestUrl = getE2eLoopbackUrl('SSR_HOST', '/missing-mf-manifest.json');
+const missingRemoteManifestUrl = getE2eLocalhostUrl('REACT_REMOTE', '/missing-mf-manifest.json');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
 
@@ -176,6 +176,18 @@ test.describe('ssr manifest consumption', () => {
     const body = await htmlResponse.text();
     expect(body).toContain('Failed to fetch federation manifest');
     expect(body).toContain(missingRemoteManifestUrl);
+  });
+
+  test('rejects SSR manifest query overrides outside the configured origin allowlist', async ({
+    request,
+  }) => {
+    const disallowedManifestUrl = 'http://127.0.0.1:1/mf-manifest.json';
+    const response = await request.get(
+      `/?manifestUrl=${encodeURIComponent(disallowedManifestUrl)}&forceManifest=1`,
+    );
+
+    expect(response.status()).toBe(400);
+    expect(await response.text()).toContain('manifestUrl origin is not allowed');
   });
 
   test('keeps the SSR bundling and remote entry contracts explicit', async () => {
