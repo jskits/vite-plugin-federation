@@ -1,3 +1,5 @@
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import net from 'node:net';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +11,7 @@ const remoteAssetBaseUrl = getE2eLocalhostUrl('REACT_REMOTE', '/assets/Button-')
 const missingRemoteManifestUrl = getE2eLocalhostUrl('REACT_REMOTE', '/missing-mf-manifest.json');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
+const ssrHostDir = path.join(repoRoot, 'examples/react-ssr-host');
 
 interface SsrFederationDebug {
   manifestUrl: string;
@@ -27,6 +30,99 @@ interface SsrFederationDebug {
   remoteId: string;
   shareScope: string;
   target: string;
+}
+
+function getFreePort() {
+  return new Promise<number>((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.once('error', reject);
+    server.listen({ host: '127.0.0.1', port: 0 }, () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : undefined;
+      server.close(() => {
+        if (!port) {
+          reject(new Error('Failed to allocate a free TCP port.'));
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
+
+function startSsrHostWithDefaultQueryOverridePolicy(port: number) {
+  const logs: string[] = [];
+  const env = {
+    ...process.env,
+    PORT: String(port),
+    REACT_REMOTE_MANIFEST_URL: remoteManifestUrl,
+  };
+  delete env.REACT_REMOTE_MANIFEST_QUERY_OVERRIDES;
+
+  const child = spawn('node', ['--experimental-vm-modules', 'server.mjs'], {
+    cwd: ssrHostDir,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const appendLog = (stream: string, chunk: Buffer) => {
+    logs.push(`[${stream}] ${chunk.toString()}`);
+    if (logs.length > 80) {
+      logs.shift();
+    }
+  };
+  child.stdout.on('data', (chunk) => appendLog('stdout', chunk));
+  child.stderr.on('data', (chunk) => appendLog('stderr', chunk));
+
+  return {
+    child,
+    getLogs: () => logs.join(''),
+  };
+}
+
+async function waitForSsrHost(
+  port: number,
+  child: ChildProcessWithoutNullStreams,
+  getLogs: () => string,
+) {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(`SSR host exited before becoming ready.\n${getLogs()}`);
+    }
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/healthz`);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Retry until the server finishes binding.
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`Timed out waiting for SSR host readiness.\n${getLogs()}`);
+}
+
+async function stopSsrHost(child: ChildProcessWithoutNullStreams) {
+  if (child.exitCode !== null) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    const timeout = setTimeout(resolve, 5_000);
+    child.once('exit', () => {
+      clearTimeout(timeout);
+      resolve(undefined);
+    });
+    child.kill('SIGTERM');
+  });
+
+  if (child.exitCode === null) {
+    child.kill('SIGKILL');
+  }
 }
 
 test.describe('ssr manifest consumption', () => {
@@ -188,6 +284,25 @@ test.describe('ssr manifest consumption', () => {
 
     expect(response.status()).toBe(400);
     expect(await response.text()).toContain('manifestUrl origin is not allowed');
+  });
+
+  test('keeps SSR manifest query overrides disabled by default', async ({ request }) => {
+    const port = await getFreePort();
+    const server = startSsrHostWithDefaultQueryOverridePolicy(port);
+
+    try {
+      await waitForSsrHost(port, server.child, server.getLogs);
+
+      const disallowedManifestUrl = 'http://example.com/mf-manifest.json';
+      const response = await request.get(
+        `http://127.0.0.1:${port}/?manifestUrl=${encodeURIComponent(disallowedManifestUrl)}`,
+      );
+
+      expect(response.status()).toBe(400);
+      expect(await response.text()).toContain('SSR manifest URL query overrides are disabled');
+    } finally {
+      await stopSsrHost(server.child);
+    }
   });
 
   test('keeps the SSR bundling and remote entry contracts explicit', async () => {
