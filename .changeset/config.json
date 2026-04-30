@@ -7,5 +7,6 @@
   "fixed": [],
   "ignore": [],
   "linked": [],
+  "privatePackages": false,
   "updateInternalDependencies": "patch"
 }
