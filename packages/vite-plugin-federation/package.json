@@ -2,6 +2,20 @@
   "name": "vite-plugin-federation",
   "version": "0.1.0",
   "description": "A Vite plugin for Module Federation.",
+  "keywords": [
+    "vite",
+    "module-federation",
+    "federation",
+    "micro-frontend",
+    "plugin",
+    "ssr",
+    "typescript"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/jskits/vite-plugin-federation#readme",
+  "bugs": {
+    "url": "https://github.com/jskits/vite-plugin-federation/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/jskits/vite-plugin-federation",
@@ -24,7 +38,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "sideEffects": false,
   "engines": {
