@@ -1,5 +1,11 @@
 # vite-plugin-federation
 
+## 0.1.1
+
+### Patch Changes
+
+- fix
+
 ## 0.1.0
 
 This is the first beta release of `vite-plugin-federation`. The beta scope covers
