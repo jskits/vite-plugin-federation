@@ -446,7 +446,6 @@ Current state:
 
 - README includes quick start and production runtime entry.
 - `docs/production-runtime.md` documents manifest runtime controls.
-- `tech.md` documents the architecture.
 - `docs/plugin-api.md` documents plugin options for remotes, hosts, shared packages, manifest
   output, devtools, DTS, and compatibility.
 - `docs/runtime-api.md` documents `vite-plugin-federation/runtime`, manifest loading, rollout

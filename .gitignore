@@ -145,9 +145,6 @@ vite.config.ts.timestamp-*
 **/.mf/
 **/@mf-types/
 
-other1/
-other2/
-tech.md
 playwright-report/
 test-results/
 blob-report/

@@ -744,7 +744,6 @@ VM module loader for remote ESM evaluation on the server.
 
 ### Internal docs
 
-- [`tech.md`](tech.md) — design rationale, virtual module layout, dev sidecar architecture.
 - [`docs/compiler-adapter.md`](docs/compiler-adapter.md) — Rolldown vs Rollup transform notes,
   control-chunk rules, the known CJS bundle warning.
 - [`docs/devtools-runtime-contract.md`](docs/devtools-runtime-contract.md) — devtools event
