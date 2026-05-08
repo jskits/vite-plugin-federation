@@ -99,13 +99,21 @@ function applyRewrites(
       case 'static': {
         const src = JSON.stringify(imp.source);
 
-        if (imp.namespaceLocal && !imp.defaultLocal && imp.named.length === 0) {
+        if (imp.namespaceLocal) {
           // import * as ns from "remote/xxx"
-          ms.overwrite(
-            imp.start,
-            imp.end,
-            `import { __moduleExports as ${imp.namespaceLocal} } from ${src};`,
+          // import Default, * as ns from "remote/xxx"
+          const importParts: string[] = [];
+          if (imp.defaultLocal) importParts.push(`default as ${imp.defaultLocal}`);
+          importParts.push(`__moduleExports as ${imp.namespaceLocal}`);
+          const destructParts = imp.named.map((s) =>
+            s.imported === s.local ? s.local : `${s.imported}: ${s.local}`,
           );
+
+          let rewrite = `import { ${importParts.join(', ')} } from ${src};`;
+          if (destructParts.length > 0)
+            rewrite += `\nconst { ${destructParts.join(', ')} } = ${imp.namespaceLocal};`;
+
+          ms.overwrite(imp.start, imp.end, rewrite);
         } else {
           const nsId = `__mf_ns_${counter++}`;
           const importParts: string[] = [];
@@ -380,7 +388,7 @@ async function collectFromEsLexer(
     if (/^type\s/.test(specifiersPart)) continue;
 
     // import * as ns from "remote/xxx"
-    const nsMatch = specifiersPart.match(/^\*\s+as\s+(\w+)$/);
+    const nsMatch = specifiersPart.match(/^(?:(\w+)\s*,\s*)?\*\s+as\s+(\w+)$/);
     if (nsMatch) {
       result.push({
         kind: 'static',
@@ -388,7 +396,8 @@ async function collectFromEsLexer(
         start: imp.ss,
         end: imp.se,
         named: [],
-        namespaceLocal: nsMatch[1],
+        defaultLocal: nsMatch[1],
+        namespaceLocal: nsMatch[2],
       });
       continue;
     }
@@ -443,7 +452,7 @@ function collectFromRegex(
     const specifiersPart = specifiersPartRaw.trim();
     if (/^type\s/.test(specifiersPart)) continue;
 
-    const nsMatch = specifiersPart.match(/^\*\s+as\s+(\w+)$/);
+    const nsMatch = specifiersPart.match(/^(?:(\w+)\s*,\s*)?\*\s+as\s+(\w+)$/);
     if (nsMatch) {
       result.push({
         kind: 'static',
@@ -451,7 +460,8 @@ function collectFromRegex(
         start: match.index!,
         end: match.index! + full.length,
         named: [],
-        namespaceLocal: nsMatch[1],
+        defaultLocal: nsMatch[1],
+        namespaceLocal: nsMatch[2],
       });
       continue;
     }

@@ -177,6 +177,13 @@ describe('pluginRemoteNamedExports', () => {
       expect(result).toContain('import { __moduleExports as utils }');
       expect(result).not.toContain('import *');
     });
+
+    it('rewrites default + namespace imports', async () => {
+      const result = await transform('import Default, * as utils from "remoteApp/utils";');
+      expect(result).toContain('default as Default');
+      expect(result).toContain('__moduleExports as utils');
+      expect(result).not.toContain('import Default, * as utils');
+    });
   });
 
   // ── dynamic imports ──────────────────────────────────────────
@@ -266,6 +273,17 @@ describe('pluginRemoteNamedExports', () => {
         true,
       );
       expect(result).toContain('import { __moduleExports as utils }');
+    });
+
+    it('rewrites default + namespace import via fallback', async () => {
+      const result = await transform(
+        'import Default, * as utils from "remoteApp/utils";',
+        '/src/app.tsx',
+        true,
+      );
+      expect(result).toContain('default as Default');
+      expect(result).toContain('__moduleExports as utils');
+      expect(result).not.toContain('import Default, * as utils');
     });
 
     it('rewrites default + named import via fallback', async () => {
@@ -361,6 +379,23 @@ describe('pluginRemoteNamedExports', () => {
       );
       expect(result).toContain('import { __moduleExports as routesRemote }');
       expect(result).not.toContain('import * as routesRemote');
+    });
+
+    it('rewrites default + namespace import in raw JSX via regex fallback', async () => {
+      const result = await transform(
+        [
+          'import Default, * as routesRemote from "remoteApp/routes";',
+          '',
+          'export function App() {',
+          '  return <div>{Default.name}{routesRemote.foo}</div>;',
+          '}',
+        ].join('\n'),
+        '/src/app.jsx',
+        true,
+      );
+      expect(result).toContain('default as Default');
+      expect(result).toContain('__moduleExports as routesRemote');
+      expect(result).not.toContain('import Default, * as routesRemote');
     });
   });
 
