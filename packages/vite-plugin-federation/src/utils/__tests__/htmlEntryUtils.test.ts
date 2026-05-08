@@ -67,9 +67,7 @@ describe('rewriteEntryScripts', () => {
     const result = rewriteEntryScripts(html, (src) => `/proxy?entry=${encodeURIComponent(src)}`);
 
     expect(result).toContain('data-type="module" src="/src/skipped.js"');
-    expect(result).toContain(
-      'data-src="/src/ignored.js" src="/proxy?entry=%2Fsrc%2Fmain.js"',
-    );
+    expect(result).toContain('data-src="/src/ignored.js" src="/proxy?entry=%2Fsrc%2Fmain.js"');
     expect(result).not.toContain('data-src="/proxy?entry=%2Fsrc%2Fignored.js"');
   });
 });
