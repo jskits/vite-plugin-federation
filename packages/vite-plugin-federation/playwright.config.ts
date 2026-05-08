@@ -10,6 +10,7 @@ const reactRemotePort = getE2ePort('REACT_REMOTE');
 
 export default defineConfig({
   testDir: './e2e',
+  testMatch: /dev-remote-hmr\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
