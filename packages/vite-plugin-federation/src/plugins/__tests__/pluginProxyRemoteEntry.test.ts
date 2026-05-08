@@ -1,7 +1,42 @@
 import { describe, expect, it, vi } from 'vitest';
 import pluginProxyRemoteEntry from '../pluginProxyRemoteEntry';
+import { getHostAutoInitPath } from '../../virtualModules';
+import { normalizeModuleFederationOptions } from '../../utils/normalizeModuleFederationOptions';
 
 describe('pluginProxyRemoteEntry', () => {
+  it('awaits dev host auto init before loading the app entry', async () => {
+    const options = normalizeModuleFederationOptions({
+      filename: 'remoteEntry.js',
+      name: 'host',
+    });
+    const plugin = pluginProxyRemoteEntry({
+      options,
+      remoteEntryId: 'virtual:mf-REMOTE_ENTRY_ID:remote',
+      ssrRemoteEntryId: 'virtual:mf-SSR_REMOTE_ENTRY_ID:remote',
+      virtualExposesId: 'virtual:mf-exposes:remote',
+    });
+
+    plugin.config?.({} as any, { command: 'serve', mode: 'development' });
+    plugin.configResolved?.({
+      base: '/',
+      root: '/repo',
+      server: {
+        host: '127.0.0.1',
+        port: 4173,
+      },
+    } as any);
+
+    const result = await plugin.transform?.call({} as any, '', getHostAutoInitPath());
+
+    expect(result && 'code' in result ? result.code : result).toContain(
+      'const remoteEntry = await import(origin + "/remoteEntry.js")',
+    );
+    expect(result && 'code' in result ? result.code : result).toContain('await remoteEntry.init()');
+    expect(result && 'code' in result ? result.code : result).not.toContain(
+      '.then(remoteEntry.init)',
+    );
+  });
+
   it('normalizes vite ssr helpers into standard node-loadable esm in dev mode', async () => {
     const middlewares: Array<(req: any, res: any, next: () => void) => void | Promise<void>> = [];
     const transformRequest = vi.fn(async () => ({

@@ -150,7 +150,7 @@ export function proxySharedModule(options: {
           excludeSharedSubDependencies(shared);
         }
       },
-      async resolveId(source, importer) {
+      async resolveId(source, importer, resolveOptions) {
         if (source.includes(PREBUILD_TAG)) {
           const module = assertModuleFound(PREBUILD_TAG, source) as VirtualModule;
           const pkgName = module.name;
@@ -172,6 +172,7 @@ export function proxySharedModule(options: {
         if (/\.css$/.test(source)) return;
         if (useDirectReactImport && source === 'react') return;
         if (importer && importer.includes('localSharedImportMap')) return;
+        if ((resolveOptions as { scan?: boolean } | undefined)?.scan) return;
 
         const isRolldown = getIsRolldown(this);
         const matchedShared = findMatchingSharedKey(source);

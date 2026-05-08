@@ -240,6 +240,23 @@ describe('pluginProxySharedModule_preBuild', () => {
     });
   }
 
+  it('does not proxy shared packages during Vite dependency scan', async () => {
+    hasPackageDependencyMock.mockReturnValue(false);
+
+    const { proxyPlugin } = createServeProxyPlugin(makeShared());
+    const resolution = await proxyPlugin.resolveId?.call(
+      {
+        meta: {},
+        resolve: async (id: string) => ({ id: `/resolved/${id}` }),
+      },
+      'react-dom/client',
+      '/src/main.ts',
+      { scan: true },
+    );
+
+    expect(resolution).toBeUndefined();
+  });
+
   it('proxies pnpm resolved shared ids when allowNodeModulesSuffixMatch is enabled', async () => {
     hasPackageDependencyMock.mockReturnValue(false);
     const shared = makeShared();

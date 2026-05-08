@@ -521,13 +521,8 @@ export default function ({
             return `
           if (typeof window !== 'undefined') {
             const origin = (${!options.ignoreOrigin}) ? window.origin : "//${host}:${viteConfig.server?.port}"
-            const remoteEntryPromise = await import(origin + ${publicPath})
-            // __tla only serves as a hack for vite-plugin-top-level-await.
-            Promise.resolve(remoteEntryPromise)
-            .then(remoteEntry => {
-              return Promise.resolve(remoteEntry.__tla)
-                .then(remoteEntry.init).catch(remoteEntry.init)
-            })
+            const remoteEntry = await import(origin + ${publicPath})
+            await remoteEntry.init()
           }
           `;
           }
