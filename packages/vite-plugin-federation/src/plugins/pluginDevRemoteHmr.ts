@@ -759,7 +759,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
       }
 
       if (isHost) {
-        const connections: WebSocket[] = [];
+        const connections = new Set<WebSocket>();
         const reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
         let isTearingDown = false;
 
@@ -888,10 +888,12 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
             };
             ws.onerror = (error) =>
               mfWarn(`Remote HMR socket error for "${configuredRemoteName}":`, error);
-            ws.onclose = () =>
+            ws.onclose = () => {
+              connections.delete(ws);
               scheduleReconnect(remoteAlias, remote, hasOpened ? 0 : attempt, 'socket closed');
+            };
 
-            connections.push(ws);
+            connections.add(ws);
           } catch (error) {
             mfWarn(
               `Failed to connect remote HMR for "${configuredRemoteName}" on attempt ${attempt + 1}: ${getStringPreview(error)}`,
@@ -912,7 +914,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
             )
               connection.close();
           });
-          connections.length = 0;
+          connections.clear();
         };
 
         for (const [remoteName, remote] of Object.entries(options.remotes)) {
