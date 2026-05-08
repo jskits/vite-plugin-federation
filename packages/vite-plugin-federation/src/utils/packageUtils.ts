@@ -131,7 +131,7 @@ export function getInstalledPackageJson(
             if (candidate?.packageJson.name === packageName) return candidate;
           }
         } catch {
-          continue;
+          // Ignore unreadable or malformed pnpm stores and keep walking upward.
         }
       }
       if (currentDir === rootDir) break;

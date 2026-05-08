@@ -44,4 +44,19 @@ describe('getInstalledPackageJson', () => {
       `/node_modules/.pnpm/${packageName}@0.27.0/node_modules/${packageName}/package.json`,
     );
   });
+
+  it('does not loop forever when a pnpm store path cannot be read', () => {
+    const packageName = 'mf-test-missing';
+    const root = mkdtempSync(path.join(tmpdir(), 'mf-vite-pnpm-bad-store-'));
+    tempDirs.push(root);
+
+    mkdirSync(path.join(root, 'apps/host'), { recursive: true });
+    mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+    writeFileSync(path.join(root, 'apps/host/package.json'), JSON.stringify({ name: 'host' }));
+    writeFileSync(path.join(root, 'node_modules/.pnpm'), 'not a directory');
+
+    const installed = getInstalledPackageJson(packageName, { cwd: path.join(root, 'apps/host') });
+
+    expect(installed).toBeUndefined();
+  });
 });
