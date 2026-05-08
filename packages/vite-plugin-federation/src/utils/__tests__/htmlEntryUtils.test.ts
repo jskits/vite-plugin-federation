@@ -57,6 +57,21 @@ describe('rewriteEntryScripts', () => {
     const result = rewriteEntryScripts(html, (src) => `/proxy?entry=${encodeURIComponent(src)}`);
     expect(result).toContain(`src="/proxy?entry=%2Fsrc%2Fmain.js"`);
   });
+
+  it('does not confuse data attributes with script type or src attributes', () => {
+    const html =
+      '<body>' +
+      '<script data-type="module" src="/src/skipped.js"></script>' +
+      '<script type="module" data-src="/src/ignored.js" src="/src/main.js"></script>' +
+      '</body>';
+    const result = rewriteEntryScripts(html, (src) => `/proxy?entry=${encodeURIComponent(src)}`);
+
+    expect(result).toContain('data-type="module" src="/src/skipped.js"');
+    expect(result).toContain(
+      'data-src="/src/ignored.js" src="/proxy?entry=%2Fsrc%2Fmain.js"',
+    );
+    expect(result).not.toContain('data-src="/proxy?entry=%2Fsrc%2Fignored.js"');
+  });
 });
 
 describe('injectEntryScript', () => {
