@@ -595,7 +595,7 @@ describe('pluginDevRemoteHmr', () => {
     expect(server.ws.send).not.toHaveBeenCalledWith({ type: 'full-reload' });
   });
 
-  it('falls back to full reload when partial remote update has no matching host module', async () => {
+  it('keeps runtime remote expose updates event-only when no host virtual module exists', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => ({
@@ -649,16 +649,20 @@ describe('pluginDevRemoteHmr', () => {
       }),
     });
 
-    await vi.waitFor(() => expect(server.ws.send).toHaveBeenCalledWith({ type: 'full-reload' }));
     expect(server.ws.send).toHaveBeenCalledWith({
       type: 'custom',
-      event: 'vite-plugin-federation:remote-update',
+      event: 'vite-plugin-federation:remote-expose-update',
       data: expect.objectContaining({
-        action: 'full-reload',
-        fallbackReason: expect.stringContaining('No matching host virtual modules'),
-        strategy: 'full',
+        action: 'partial-reload',
+        expose: './Button',
+        remoteRequestId: 'remoteApp/Button',
+        strategy: 'partial',
       }),
     });
+    expect(server.ws.send).not.toHaveBeenCalledWith({ type: 'full-reload' });
+    expect(mfWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Emitting the runtime update event without reloading.'),
+    );
   });
 
   it('forwards remote style updates without forcing a full reload', async () => {

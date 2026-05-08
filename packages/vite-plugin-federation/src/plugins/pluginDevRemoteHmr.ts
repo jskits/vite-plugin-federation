@@ -589,19 +589,8 @@ async function triggerHostRemoteExposeUpdate(
   if (matchedModules.length === 0) {
     mfWarn(
       `Remote expose update "${payload.remoteRequestId || payload.hostRemote}" had no matching host virtual modules. ` +
-        'Falling back to full reload.',
+        'Emitting the runtime update event without reloading.',
     );
-    server.ws.send({
-      type: 'custom',
-      event: HOST_REMOTE_UPDATE_EVENT,
-      data: {
-        ...payload,
-        action: 'full-reload',
-        fallbackReason: 'No matching host virtual modules were found for the remote expose update.',
-        strategy: 'full',
-      },
-    });
-    server.ws.send({ type: 'full-reload' });
     return;
   }
 
