@@ -355,6 +355,45 @@ describe('pluginDevRemoteHmr', () => {
     expect(socket.close).toHaveBeenCalledTimes(1);
   });
 
+  it('resets remote hmr reconnect attempts after a socket opens', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        event: 'mf:remote-update',
+        wsUrl: 'ws://remote.example:4174/app?token=abc',
+      }),
+    }));
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('WebSocket', MockWebSocket as any);
+
+    const { server } = createServer();
+    const plugin = pluginDevRemoteHmr({
+      name: 'host-app',
+      dev: { remoteHmr: true },
+      exposes: {},
+      remotes: {
+        remoteApp: {
+          entry: 'http://remote.example/assets/remoteEntry.js',
+        },
+      },
+      virtualModuleDir: '__mf__virtual',
+    } as any);
+
+    plugin.configureServer?.(server as any);
+
+    for (let index = 0; index < 12; index += 1) {
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(index + 1));
+      MockWebSocket.instances[index].onopen?.();
+      MockWebSocket.instances[index].onclose?.();
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(13));
+    expect(mfWarn).not.toHaveBeenCalledWith(expect.stringContaining('reconnect skipped'));
+  });
+
   it('reloads matching host virtual modules for remote expose updates', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,

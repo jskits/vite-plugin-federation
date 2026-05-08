@@ -836,6 +836,7 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
             }
 
             const ws = new WebSocket(metadata.wsUrl, 'vite-hmr');
+            let hasOpened = false;
             ws.onmessage = (rawEvent: { data: unknown }) => {
               const message = parseRemoteHmrMessage(rawEvent.data);
               if (!message || message.event !== REMOTE_HMR_EVENT) return;
@@ -892,10 +893,14 @@ export default function pluginDevRemoteHmr(options: NormalizedModuleFederationOp
 
               server.ws.send({ type: 'full-reload' });
             };
-            ws.onopen = () => clearReconnectTimer(remoteAlias);
+            ws.onopen = () => {
+              hasOpened = true;
+              clearReconnectTimer(remoteAlias);
+            };
             ws.onerror = (error) =>
               mfWarn(`Remote HMR socket error for "${configuredRemoteName}":`, error);
-            ws.onclose = () => scheduleReconnect(remoteAlias, remote, attempt, 'socket closed');
+            ws.onclose = () =>
+              scheduleReconnect(remoteAlias, remote, hasOpened ? 0 : attempt, 'socket closed');
 
             connections.push(ws);
           } catch (error) {
