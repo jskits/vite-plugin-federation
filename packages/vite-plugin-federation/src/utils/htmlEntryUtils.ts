@@ -26,7 +26,11 @@ export function rewriteEntryScripts(
   });
 }
 
+export function injectScriptIntoHead(html: string, scriptContent: string): string {
+  return html.replace(/<head\b[^>]*>/i, (headTag) => `${headTag}${scriptContent}`);
+}
+
 export function injectEntryScript(html: string, initSrc: string): string {
   const src = sanitizeDevEntryPath(initSrc);
-  return html.replace('<head>', `<head><script type="module" src=${JSON.stringify(src)}></script>`);
+  return injectScriptIntoHead(html, `<script type="module" src=${JSON.stringify(src)}></script>`);
 }

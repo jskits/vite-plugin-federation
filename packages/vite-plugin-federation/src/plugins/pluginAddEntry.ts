@@ -5,6 +5,7 @@ import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap'
 
 import {
   injectEntryScript,
+  injectScriptIntoHead,
   rewriteEntryScripts,
   sanitizeDevEntryPath,
 } from '../utils/htmlEntryUtils';
@@ -252,7 +253,7 @@ const addEntry = ({
         `;
 
             let htmlContent = htmlAsset.source.toString() || '';
-            htmlContent = htmlContent.replace('<head>', `<head>${scriptContent}`);
+            htmlContent = injectScriptIntoHead(htmlContent, scriptContent);
             htmlAsset.source = htmlContent;
           }
         }

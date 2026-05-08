@@ -67,6 +67,14 @@ describe('injectEntryScript', () => {
       `<head><script type="module" src="/__mf__virtual/hostAutoInit.js"></script>`,
     );
   });
+
+  it('injects into head tags with attributes', () => {
+    const html = '<html><head data-app="shell"></head><body></body></html>';
+    const result = injectEntryScript(html, INIT_SRC);
+    expect(result).toContain(
+      `<head data-app="shell"><script type="module" src="/__mf__virtual/hostAutoInit.js"></script>`,
+    );
+  });
 });
 
 describe('sanitizeDevEntryPath', () => {

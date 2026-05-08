@@ -198,4 +198,44 @@ describe('pluginAddEntry', () => {
     expect(code).toContain('import "/src/main.tsx"');
     expect(code).not.toContain('/foo/');
   });
+
+  it('injects build html entries into head tags with attributes', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-add-entry-build-html-'));
+    fs.writeFileSync(
+      path.join(tempDir, 'index.html'),
+      '<html><head data-app="shell"></head></html>',
+    );
+
+    const plugins = addEntry({
+      entryName: 'hostInit',
+      entryPath: '/virtual/hostInit.js',
+      inject: 'html',
+    });
+
+    const buildPlugin = plugins[1];
+    const context = {
+      emitFile: vi.fn(() => 'host-init-ref'),
+      getFileName: vi.fn(() => 'assets/hostInit.js'),
+    };
+    const bundle = {
+      'index.html': {
+        type: 'asset',
+        fileName: 'index.html',
+        source: '<html><head data-app="shell"></head></html>',
+      },
+    };
+
+    buildPlugin.config?.({}, { command: 'build', mode: 'production' });
+    buildPlugin.configResolved?.({
+      root: tempDir,
+      base: '/',
+      build: { rollupOptions: {} },
+    } as any);
+    buildPlugin.buildStart?.call(context as any, {} as any);
+    buildPlugin.generateBundle?.call(context as any, {} as any, bundle as any);
+
+    expect(bundle['index.html'].source).toContain(
+      '<head data-app="shell">\n          <script type="module" src="/assets/hostInit.js"></script>',
+    );
+  });
 });
