@@ -10,6 +10,12 @@ describe('rewriteEntryScripts', () => {
     expect(result).toContain(`<script type="module" src="/proxy?entry=%2Fsrc%2Fmain.js"></script>`);
   });
 
+  it('rewrites module scripts regardless of attribute order', () => {
+    const html = '<html><body><script src="/src/main.js" type="module"></script></body></html>';
+    const result = rewriteEntryScripts(html, (src) => `/proxy?entry=${encodeURIComponent(src)}`);
+    expect(result).toContain(`<script src="/proxy?entry=%2Fsrc%2Fmain.js" type="module"></script>`);
+  });
+
   it('preserves @vite/client script tag', () => {
     const html =
       '<head><script type="module" src="/@vite/client"></script></head>' +

@@ -13,10 +13,11 @@ export function rewriteEntryScripts(
   html: string,
   createProxySrc: (entrySrc: string) => string,
 ): string {
-  const scriptTagRegex = /<script\s+([^>]*\btype=["']module["'][^>]*\bsrc=["'][^"']+["'][^>]*)>/gi;
+  const scriptTagRegex = /<script\b([^>]*)>/gi;
 
   return html.replace(scriptTagRegex, (match, attrs) => {
-    const srcMatch = attrs.match(/\bsrc=["']([^"']+)["']/i);
+    if (!/\btype\s*=\s*["']module["']/i.test(attrs)) return match;
+    const srcMatch = attrs.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
     if (!srcMatch) return match;
     const originalSrc = srcMatch[1];
     if (originalSrc.includes('@vite/client')) return match;
