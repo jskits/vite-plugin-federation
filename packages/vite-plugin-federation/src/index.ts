@@ -2,6 +2,7 @@ import defu from 'defu';
 import { readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'pathe';
+import { pathToFileURL } from 'url';
 import type { Plugin, UserConfig } from 'vite';
 import { normalizePath } from 'vite';
 import addEntry from './plugins/pluginAddEntry';
@@ -286,7 +287,9 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
               if (!environmentName || environmentName === 'client') return;
 
               const target = reactServerEntryMap[id];
-              const projectRequire = createRequire(new URL(`file://${process.cwd()}/package.json`));
+              const projectRequire = createRequire(
+                pathToFileURL(path.join(process.cwd(), 'package.json')),
+              );
               const reactPackageJson = projectRequire.resolve('react/package.json');
               return path.join(path.dirname(reactPackageJson), target.replace(/^react\//, ''));
             },

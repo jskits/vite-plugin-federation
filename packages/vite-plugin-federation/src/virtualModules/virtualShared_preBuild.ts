@@ -104,7 +104,7 @@ const localRequire = createRequire(import.meta.url);
 function resolvePackageEntryFromProjectRoot(pkg: string): string | undefined {
   try {
     const projectRequire = createRequire(
-      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`),
+      pathToFileURL(path.join(getPackageDetectionCwd(), 'package.json')),
     );
     return projectRequire.resolve(pkg);
   } catch {
@@ -297,7 +297,7 @@ function getPackageNamedExports(pkg: string): string[] {
     // like react are found even when the plugin is installed in a nested
     // pnpm store location where peer dependencies are not hoisted.
     const projectRequire = createRequire(
-      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`),
+      pathToFileURL(path.join(getPackageDetectionCwd(), 'package.json')),
     );
     const mod = projectRequire(pkg);
     return Object.keys(mod).filter((k) => isValidEsmExportName(k));
@@ -309,7 +309,7 @@ function getPackageNamedExports(pkg: string): string[] {
 export function getLocalProviderImportPath(pkg: string): string | undefined {
   try {
     const projectRequire = createRequire(
-      new URL(`file://${path.join(getPackageDetectionCwd(), 'package.json')}`),
+      pathToFileURL(path.join(getPackageDetectionCwd(), 'package.json')),
     );
     const resolved = projectRequire.resolve(pkg);
     return isWorkspaceFilePath(resolved) ? resolved : undefined;
@@ -350,7 +350,7 @@ function isReactSharedPackage(pkg: string) {
 
 function tryResolveImportFromPackageRoot(pkg: string, root: string): string | undefined {
   try {
-    const projectRequire = createRequire(new URL(`file://${path.join(root, 'package.json')}`));
+    const projectRequire = createRequire(pathToFileURL(path.join(root, 'package.json')));
     return projectRequire.resolve(pkg);
   } catch {
     return undefined;

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'pathe';
+import { pathToFileURL } from 'url';
 import { createModuleFederationError } from './logger';
 
 type PackageJsonDependencyGroups = {
@@ -140,7 +141,7 @@ export function getInstalledPackageJson(
   };
 
   try {
-    const projectRequire = createRequire(new URL(`file://${path.join(cwd, 'package.json')}`));
+    const projectRequire = createRequire(pathToFileURL(path.join(cwd, 'package.json')));
     let resolvedPath: string | undefined;
 
     try {
