@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This guide is organized by runtime and build error code.
+This guide is organized by runtime/build error and warning code.
 
 ## `MFV-001` Configuration Errors
 
@@ -16,19 +16,21 @@ Actions:
 - Use a single directory name for `virtualModuleDir`; do not include `/`.
 - Avoid names starting with `__mfe_internal__`.
 
-## `MFV-002` Build Or Transform Errors
+## `MFV-002` Alias Conflict Warnings
 
 Typical causes:
 
-- Remote import transform failed.
-- Build output cannot preserve federation bootstrap ordering.
-- Module parsing timed out on a large graph.
+- A configured Vite alias targets the same package key as a federated shared dependency.
+- A shared package import is rewritten to a different file path before federation share resolution.
+- Host and remote builds use different alias targets for a package that is expected to stay shared.
 
 Actions:
 
-- Increase `moduleParseTimeout` or use `moduleParseIdleTimeout`.
-- Check custom `manualChunks` rules for remote entry/control chunk interference.
-- Re-run with `pnpm --filter vite-plugin-federation test` when changing transform behavior.
+- Inspect the `MFV-002` warning for the shared module, alias, and target path.
+- Remove the alias for shared packages when the package should be resolved through federation.
+- If the alias is intentional, align host and remote `shared` keys, versions, and alias targets.
+- Use `allowNodeModulesSuffixMatch` only for package-layout differences, not to mask incompatible
+  alias targets.
 
 ## `MFV-003` Shared Resolution Errors
 
