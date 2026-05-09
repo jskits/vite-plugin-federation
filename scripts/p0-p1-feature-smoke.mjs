@@ -12,11 +12,9 @@ const repoRoot = path.resolve(scriptDir, '..');
 const packageDir = path.join(repoRoot, 'packages', 'vite-plugin-federation');
 const packageJson = JSON.parse(await readFile(path.join(packageDir, 'package.json'), 'utf8'));
 const packageName = packageJson.name;
-const expectedLatestVersion = packageJson.version;
+const localPackageVersion = packageJson.version;
 const rawPackageSpec = process.env.P0_P1_SMOKE_PACKAGE_SPEC || 'latest';
-const packageSpec = rawPackageSpec.startsWith(`${packageName}@`)
-  ? rawPackageSpec.slice(packageName.length + 1)
-  : rawPackageSpec;
+const packageSpec = normalizePackageSpec(rawPackageSpec);
 const commandTimeoutMs = Number(process.env.P0_P1_SMOKE_COMMAND_TIMEOUT_MS || 240_000);
 const installTimeoutMs = Number(process.env.P0_P1_SMOKE_INSTALL_TIMEOUT_MS || 300_000);
 const serverTimeoutMs = Number(process.env.P0_P1_SMOKE_SERVER_TIMEOUT_MS || 60_000);
@@ -25,6 +23,50 @@ const configuredStoreDir = process.env.P0_P1_SMOKE_STORE_DIR;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function stripPackageName(spec) {
+  return spec.startsWith(`${packageName}@`) ? spec.slice(packageName.length + 1) : spec;
+}
+
+function normalizePackageSpec(spec) {
+  const packageSpec = stripPackageName(spec);
+  if (packageSpec.startsWith('file:')) {
+    const filePath = packageSpec.slice('file:'.length);
+    return path.isAbsolute(filePath) ? packageSpec : `file:${path.resolve(repoRoot, filePath)}`;
+  }
+  if (
+    packageSpec.startsWith('./') ||
+    packageSpec.startsWith('../') ||
+    packageSpec.startsWith('~/') ||
+    path.isAbsolute(packageSpec) ||
+    packageSpec.endsWith('.tgz')
+  ) {
+    return path.isAbsolute(packageSpec) ? packageSpec : path.resolve(repoRoot, packageSpec);
+  }
+  return packageSpec;
+}
+
+function isRegistryPackageSpec(spec) {
+  if (
+    spec.startsWith('file:') ||
+    spec.startsWith('link:') ||
+    spec.startsWith('workspace:') ||
+    spec.startsWith('./') ||
+    spec.startsWith('../') ||
+    spec.startsWith('~/') ||
+    path.isAbsolute(spec) ||
+    spec.endsWith('.tgz')
+  ) {
+    return false;
+  }
+  return !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(spec);
+}
+
+function getNpmViewVersion(metadata) {
+  const item = Array.isArray(metadata) ? metadata.at(-1) : metadata;
+  if (typeof item === 'string') return item;
+  return typeof item?.version === 'string' ? item.version : undefined;
 }
 
 function run(command, args, cwd, options = {}) {
@@ -1335,24 +1377,41 @@ async function assertDevtoolsAndRemoteDevLoad(hostUrl, hostDir) {
   }
 }
 
-async function verifyPublishedVersion() {
+async function verifyPackageSpec() {
+  if (!isRegistryPackageSpec(packageSpec)) {
+    console.log(`Using explicit ${packageName} package spec: ${packageSpec}`);
+    return;
+  }
+
+  const viewTarget = packageSpec === 'latest' ? packageName : `${packageName}@${packageSpec}`;
   const metadata = JSON.parse(
-    run('npm', ['view', packageName, 'version', 'dist-tags', '--json'], repoRoot, {
+    run('npm', ['view', viewTarget, 'version', 'dist-tags', '--json'], repoRoot, {
       captureOutput: true,
       timeoutMs: 60_000,
     }),
   );
+  const resolvedVersion = getNpmViewVersion(metadata);
 
-  if (
-    metadata.version !== expectedLatestVersion ||
-    metadata['dist-tags']?.latest !== expectedLatestVersion
-  ) {
+  if (!resolvedVersion) {
+    throw new Error(`Could not resolve npm package spec ${viewTarget}`);
+  }
+
+  if (packageSpec === 'latest' && metadata['dist-tags']?.latest !== resolvedVersion) {
     throw new Error(
-      `Expected npm latest ${packageName}@${expectedLatestVersion}, received version=${metadata.version} latest=${metadata['dist-tags']?.latest}`,
+      `Expected npm latest dist-tag to resolve to ${resolvedVersion}, received ${metadata['dist-tags']?.latest}`,
     );
   }
 
-  console.log(`Verified npm latest ${packageName}@${expectedLatestVersion}.`);
+  if (packageSpec === 'latest' && resolvedVersion !== localPackageVersion) {
+    console.warn(
+      `npm latest resolves to ${packageName}@${resolvedVersion}, while the local package version is ${localPackageVersion}. ` +
+        'Set P0_P1_SMOKE_PACKAGE_SPEC to a release candidate, dist-tag, or packed tarball to validate a pending release.',
+    );
+  }
+
+  console.log(
+    `Verified npm package spec ${viewTarget} resolves to ${packageName}@${resolvedVersion}.`,
+  );
 }
 
 async function runRuntimeSmoke(tempRoot, usedPorts, storeDir) {
@@ -1660,7 +1719,7 @@ async function runDtsHostBuildUntilArtifacts(dtsRoot, hostDir, env) {
 }
 
 async function main() {
-  await verifyPublishedVersion();
+  await verifyPackageSpec();
 
   const tempRoot = await mkdtemp(path.join(tmpdir(), 'vite-plugin-federation-p0-p1-smoke-'));
   const storeDir = configuredStoreDir || path.join(tempRoot, 'pnpm-store');
@@ -1669,7 +1728,7 @@ async function main() {
   try {
     await runRuntimeSmoke(tempRoot, usedPorts, storeDir);
     await runDtsSmoke(tempRoot, usedPorts, storeDir);
-    console.log('\nP0/P1 feature smoke passed against the published npm latest package.');
+    console.log(`\nP0/P1 feature smoke passed against ${packageName}@${packageSpec}.`);
   } finally {
     if (!process.env.KEEP_VITE_PLUGIN_FEDERATION_P0_P1_SMOKE_TMP) {
       await rm(tempRoot, { force: true, recursive: true });
