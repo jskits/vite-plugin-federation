@@ -35,6 +35,8 @@ Requirements:
 - Node `>=20.19.0`
 - Vite `^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0`
 
+These ranges are the v1.x compatibility floor.
+
 The package exports:
 
 - `vite-plugin-federation`: the Vite plugin.
@@ -618,6 +620,7 @@ federation({
 ## Documentation
 
 - [Full repository README](https://github.com/jskits/vite-plugin-federation#readme)
+- [Public API contract](https://github.com/jskits/vite-plugin-federation/blob/main/docs/public-api-contract.md)
 - [Plugin API](https://github.com/jskits/vite-plugin-federation/blob/main/docs/plugin-api.md)
 - [Runtime API](https://github.com/jskits/vite-plugin-federation/blob/main/docs/runtime-api.md)
 - [Manifest protocol](https://github.com/jskits/vite-plugin-federation/blob/main/docs/manifest-protocol.md)

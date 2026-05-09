@@ -21,6 +21,7 @@ pnpm add -D vite-plugin-federation
 - [Why this plugin](#why-this-plugin)
 - [Compared to Other Vite Federation Plugins](#compared-to-other-vite-federation-plugins)
 - [Install](#install)
+- [Public API Contract](#public-api-contract)
 - [Quick Start](#quick-start)
   - [Remote](#a-remote)
   - [Host](#a-host)
@@ -106,6 +107,16 @@ The plugin pulls in `@module-federation/runtime@2.3.3`, `@module-federation/sdk@
 `@module-federation/dts-plugin@2.3.3` as exact-pin dependencies, and aliases all
 `@module-federation/runtime` imports to a single bridge so federation state stays shared
 across consumers in your app.
+
+---
+
+## Public API Contract
+
+The v1.x compatibility contract covers the plugin option surface, `vite-plugin-federation/runtime`
+exports, manifest schema `1.0.0`, devtools contract `1.0.0`, `MFV-*` error-code meanings, Node
+`>=20.19.0`, and Vite `^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0`.
+
+Full policy: [`docs/public-api-contract.md`](docs/public-api-contract.md).
 
 ---
 

@@ -9,9 +9,12 @@ Releases are tag-driven or manually dispatched through `.github/workflows/releas
   artifacts, public types, package exports, or documented defaults.
 - Test-only, CI-only, and documentation-only changes do not require a Changeset unless they change
   published package behavior.
-- Before `1.0.0`, use patch versions for fixes and compatible internal hardening, minor versions
-  for new public capabilities, and prerelease tags such as `v0.1.0-rc.0` for release candidates.
+- For `1.x`, use patch versions for fixes and compatible internal hardening, minor versions for
+  additive public capabilities, and major versions for breaking changes to the public API contract.
 - The release tag must exactly match the package version as `v<version>`.
+- Review [public-api-contract.md](public-api-contract.md) before every stable release. Changes to the
+  plugin option surface, `vite-plugin-federation/runtime` exports, manifest schema, devtools
+  contract, `MFV-*` meanings, Node floor, or Vite peer range must be additive for `1.x`.
 
 ## Package Quality Gates
 
@@ -62,7 +65,7 @@ port collisions fail with a direct override hint.
 4. Run the package quality gates above.
 5. Commit the version and changelog changes.
 6. Create and push a tag that matches `packages/vite-plugin-federation/package.json`, for example
-   `v0.1.0`.
+   `v1.0.0`.
 7. Let the Release workflow validate the tag, dry-run the package tarball, and publish with npm
    provenance.
 
