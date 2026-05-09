@@ -24,7 +24,7 @@ Run these locally before creating a release tag:
 pnpm install --frozen-lockfile
 pnpm check
 pnpm test:package:smoke
-P0_P1_SMOKE_PACKAGE_SPEC=<published-rc-dist-tag-version-or-packed-tarball> pnpm test:p0-p1:smoke
+P0_P1_SMOKE_PACKAGE_SPEC=1.0.0-rc.0 pnpm test:p0-p1:smoke
 pnpm test:vite-matrix:smoke
 pnpm --filter vite-plugin-federation pack --dry-run
 ```
@@ -51,6 +51,9 @@ production-critical P0/P1 surface: manifest runtime loading, shared diagnostics,
 generation/consumption, SSR target selection, OriginJS ESM/VAR compatibility, runtime rollout
 controls, integrity checks, devtools, dev remote loading, and compiler chunk/named export behavior.
 No-reload dev remote HMR remains guarded by the Playwright e2e suite.
+
+For a local tarball candidate, run the smoke with a concrete tarball path, for example
+`P0_P1_SMOKE_PACKAGE_SPEC=./vite-plugin-federation-1.0.0.tgz pnpm test:p0-p1:smoke`.
 
 Run the manual `Extended E2E` workflow before publishing a release candidate or stable release when
 changes touched runtime loading, shared resolution, DTS, SSR, or compatibility behavior.
