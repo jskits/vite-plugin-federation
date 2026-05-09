@@ -20,7 +20,7 @@ checked-in comparison snapshots and npm metadata where noted.
 
 |                          | **`vite-plugin-federation`** (this repo)                         | **`@module-federation/vite`**                                   | **`@originjs/vite-plugin-federation`** |
 | ------------------------ | ---------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------- |
-| Reviewed version         | `0.0.4` [1]                                                      | `1.14.4` snapshot (`1.14.5` latest npm) [2]                     | `1.4.1` [3]                            |
+| Reviewed version         | `1.0.0` [1]                                                      | `1.14.4` snapshot (`1.14.5` latest npm) [2]                     | `1.4.1` [3]                            |
 | Vite peer range          | `^5 \|\| ^6 \|\| ^7 \|\| ^8` [1]                                 | `^5 \|\| ^6 \|\| ^7 \|\| ^8` [2]                                | not declared (devDep `^4.0.5`) [3]     |
 | Rolldown / Vite 8        | ✅ first-class compiler adapter                                  | ✅ supported                                                    | ❌ not targeted                        |
 | Underlying MF runtime    | `@module-federation/runtime@2.3.3` (wrapped + extended)          | `@module-federation/runtime@2.3.3` (passthrough)                | hand-rolled (`virtual:__federation__`) |

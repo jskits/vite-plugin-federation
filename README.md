@@ -4,7 +4,7 @@
 [![npm](https://img.shields.io/npm/v/vite-plugin-federation.svg)](https://www.npmjs.com/package/vite-plugin-federation)
 ![license](https://img.shields.io/npm/l/vite-plugin-federation)
 
-> A production-oriented beta [Module Federation 2.0][mf2] plugin for **Vite 5 / 6 / 7 / 8**
+> A production-ready GA [Module Federation 2.0][mf2] plugin for **Vite 5 / 6 / 7 / 8**
 > (including Rolldown). Manifest-first. SSR-aware. Multi-tenant. Includes an
 > OriginJS-compatible `virtual:__federation__` migration shim.
 
@@ -63,13 +63,14 @@ pnpm add -D vite-plugin-federation
 A side-by-side feature table against `@module-federation/vite` and
 `@originjs/vite-plugin-federation` lives in [`COMPARISON.md`](COMPARISON.md).
 
-### Beta Scope
+### GA Support Scope
 
-The beta support target is manifest-first Vite remotes, browser hosts, Node SSR hosts, DTS
-generation/consumption, dev remote HMR, and the curated runtime APIs. Webpack/SystemJS/`var` remotes
-are compatibility paths covered by e2e but should be validated in each migration. Signed manifests
-are a documented supply-chain pattern; signature verification is intentionally provided through a
-custom fetch wrapper rather than built into the default runtime.
+`vite-plugin-federation` 1.0 is generally available for manifest-first Vite remotes, browser hosts,
+Node SSR hosts, DTS generation and consumption, dev remote HMR, and the curated runtime APIs.
+Webpack/SystemJS/`var` remotes remain compatibility paths covered by e2e and should still be
+validated in each migration. Signed manifests are a documented supply-chain pattern; signature
+verification is intentionally provided through a custom fetch wrapper rather than built into the
+default runtime.
 
 ---
 

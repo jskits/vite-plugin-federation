@@ -4,11 +4,17 @@
 [![npm](https://img.shields.io/npm/v/vite-plugin-federation.svg)](https://www.npmjs.com/package/vite-plugin-federation)
 ![license](https://img.shields.io/npm/l/vite-plugin-federation)
 
-A production-oriented beta Module Federation 2.0 plugin for Vite 5, 6, 7, and 8.
+A production-ready GA Module Federation 2.0 plugin for Vite 5, 6, 7, and 8.
 
 It is built around manifest-first remote loading, Node SSR, live DTS workflows, dev remote HMR,
 multi-tenant runtime scopes, and operational runtime controls. It also includes an
 OriginJS-compatible `virtual:__federation__` migration shim for existing Vite federation apps.
+
+`vite-plugin-federation` 1.0 is generally available for manifest-first Vite remotes, browser hosts,
+Node SSR hosts, DTS generation and consumption, dev remote HMR, and the curated runtime APIs.
+Webpack/SystemJS/`var` remotes are supported compatibility paths, but mixed migrations should be
+validated per application. Signed manifest verification is intentionally handled through a custom
+`fetch` wrapper so teams can use their own signing and trust model.
 
 ## Install
 
