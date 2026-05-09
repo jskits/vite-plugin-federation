@@ -25,6 +25,7 @@
     "prepare": "husky",
     "release": "pnpm --filter vite-plugin-federation build && changeset publish",
     "test": "turbo run test",
+    "test:p0-p1:smoke": "node scripts/p0-p1-feature-smoke.mjs",
     "test:vite-matrix:smoke": "node scripts/vite-peer-matrix-smoke.mjs",
     "test:package:smoke": "node scripts/package-smoke-test.mjs",
     "test:e2e": "pnpm --filter vite-plugin-federation test:e2e",

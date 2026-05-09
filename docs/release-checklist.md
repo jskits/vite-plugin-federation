@@ -21,6 +21,7 @@ Run these locally before creating a release tag:
 pnpm install --frozen-lockfile
 pnpm check
 pnpm test:package:smoke
+pnpm test:p0-p1:smoke
 pnpm test:vite-matrix:smoke
 pnpm --filter vite-plugin-federation pack --dry-run
 ```
@@ -37,6 +38,13 @@ The Vite peer matrix smoke test validates that the packed tarball installs, buil
 loads a manifest remote in Chromium using pinned Vite 5, 6, 7, and 8 versions. It is a compact
 packaging/compiler-adapter runtime gate; the Playwright examples remain the broader browser
 behavior gate.
+
+The P0/P1 smoke test validates the package published to the npm `latest` dist-tag, not the local
+workspace tarball. It creates temporary Vite example workspaces that install `vite-plugin-federation`
+from npm and exercise the production-critical P0/P1 surface: manifest runtime loading, shared
+diagnostics, DTS generation/consumption, SSR target selection, OriginJS ESM/VAR compatibility,
+runtime rollout controls, integrity checks, devtools, dev remote loading, and compiler chunk/named
+export behavior. No-reload dev remote HMR remains guarded by the Playwright e2e suite.
 
 Run the manual `Extended E2E` workflow before publishing a release candidate or stable release when
 changes touched runtime loading, shared resolution, DTS, SSR, or compatibility behavior.
