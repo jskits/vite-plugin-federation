@@ -1,10 +1,12 @@
 # Migrating from `@module-federation/vite`
 
 `vite-plugin-federation` is API-compatible with `@module-federation/vite` for the build-time
-plugin shape and the underlying `@module-federation/runtime` (both pin `2.3.3`). Most
-applications can switch with a one-line dependency change. The net gains are a curated
-runtime entry, manifest-first host loading, multi-tenant scoping, integrity verification,
-SSR helpers, dev remote HMR, and stable error codes.
+plugin shape and exact-pins its Module Federation runtime stack at `2.3.3`. Current
+`@module-federation/vite` releases may pin a newer MF runtime, so check your lockfile when
+your application imports `@module-federation/runtime` directly. Most applications can still
+switch with a one-line dependency change. The net gains are a curated runtime entry,
+manifest-first host loading, multi-tenant scoping, integrity verification, SSR helpers,
+classified dev remote HMR, and stable error codes.
 
 A full feature comparison lives in [`../COMPARISON.md`](../COMPARISON.md).
 
@@ -13,14 +15,15 @@ A full feature comparison lives in [`../COMPARISON.md`](../COMPARISON.md).
 ## 1. Replace the dependency
 
 ```diff
-- "@module-federation/vite": "1.14.4"
-+ "vite-plugin-federation": "^0.0.4"
+- "@module-federation/vite": "^1.15.4"
++ "vite-plugin-federation": "^1.0.0"
 ```
 
 The `@module-federation/runtime`, `@module-federation/sdk`, and `@module-federation/dts-plugin`
-versions match (all `2.3.3`), so transitive duplicates are unlikely. If you import
-`@module-federation/runtime` directly elsewhere in your app, leave it — the plugin pins the
-same version and aliases all imports to a single bridge so federation state stays shared.
+versions are all exact-pinned to `2.3.3` inside this package. If you import
+`@module-federation/runtime` directly elsewhere in your app, prefer switching those runtime calls
+to `vite-plugin-federation/runtime`; the plugin also aliases runtime imports during Vite builds so
+federation state stays shared through the configured bridge.
 
 ## 2. Update the plugin import
 
@@ -36,21 +39,21 @@ also works.
 
 These options have identical names and semantics:
 
-| Option                                         | Notes                                                  |
-| ---------------------------------------------- | ------------------------------------------------------ |
-| `name`                                         | unchanged                                              |
-| `filename`, `varFilename`                      | unchanged                                              |
-| `exposes`, `remotes`, `shared`                 | unchanged                                              |
-| `manifest: boolean \| object`                  | superset — see §4                                      |
-| `dts: boolean \| object`                       | unchanged (same `@module-federation/dts-plugin@2.3.3`) |
-| `dev: boolean \| object`                       | superset — see §5                                      |
-| `target: 'web' \| 'node'`                      | unchanged (auto-detect from `build.ssr`)               |
-| `runtimePlugins`                               | unchanged                                              |
-| `publicPath`, `getPublicPath`                  | unchanged                                              |
-| `shareStrategy`, `shareScope`                  | unchanged                                              |
-| `virtualModuleDir`                             | unchanged                                              |
-| `hostInitInjectLocation`                       | unchanged                                              |
-| `moduleParseTimeout`, `moduleParseIdleTimeout` | unchanged                                              |
+| Option                                         | Notes                                                             |
+| ---------------------------------------------- | ----------------------------------------------------------------- |
+| `name`                                         | unchanged                                                         |
+| `filename`, `varFilename`                      | unchanged                                                         |
+| `exposes`, `remotes`, `shared`                 | unchanged                                                         |
+| `manifest: boolean \| object`                  | superset — see §4                                                 |
+| `dts: boolean \| object`                       | superset; this package uses `@module-federation/dts-plugin@2.3.3` |
+| `dev: boolean \| object`                       | superset — see §5                                                 |
+| `target: 'web' \| 'node'`                      | unchanged (auto-detect from `build.ssr`)                          |
+| `runtimePlugins`                               | unchanged                                                         |
+| `publicPath`, `getPublicPath`                  | unchanged                                                         |
+| `shareStrategy`, `shareScope`                  | unchanged                                                         |
+| `virtualModuleDir`                             | unchanged                                                         |
+| `hostInitInjectLocation`                       | unchanged                                                         |
+| `moduleParseTimeout`, `moduleParseIdleTimeout` | unchanged                                                         |
 
 ## 4. Manifest options — additive
 
@@ -62,15 +65,15 @@ your build output. The host can ignore it; CI can use it for build diagnostics. 
 ## 5. Dev — remote HMR with classification
 
 `@module-federation/vite`'s `dev: { remoteHmr: true }` triggers a full host reload when a
-remote changes. `vite-plugin-federation` keeps `remoteHmr: true` as the default but classifies
-each update so the host can react proportionally:
+remote changes. `vite-plugin-federation` keeps remote HMR opt-in, but when you enable
+`dev: { remoteHmr: true }`, it classifies each update so the host can react proportionally:
 
 - **`partial`** — try `server.reloadModule()` for the affected expose.
 - **`style`** — refresh the affected stylesheet only.
 - **`types`** — sync `.d.ts` to the host without reload.
 - **`full`** — fall back to a full reload.
 
-No code change is required to opt in. See `docs/dev-hmr.md` for the strategy table and
+Add `dev: { remoteHmr: true }` to opt in. See `docs/dev-hmr.md` for the strategy table and
 the disable flags (`disableLiveReload`, `disableHotTypesReload`,
 `disableDynamicRemoteTypeHints`).
 
@@ -124,8 +127,10 @@ tenant in its own runtime scope:
 
 ```ts
 import { createFederationRuntimeScope } from 'vite-plugin-federation/runtime';
-const tenant = createFederationRuntimeScope({ runtimeKey: tenantId });
-await tenant.registerManifestRemotes(tenantManifests);
+const tenant = createFederationRuntimeScope(tenantId);
+await tenant.registerManifestRemote('catalog', tenantCatalogManifestUrl, {
+  shareScope: tenantId,
+});
 ```
 
 This isolates the manifest cache, circuit breaker, and debug records per tenant. There is no
@@ -135,12 +140,11 @@ equivalent in `@module-federation/vite`. See `docs/multi-tenant.md`.
 
 - **Default build artifacts** include `mf-debug.json` (extra file, harmless if ignored).
 - **`runtimeInit` / `loadShare` chunk isolation** is enforced on both Rolldown and Rollup;
-  if your build sets `output.manualChunks` or `output.codeSplitting.groups` in a way that
-  groups federation control chunks with app code, the plugin removes the conflicting parts
-  and prints a one-time warning. The fix is the same one the warning suggests: don't group
-  federation control chunks.
-- **Dev `remoteHmr` is on by default.** If you previously relied on a full-reload-only
-  behavior, set `dev: { remoteHmr: false }`.
+  if your build sets `output.manualChunks`, the plugin replaces it with federation-specific
+  chunk rules and prints a one-time warning. `output.codeSplitting.groups` is removed because
+  it can group federation control chunks with app code.
+- **Dev `remoteHmr` is opt-in.** Add `dev: { remoteHmr: true }` when you want host/remote HMR
+  wiring during local development.
 - **`compat.virtualFederationShim` is on by default** (the `virtual:__federation__` API
   works). It costs nothing if unused. Disable with `compat: { originjs: false,
 virtualFederationShim: false }` if you want a strict manifest-only surface.
