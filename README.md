@@ -4,15 +4,7 @@
 [![npm](https://img.shields.io/npm/v/vite-plugin-federation.svg)](https://www.npmjs.com/package/vite-plugin-federation)
 ![license](https://img.shields.io/npm/l/vite-plugin-federation)
 
-> A production-ready GA [Module Federation 2.0][mf2] plugin for **Vite 5 / 6 / 7 / 8**
-> (including Rolldown). Manifest-first. SSR-aware. Multi-tenant. Includes an
-> OriginJS-compatible `virtual:__federation__` migration shim.
-
-```bash
-pnpm add -D vite-plugin-federation
-```
-
-[mf2]: https://module-federation.io/
+vite-plugin-federation - A Vite/Rollup plugin for Module Federation.
 
 ---
 
