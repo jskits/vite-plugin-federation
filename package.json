@@ -43,13 +43,9 @@
       "esbuild"
     ],
     "overrides": {
+      "commitizen>inquirer": "8.2.7",
+      "commitizen>lodash": "4.18.1",
       "fast-uri": "3.1.2"
-    }
-  },
-  "overrides": {
-    "commitizen": {
-      "inquirer": "8.2.7",
-      "lodash": "4.18.1"
     }
   },
   "devDependencies": {
