@@ -79,7 +79,7 @@
   "devDependencies": {
     "@types/adm-zip": "0.5.7",
     "@playwright/test": "1.58.2",
-    "ajv": "8.18.0",
+    "ajv": "8.20.0",
     "rollup": "4.60.3",
     "vite": "8.0.8"
   },
