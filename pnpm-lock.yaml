@@ -416,8 +416,8 @@ importers:
         specifier: 0.5.16
         version: 0.5.16
       defu:
-        specifier: 6.1.4
-        version: 6.1.4
+        specifier: 6.1.7
+        version: 6.1.7
       es-module-lexer:
         specifier: 2.0.0
         version: 2.0.0
@@ -2798,10 +2798,10 @@ packages:
         integrity: sha512-eFuaLoy/Rxalv2kr+lqMlUnrDWV+3j4pljOIJgLIhI058IQfWJ7vXhyEIHu+HtC738klGALYxOKDO0bQP3tg8A==,
       }
 
-  defu@6.1.4:
+  defu@6.1.7:
     resolution:
       {
-        integrity: sha512-mEQCMmwJu317oSz8CwdIOdwf3xMif1ttiM8LTufzc3g6kR+9Pe236twL8j3IYT1F7GfRgGcW6MWxzZjLIkuHIg==,
+        integrity: sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ==,
       }
 
   detect-file@1.0.0:
@@ -7145,7 +7145,7 @@ snapshots:
     dependencies:
       clone: 1.0.4
 
-  defu@6.1.4: {}
+  defu@6.1.7: {}
 
   detect-file@1.0.0: {}
 
