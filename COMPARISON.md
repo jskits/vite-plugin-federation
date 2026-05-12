@@ -6,7 +6,8 @@ For `@module-federation/vite@1.15.4`, this table counts the official Vite adapte
 with the official `@module-federation/runtime@2.4.0` and
 `@module-federation/runtime-core@2.4.0` packages in its dependency chain. When a feature is
 available through those lower-level runtime APIs or an optional official runtime plugin
-rather than as a turnkey Vite-adapter helper, the cell says so explicitly. npm also publishes
+rather than as a turnkey Vite-adapter helper, the cell says so explicitly. Optional runtime
+plugins are noted as separate installs; they are not counted as adapter defaults. npm also publishes
 `@module-federation/core@1.0.0-canary.1`, but that package is not in
 `@module-federation/vite@1.15.4`'s dependency graph; no comparison claim below relies on it.
 
@@ -73,7 +74,7 @@ rather than as a turnkey Vite-adapter helper, the cell says so explicitly. npm a
 | `requiredVersion` (semver range)                    |                                  ✅                                   |                                         ✅                                          |       ✅ (custom `satisfy` impl)       |
 | Version negotiation across remotes                  |               ✅ via `@module-federation/runtime@2.3.3`               |                      ✅ via `@module-federation/runtime@2.4.0`                      |          🟡 first-match only           |
 | Workspace / scoped shares (`react/`, pnpm symlinks) |                 ✅ `allowNodeModulesSuffixMatch` [4]                  |                🟡 workspace e2e; no documented suffix matching [12]                 |                   ❌                   |
-| Host-only shares (`import: false`)                  |                   ✅ explicit `MFV-003` on miss [4]                   |                                  🟡 not documented                                  |                   ❌                   |
+| Host-only shares (`import: false`)                  |                   ✅ explicit `MFV-003` on miss [4]                   |                  🟡 supported in types/tests/examples; sparse README docs [12]                  |                   ❌                   |
 | Strict-singleton fallback policy                    |              ✅ recorded in `sharedResolutionGraph` [4]               |                                         ❌                                          |                   ❌                   |
 | `bundleAllCSS` option                               |                 ✅ option + per-expose CSS modes [4]                  |                                      ✅ option                                      |                   ❌                   |
 | Shared module preload (`<link rel="preload">`)      |                        ✅ via preload plan API                        | ✅ `@module-federation/runtime@2.4.0` `preloadRemote` + manifest asset analysis [2] |        ✅ `modulePreload` flag         |
@@ -99,7 +100,7 @@ rather than as a turnkey Vite-adapter helper, the cell says so explicitly. npm a
 | Live `.d.ts` sync (no reload)          |            ✅ via `dts-plugin` dev worker + WS [4]             |                 🟡 dev worker present; no local e2e found                 |                   ❌                    |
 | Dynamic remote-type hints injection    |                           ✅ option                            |                  ✅ via `@module-federation/dts-plugin`                   |                   ❌                    |
 | Dev top-level-await proxy              |                               ✅                               |                                    ✅                                     |                   n/a                   |
-| Dev manifest endpoints (`/__mf__/...`) |                               ✅                               |               ✅ manifest served in dev when configured [2]               |                   ❌                    |
+| Dev manifest endpoint(s) |                               ✅                               |               ✅ served at configured manifest filename (default `/mf-manifest.json`) [2]               |                   ❌                    |
 
 ## 6. TypeScript / DTS
 
@@ -128,12 +129,12 @@ rather than as a turnkey Vite-adapter helper, the cell says so explicitly. npm a
 | --------------------------------------------------------------- | :-------------------------------------: | :------------------------------------------------------------------------------------------------------------------------: | :--------------------------------: |
 | Manifest remote loading API                                     |    ✅ `loadRemoteFromManifest()` [4]    |                        ✅ manifest remotes via `@module-federation/runtime@2.4.0` `loadRemote` [2]                         |                 ❌                 |
 | Cache TTL / `staleWhileRevalidate` / `force` refresh            |                 ✅ [4]                  |                  🟡 `@module-federation/runtime-core@2.4.0` manifest cache exists; no TTL/SWR wrapper [2]                  |                 ❌                 |
-| Retry with jitter + timeout                                     |                 ✅ [4]                  |                        🟡 official `@module-federation/retry-plugin@2.4.0`; no adapter default [2]                         |                 ❌                 |
-| Fallback URLs                                                   |    ✅ records effective `sourceUrl`     |                      🟡 `@module-federation/retry-plugin@2.4.0` domain / manifest-domain rotation [2]                      |                 ❌                 |
+| Retry with jitter + timeout                                     |                 ✅ [4]                  |                        🟡 separately installable official `@module-federation/retry-plugin@2.4.0`; no adapter default [2]                         |                 ❌                 |
+| Fallback URLs                                                   |    ✅ records effective `sourceUrl`     |                      🟡 separately installable `@module-federation/retry-plugin@2.4.0` domain / manifest-domain rotation [2]                      |                 ❌                 |
 | Circuit breaker (`failureThreshold`, `cooldownMs`)              |                 ✅ [4]                  |                                                             ❌                                                             |                 ❌                 |
 | Concurrent-fetch request collapsing                             |                 ✅ [4]                  |                   🟡 `@module-federation/runtime-core@2.4.0` global loading / manifest loading maps [2]                    |                 ❌                 |
 | Integrity verification (SRI / SHA-256, multi-mode)              | ✅ `verifyFederationManifestAssets` [7] |                                                             ❌                                                             |                 ❌                 |
-| Private / authenticated manifests (`fetchInit`, custom `fetch`) |                 ✅ [7]                  | 🟡 `@module-federation/runtime-core@2.4.0` `loaderHook.fetch` / `@module-federation/retry-plugin@2.4.0` `fetchOptions` [2] |                 ❌                 |
+| Private / authenticated manifests (`fetchInit`, custom `fetch`) |                 ✅ [7]                  | 🟡 `@module-federation/runtime-core@2.4.0` `loaderHook.fetch`; optional retry plugin `fetchOptions` requires separate install [2] |                 ❌                 |
 | Signed manifest workflow                                        |  ✅ documented + custom-fetch hook [7]  |                                                             ❌                                                             |                 ❌                 |
 | CSP / Trusted Types guidance                                    |                 ✅ [7]                  |                                                             ❌                                                             |                 ❌                 |
 
@@ -162,7 +163,7 @@ rather than as a turnkey Vite-adapter helper, the cell says so explicitly. npm a
 | ---------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------: |
 | Dev devtools panel + browser events                                                |                               ✅ `pluginDevtools.ts` [4]                                |                                                                  ❌                                                                  |                 ❌                 |
 | `getFederationDebugInfo()` snapshot                                                | ✅ (instance, manifests, fetch timeline, integrity, breaker, metrics, shared graph) [4] | 🟡 `@module-federation/runtime-core@2.4.0` exposes `globalThis.__FEDERATION__`, snapshots, and debug constructor; no same helper [2] |                 ❌                 |
-| Telemetry hooks (`manifestFetch`, `remoteRegister`, `remoteLoad`, `remoteRefresh`) |                                         ✅ [4]                                          |                          ✅ `@module-federation/runtime-core@2.4.0` plugin hooks; different hook names [2]                           |                 ❌                 |
+| Telemetry hooks (`manifestFetch`, `remoteRegister`, `remoteLoad`, `remoteRefresh`) |                                         ✅ [4]                                          |                          🟡 runtime hooks such as `loaderHook.fetch`, `registerRemote`, `onLoad`, `errorLoadRemote`; no same named telemetry API / `remoteRefresh` [2]                           |                 ❌                 |
 | Stable error codes (`MFV-001` … `MFV-007`)                                         |                                         ✅ [10]                                         |                              🟡 `@module-federation/runtime@2.4.0` has its own error codes; not `MFV-*`                              |         ❌ generic strings         |
 | `mf-debug.json` build artifact                                                     |                                           ✅                                            |                                                                  ❌                                                                  |                 ❌                 |
 
@@ -263,7 +264,7 @@ import {
 | Browser e2e (Playwright)           | ✅ 6 configs: default, compat, multi-remote, shared, ssr, browser-matrix |       ✅ vite-vite + vite-webpack-rspack        |                 ✅                 |
 | SSR e2e                            |                                    ✅                                    |                       ❌                        |                 ❌                 |
 | Browser matrix                     |                      ✅ Chromium / Firefox / WebKit                      |                ❌ Chromium only                 |                 ❌                 |
-| Vite peer-version smoke            |       ✅ packed tarball builds and runs against Vite 5 / 6 / 7 / 8       | ✅ Vite 6 / 7 / 8 in `vite-webpack-rspack` [12] |         ❌ Vite 4-focused          |
+| Vite peer-version smoke            |       ✅ packed tarball builds and runs against Vite 5 / 6 / 7 / 8       | ✅ CI integration matrix Vite 5 / 6 / 7 / 8; examples include 6 / 7 / 8 [12] |         ❌ Vite 4-focused          |
 | Webpack-remote interop e2e         |        ✅ `examples/webpack-systemjs-remote` through compat shim         |          ✅ `vite-webpack-rspack` [12]          | ✅ webpack/SystemJS examples [13]  |
 | Workspace / pnpm-symlink shared    |                     ✅ `examples/workspace-shared-*`                     |       ✅ `@vite-vite/shared-lib` e2e [12]       |                 ❌                 |
 | DTS hot-sync e2e                   |                      ✅ `e2e/dts-dev-hot-sync.mjs`                       |                       ❌                        |                 ❌                 |
@@ -274,7 +275,7 @@ import {
 
 | Surface                                  |                  `vite-plugin-federation`                  |                            `@module-federation/vite@1.15.4`                             |       `@originjs/vite-plugin-federation`        |
 | ---------------------------------------- | :--------------------------------------------------------: | :-------------------------------------------------------------------------------------: | :---------------------------------------------: |
-| Framework examples                       | ✅ React / Vue / Svelte / Lit / SSR / DTS / workspace [4]  | ✅ Alpine, Angular, Lit, Nuxt, Preact, React, Solid, Svelte, TanStack, Vinext, Vue [12] | ✅ Vue / React / Rollup / Webpack examples [13] |
+| Framework examples                       | ✅ React / Vue / Svelte / Lit / SSR / DTS / workspace [4]  | 🟡 local examples cover Vite/Vite, Vite/Webpack/Rspack, runtime-register, Rust/Rsbuild; broader ecosystem examples are not bundled here [12] | ✅ Vue / React / Rollup / Webpack examples [13] |
 | `@module-federation/vite@1.15.4` options | ✅ baseline options plus runtime / SSR / compat extensions |                            ✅ baseline adapter options [12]                             |             ❌ legacy option model              |
 | Migration docs                           | ✅ OriginJS + `@module-federation/vite@1.15.4` guides [4]  |             🟡 README/examples, no migration guide in `1.15.4` package [12]             |    🟡 legacy docs, no MF-runtime guide [13]     |
 | License                                  |                          MIT [14]                          |                                        MIT [14]                                         |                MulanPSL-2.0 [14]                |
@@ -300,8 +301,8 @@ import {
 
 - You're already in the `@module-federation/*` ecosystem and want a thin, official Vite adapter
   whose runtime semantics exactly match `@module-federation/runtime@2.4.0` defaults.
-- You value its broad external framework examples and are comfortable importing runtime helpers
-  directly from `@module-federation/runtime@2.4.0`.
+- You value the broader `@module-federation/*` ecosystem examples and are comfortable importing
+  runtime helpers directly from `@module-federation/runtime@2.4.0`.
 - You're comfortable composing lower-level `@module-federation/runtime@2.4.0` /
   `@module-federation/runtime-core@2.4.0` APIs and optional official runtime plugins for
   resilience instead of using this repo's built-in policy wrapper.
@@ -349,12 +350,14 @@ import {
   `@module-federation/runtime@2.4.0` depends on `@module-federation/runtime-core@2.4.0`.
   `@module-federation/core@1.0.0-canary.1` was also checked, but it is not in
   `@module-federation/vite@1.15.4`'s dependency graph, so feature claims above are based on
-  `@module-federation/vite@1.15.4`, `@module-federation/runtime@2.4.0`,
-  `@module-federation/runtime-core@2.4.0`, and `@module-federation/retry-plugin@2.4.0`.
-  Relevant published APIs include `remoteHmr`, `runtimePlugins`, `preloadRemote`,
-  `registerPlugins`, `@module-federation/runtime-core@2.4.0` hooks, manifest cache state,
-  `globalThis.__FEDERATION__`, `globalThis.System.import` bootstrap fallback, and manifest
-  `metaData.ssrRemoteEntry`.
+  `@module-federation/vite@1.15.4`, `@module-federation/runtime@2.4.0`, and
+  `@module-federation/runtime-core@2.4.0`. Optional retry/fallback rows reference the separately
+  installable official `@module-federation/retry-plugin@2.4.0`; it is not in this adapter
+  dependency graph.
+  Relevant published/local APIs include `remoteHmr`, `runtimePlugins`, `preloadRemote`,
+  `registerPlugins`, `loaderHook.fetch`, `registerRemote`, `onLoad`, `errorLoadRemote`,
+  manifest cache/loading state, `globalThis.__FEDERATION__`, `globalThis.System.import`
+  bootstrap fallback, and manifest `metaData.ssrRemoteEntry`.
 - [3] `@originjs/vite-plugin-federation@1.4.1` npm metadata, public types, and examples.
 - [4] Local docs/tests for this repository's runtime wrapper, dev HMR, SSR, DTS, examples, and e2e suites.
 - [5] `vite-plugin-federation/runtime` re-exports selected `@module-federation/runtime@2.3.3` helpers.
@@ -364,6 +367,6 @@ import {
 - [9] Local preload/performance docs/tests.
 - [10] Local logger and public API contract docs/tests.
 - [11] Local OriginJS migration shim docs/tests.
-- [12] Official `@module-federation/vite@1.15.4` package README, types, and examples referenced from the published package.
+- [12] Local `@module-federation/vite@1.15.4` source checkout: README, types, integration tests, Playwright config, bundled examples, and CI workflow metadata. Broader ecosystem examples outside this checkout were not revalidated here.
 - [13] OriginJS public README/examples.
 - [14] Package licenses in the reviewed npm packages.
