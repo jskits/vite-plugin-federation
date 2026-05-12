@@ -698,9 +698,7 @@ Full guide: [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `packages/vite-plugin-federation/` | Published plugin package and runtime implementation.           |
 | `examples/`                        | Local host/remote apps used by smoke tests and e2e suites.     |
 | `docs/`                            | API references, production runtime, migration, and operations. |
-| `COMPARISON.md`                    | Feature matrix against the two comparison snapshots.           |
-| `other1/`                          | Local snapshot of `@module-federation/vite` for comparison.    |
-| `other2/`                          | Local snapshot of `@originjs/vite-plugin-federation`.          |
+| `COMPARISON.md`                    | Feature matrix against reviewed npm package versions.          |
 | `.github/workflows/`               | CI, extended e2e, and release automation.                      |
 
 ---

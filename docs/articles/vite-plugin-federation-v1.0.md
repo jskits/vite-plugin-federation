@@ -2,7 +2,7 @@
 
 > A manifest-first, SSR-aware, multi-tenant, observable Module Federation 2.x runtime wrapper for Vite 5 / 6 / 7 / 8, including Rolldown.
 
-> Published package status: as of the npm registry check on 2026-05-11, `vite-plugin-federation` is published as `1.0.0` and the npm `latest` dist-tag points to `1.0.0`.
+> Published package status: as of the npm registry check on 2026-05-13, `vite-plugin-federation` is published as `1.0.0` and the npm `latest` dist-tag points to `1.0.0`.
 
 ```bash
 pnpm add -D vite-plugin-federation
@@ -16,7 +16,7 @@ Module Federation became the de facto micro-frontend standard with Webpack 5. An
 
 - **Vite does not implement Webpack's container protocol natively.** The two mainstream community options take different approaches: `@originjs/vite-plugin-federation` ships its own runtime around `virtual:__federation__`, while `@module-federation/vite` connects directly to `@module-federation/runtime`. Both are useful, but production governance often still has to be implemented in application code.
 - **Production systems need a long list of resilience controls:** manifest caching and TTL, stale-while-revalidate, timeouts, jittered retries, circuit breakers, fallback URLs, request coalescing, SRI verification, multi-tenant isolation, CSP / Trusted Types, signed manifests, SSR, and observability. Without a unified runtime wrapper, these concerns tend to be scattered across the host application, gateway, CDN, and monitoring code.
-- **Remote development experience has historically lagged behind.** With `@originjs`, remote development commonly relies on `vite build --watch`. In `@module-federation/vite@1.15.4`, `remoteHmr: true` has special handling for React Fast Refresh, while other cases more often fall back to a full page reload. Shared dependencies can also resolve inconsistently in pnpm/workspace setups, and singleton conflicts are difficult to diagnose at runtime.
+- **Remote development experience has historically required tradeoffs.** With `@originjs`, remote development commonly relies on `vite build --watch`. In `@module-federation/vite@1.15.4`, `remoteHmr: true` includes websocket metadata, reconnect handling, and a React Fast Refresh path, while non-native HMR cases still fall back to a full page reload. Shared-dependency diagnostics and singleton conflict reporting often still need project-side conventions.
 - **Vite 8 plus Rolldown introduces another compatibility surface.** Bundle behavior, `modulePreload` helper rewriting, `output.codeSplitting.groups`, and top-level await all require federation plugins to handle another layer of compiler-specific behavior.
 
 `vite-plugin-federation` 1.0 is designed to address that full checklist at once: **manifest-first loading, native SSR support, multi-tenant isolation, security and governance controls, deep observability, and one API across Vite 5 through Vite 8, including Rolldown.**
@@ -25,20 +25,20 @@ Module Federation became the de facto micro-frontend standard with Webpack 5. An
 
 ## 2. Positioning and Core Differences
 
-| Dimension              | `vite-plugin-federation`                                                                                 | `@module-federation/vite`                                                           | `@originjs/vite-plugin-federation`                             |
-| ---------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Vite versions          | `^5 \|\| ^6 \|\| ^7 \|\| ^8`                                                                             | `^5 \|\| ^6 \|\| ^7 \|\| ^8`                                                        | No peer constraint; repository dev dependency is `vite@^4.0.5` |
-| Runtime                | `@module-federation/runtime@2.3.3` pinned exactly, plus a production-oriented wrapper layer              | Direct pass-through to the MF runtime; current npm `1.15.4` uses `2.4.0`            | Custom runtime                                                 |
-| Manifest protocol      | `mf-manifest.json` + `mf-stats.json` + `mf-debug.json`                                                   | First two only                                                                      | None                                                           |
-| Production loading API | `loadRemoteFromManifest`, with cache TTL, SWR, retries, timeout, circuit breaker, fallback, and SRI      | Implement it yourself                                                               | Not supported                                                  |
-| Multi-tenant isolation | `createFederationRuntimeScope(runtimeKey)`, with isolated cache and circuit breaker state                | None                                                                                | None                                                           |
-| Remote dev HMR         | Opt-in, classified as `partial` / `style` / `types` / `full`                                             | `remoteHmr: true` supports a React special case; other cases are often full reloads | Remote development commonly depends on build watch             |
-| SSR                    | Dedicated `ssrRemoteEntry` + `createServerFederationInstance` + asset preload collection                 | Only `target: 'node'` tree-shaking                                                  | Not supported                                                  |
-| OriginJS compatibility | Default `virtual:__federation__` compatibility bridge                                                    | Not supported                                                                       | Native API                                                     |
-| Error codes            | Stable `MFV-001` through `MFV-007`                                                                       | Generic logs                                                                        | None                                                           |
-| Browser e2e            | `browser-matrix` covers Chromium / Firefox / WebKit; other e2e suites run according to their own configs | Depends on that repository's CI                                                     | -                                                              |
+| Dimension              | `vite-plugin-federation`                                                                                 | `@module-federation/vite`                                                               | `@originjs/vite-plugin-federation`                             |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Vite versions          | `^5 \|\| ^6 \|\| ^7 \|\| ^8`                                                                             | `^5 \|\| ^6 \|\| ^7 \|\| ^8`                                                            | No peer constraint; repository dev dependency is `vite@^4.0.5` |
+| Runtime                | `@module-federation/runtime@2.3.3` pinned exactly, plus a production-oriented wrapper layer              | Direct official runtime/core APIs; current npm `1.15.4` uses runtime stack `2.4.0`      | Custom runtime                                                 |
+| Manifest protocol      | `mf-manifest.json` + `mf-stats.json` + `mf-debug.json`                                                   | `mf-manifest.json` + `mf-stats.json`, including `metaData.ssrRemoteEntry`               | None                                                           |
+| Production loading API | `loadRemoteFromManifest`, with cache TTL, SWR, retries, timeout, circuit breaker, fallback, and SRI      | Manifest remotes via `loadRemote`; retry/fallback via official runtime plugins or hooks | Not supported                                                  |
+| Multi-tenant isolation | `createFederationRuntimeScope(runtimeKey)`, with isolated cache and circuit breaker state                | Lower-level runtime instances/share scopes; no tenant `runtimeKey` wrapper              | None                                                           |
+| Remote dev HMR         | Opt-in, classified as `partial` / `style` / `types` / `full`                                             | `remoteHmr: true` has WS/reconnect plumbing, React native strategy, and reload fallback | Remote development commonly depends on build watch             |
+| SSR                    | Separate SSR entry + `createServerFederationInstance` + asset preload collection                         | `target: 'node'` plus `ssrRemoteEntry` metadata; no server-specific helper              | Not supported                                                  |
+| OriginJS compatibility | Default `virtual:__federation__` compatibility bridge                                                    | Not supported                                                                           | Native API                                                     |
+| Error codes            | Stable `MFV-001` through `MFV-007`                                                                       | Runtime has its own error codes/logging                                                 | None                                                           |
+| Browser e2e            | `browser-matrix` covers Chromium / Firefox / WebKit; other e2e suites run according to their own configs | Depends on that repository's CI                                                         | -                                                              |
 
-The repository's `COMPARISON.md` records the structured comparison and local evidence. External package versions change quickly, so any exact version claim should be checked against both the npm registry and the repository snapshot. The versions in this article, `vite-plugin-federation@1.0.0`, `@module-federation/vite@1.15.4`, and `@originjs/vite-plugin-federation@1.4.1`, were verified against the npm registry on 2026-05-11.
+The repository's `COMPARISON.md` records the structured comparison and evidence notes. External package versions change quickly, so exact version claims should be checked against the npm registry and published package source. The versions in this article, `vite-plugin-federation@1.0.0`, `@module-federation/vite@1.15.4`, `@module-federation/runtime@2.4.0`, and `@originjs/vite-plugin-federation@1.4.1`, were verified against the npm registry on 2026-05-13.
 
 ---
 
@@ -268,7 +268,7 @@ The cost is that Node currently still needs `--experimental-vm-modules`. That re
 
 ### 7.1 Classified HMR
 
-`@module-federation/vite` remote HMR is closer to a full reload, while the common OriginJS development path depends on `vite build --watch` for the remote. After explicitly enabling `dev: { remoteHmr: true }`, this plugin classifies remote updates:
+`@module-federation/vite` already has remote-HMR websocket metadata, reconnect handling, a React native strategy, and a full-reload fallback. The difference here is that, after explicitly enabling `dev: { remoteHmr: true }`, this plugin classifies remote updates so the host can pick a narrower action when possible:
 
 | Category  | Trigger                                                                         | Behavior                                                                                                                                                                   |
 | --------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -349,7 +349,7 @@ The repository includes `examples/originjs-compat-host` and `examples/webpack-sy
 
 This package pins `@module-federation/runtime@2.3.3`, `@module-federation/sdk@2.3.3`, and `@module-federation/dts-plugin@2.3.3` exactly to one version set. It also aliases `@module-federation/runtime` imports in Vite config to the same bridge to reduce the chance of multiple federation states in one application.
 
-One caveat matters: the current npm `@module-federation/vite@1.15.4` already uses MF runtime `2.4.0`. If your application directly depends on `@module-federation/runtime@2.4.x`, check the lockfile during migration and prefer runtime APIs from `vite-plugin-federation/runtime`. The core configuration surfaces are close, and existing `manifest`, `dts`, `dev`, `runtimePlugins`, `shareStrategy`, and `shareScope` settings can usually be carried over. Custom options and lockfile differences should still be reviewed one by one.
+One caveat matters: the current npm `@module-federation/vite@1.15.4` already uses MF runtime `2.4.0`. If your application directly depends on `@module-federation/runtime@2.4.x`, check the lockfile during migration. Existing direct runtime imports such as `registerPlugins`, `preloadRemote`, `registerRemotes`, and `loadRemote` are official runtime APIs; switch selected call sites to `vite-plugin-federation/runtime` when you want this package's cached/retried/integrity-checked manifest helpers and debug snapshot wrapper. The core configuration surfaces are close, and existing `manifest`, `dts`, `dev`, `runtimePlugins`, `shareStrategy`, and `shareScope` settings can usually be carried over. Custom options and lockfile differences should still be reviewed one by one.
 
 The differences are explicit: `mf-debug.json` is new and can be ignored safely; `runtimeInit` / `loadShare` chunk isolation is enforced and replaces user `manualChunks` with a one-time warning; dev `remoteHmr` is opt-in and requires `dev: { remoteHmr: true }`. The full migration checklist is in `docs/migrate-from-module-federation-vite.md`.
 
@@ -482,7 +482,7 @@ Evaluate or adopt this repository's `vite-plugin-federation` 1.0.0 if you:
 
 Another option may be a better fit if:
 
-- Your product **does not need runtime governance** and only wants the thinnest official Vite adapter. `@module-federation/vite` can work, but you will need to implement caching, retries, and circuit breakers yourself.
+- Your product wants the thinnest official Vite adapter and your team is comfortable composing lower-level `@module-federation/runtime` APIs, runtime hooks, and optional official plugins such as `@module-federation/retry-plugin` instead of using this repo's bundled policy wrapper.
 - You are **still on Vite 4** and do not plan to upgrade. `@originjs/vite-plugin-federation` is closer to that historical target, but it comes with weaker shared-dependency governance and a remote development path that commonly depends on build watch.
 
 ---

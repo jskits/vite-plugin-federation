@@ -5,8 +5,15 @@ plugin shape and exact-pins its Module Federation runtime stack at `2.3.3`. Curr
 `@module-federation/vite` releases may pin a newer MF runtime, so check your lockfile when
 your application imports `@module-federation/runtime` directly. Most applications can still
 switch with a one-line dependency change. The net gains are a curated runtime entry,
-manifest-first host loading, multi-tenant scoping, integrity verification, SSR helpers,
+manifest-first host loading policy, multi-tenant scoping, integrity verification, SSR helpers,
 classified dev remote HMR, and stable error codes.
+
+This guide does not treat official runtime/core features as missing. `@module-federation/vite`
+already exposes official runtime behavior through `@module-federation/runtime`, including
+helpers such as `registerPlugins`, `registerRemotes`, `preloadRemote`, `loadRemote`, runtime
+hooks, manifest cache state, debug globals, and optional official plugins such as
+`@module-federation/retry-plugin`. The migration value here is the higher-level policy wrapper
+and compatibility surface this package adds around those primitives.
 
 A full feature comparison lives in [`../COMPARISON.md`](../COMPARISON.md).
 
@@ -64,9 +71,10 @@ your build output. The host can ignore it; CI can use it for build diagnostics. 
 
 ## 5. Dev — remote HMR with classification
 
-`@module-federation/vite`'s `dev: { remoteHmr: true }` triggers a full host reload when a
-remote changes. `vite-plugin-federation` keeps remote HMR opt-in, but when you enable
-`dev: { remoteHmr: true }`, it classifies each update so the host can react proportionally:
+`@module-federation/vite`'s `dev: { remoteHmr: true }` has websocket metadata, reconnect
+handling, a React native HMR strategy, and a full-reload fallback. `vite-plugin-federation`
+keeps remote HMR opt-in, but when you enable `dev: { remoteHmr: true }`, it classifies each
+update so the host can react proportionally:
 
 - **`partial`** — try `server.reloadModule()` for the affected expose.
 - **`style`** — refresh the affected stylesheet only.
@@ -85,8 +93,10 @@ If you previously imported runtime helpers directly:
 import { loadRemote, registerRemotes } from '@module-federation/runtime';
 ```
 
-…you can keep that import working unchanged (the plugin aliases it). To get manifest-first
-loading with cache TTL, retries, and integrity checks, switch to:
+…you can keep that import working unchanged (the plugin aliases it). Official runtime imports
+also already expose helpers such as `registerPlugins` and `preloadRemote`. To get this
+package's manifest-first loading wrapper with cache TTL, retries, circuit breaker state, scoped
+debug records, and integrity checks, switch selected call sites to:
 
 ```ts
 import {
@@ -107,7 +117,8 @@ non-manifest paths.
 
 ## 7. SSR — opt-in helpers
 
-If you SSR remotes today, you almost certainly hand-roll registration. `vite-plugin-federation`
+`@module-federation/vite@1.15.4` emits `metaData.ssrRemoteEntry` in the manifest metadata; in
+that package version it points at the same entry as `remoteEntry`. `vite-plugin-federation`
 emits a separate `ssrRemoteEntry.js` per remote and exposes:
 
 ```ts
@@ -133,8 +144,9 @@ await tenant.registerManifestRemote('catalog', tenantCatalogManifestUrl, {
 });
 ```
 
-This isolates the manifest cache, circuit breaker, and debug records per tenant. There is no
-equivalent in `@module-federation/vite`. See `docs/multi-tenant.md`.
+This isolates the manifest cache, circuit breaker, and debug records per tenant. The official
+runtime has lower-level instances and share scopes, but not this `runtimeKey` cache/breaker/debug
+partitioning wrapper. See `docs/multi-tenant.md`.
 
 ## 9. Things that change behavior on switch (read carefully)
 
