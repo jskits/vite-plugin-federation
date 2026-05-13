@@ -7,14 +7,39 @@
 A production-ready GA Module Federation 2.0 plugin for Vite 5, 6, 7, and 8.
 
 It is built around manifest-first remote loading, Node SSR, live DTS workflows, dev remote HMR,
-multi-tenant runtime scopes, and operational runtime controls. It also includes an
-OriginJS-compatible `virtual:__federation__` migration shim for existing Vite federation apps.
+multi-tenant runtime scopes, and operational runtime controls.
+It also includes an OriginJS-compatible `virtual:__federation__` migration shim for existing Vite
+federation apps.
+
+## What is Module Federation?
+
+Module Federation lets one frontend application load code from another frontend at runtime.
+Each frontend can be built and deployed independently.
+
+A typical setup has:
+
+- a **host** or shell app, which owns the page and routing
+- one or more **remotes**, which expose components, routes, or modules
+- shared dependencies such as React, Vue, or design-system packages, negotiated at runtime
+
+This is useful when multiple teams need to ship parts of the same product independently.
+Each team can update its own remote without rebuilding and redeploying one large frontend every time.
+
+Use this package when you want Vite apps to participate in that architecture.
+It lets you build remotes, consume remotes from a host, and share dependencies safely.
+It also loads remote manifests in production.
+
+You probably do not need Module Federation if all code is released together in one app.
+A normal npm package or Vite's built-in code splitting may be enough for simpler cases.
+
+## GA Support Scope
 
 `vite-plugin-federation` 1.0 is generally available for manifest-first Vite remotes, browser hosts,
 Node SSR hosts, DTS generation and consumption, dev remote HMR, and the curated runtime APIs.
 Webpack/SystemJS/`var` remotes are supported compatibility paths, but mixed migrations should be
-validated per application. Signed manifest verification is intentionally handled through a custom
-`fetch` wrapper so teams can use their own signing and trust model.
+validated per application.
+Signed manifest verification is intentionally handled through a custom `fetch` wrapper so teams can
+use their own signing and trust model.
 
 ## Install
 
@@ -536,8 +561,7 @@ Integrity modes:
 - `content-hash`: require `contentHash`.
 - `both`: require both values when verifying annotated assets.
 
-Use `verifyFederationManifestAssets()` when you need to verify expose and preload assets declared in
-the manifest:
+Use `verifyFederationManifestAssets()` when you need to verify expose and preload assets declared in the manifest:
 
 ```ts
 await verifyFederationManifestAssets(catalogManifestUrl, manifest, {
@@ -546,8 +570,7 @@ await verifyFederationManifestAssets(catalogManifestUrl, manifest, {
 });
 ```
 
-For signed manifests, verify the detached signature in a custom `fetch` wrapper before returning the
-`Response` to the runtime.
+For signed manifests, verify the detached signature in a custom `fetch` wrapper before returning the `Response` to the runtime.
 
 ### Diagnostics
 

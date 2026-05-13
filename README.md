@@ -10,6 +10,7 @@ vite-plugin-federation - A Vite/Rollup plugin for Module Federation.
 
 ## Table of Contents
 
+- [What is Module Federation?](#what-is-module-federation)
 - [Why this plugin](#why-this-plugin)
 - [Compared to Other Vite Federation Plugins](#compared-to-other-vite-federation-plugins)
 - [Install](#install)
@@ -39,6 +40,29 @@ vite-plugin-federation - A Vite/Rollup plugin for Module Federation.
 
 ---
 
+## What is Module Federation?
+
+Module Federation lets one frontend application load code from another frontend at runtime.
+Each frontend can be built and deployed independently.
+
+A typical setup has:
+
+- a **host** or shell app, which owns the page and routing
+- one or more **remotes**, which expose components, routes, or modules
+- shared dependencies such as React, Vue, or design-system packages, negotiated at runtime
+
+This is useful when multiple teams need to ship parts of the same product independently.
+Each team can update its own remote without rebuilding and redeploying one large frontend every time.
+
+Use this plugin when you want Vite apps to participate in that architecture.
+It lets you build remotes, consume remotes from a host, and share dependencies safely.
+It also loads remote manifests in production.
+
+You probably do not need Module Federation if all code is released together in one app.
+A normal npm package or Vite's built-in code splitting may be enough for simpler cases.
+
+---
+
 ## Why this plugin
 
 | Need                                            | What this plugin gives you                                                                                                                      |
@@ -53,24 +77,24 @@ vite-plugin-federation - A Vite/Rollup plugin for Module Federation.
 | **Observability**                               | `getFederationDebugInfo()`, telemetry hooks, dev devtools panel, stable error codes (`MFV-001` … `MFV-007`).                                    |
 | **OriginJS migration shim**                     | `virtual:__federation__` and `__federation_method_*` shim enabled by default for common OriginJS migration paths.                               |
 
-A side-by-side feature table against `@module-federation/vite` and
-`@originjs/vite-plugin-federation` lives in [`COMPARISON.md`](COMPARISON.md).
+A side-by-side feature table against `@module-federation/vite` and `@originjs/vite-plugin-federation`
+lives in [`COMPARISON.md`](COMPARISON.md).
 
 ### GA Support Scope
 
 `vite-plugin-federation` 1.0 is generally available for manifest-first Vite remotes, browser hosts,
 Node SSR hosts, DTS generation and consumption, dev remote HMR, and the curated runtime APIs.
 Webpack/SystemJS/`var` remotes remain compatibility paths covered by e2e and should still be
-validated in each migration. Signed manifests are a documented supply-chain pattern; signature
-verification is intentionally provided through a custom fetch wrapper rather than built into the
-default runtime.
+validated in each migration.
+Signed manifests are a documented supply-chain pattern; signature verification is intentionally
+provided through a custom fetch wrapper rather than built into the default runtime.
 
 ---
 
 ## Compared to Other Vite Federation Plugins
 
-See [**COMPARISON.md**](COMPARISON.md) for the full feature matrix, decision guide, and
-citations against:
+See [**COMPARISON.md**](COMPARISON.md) for the full feature matrix, decision guide, and citations
+against:
 
 - [`@module-federation/vite`](https://www.npmjs.com/package/@module-federation/vite)
 - [`@originjs/vite-plugin-federation`](https://www.npmjs.com/package/@originjs/vite-plugin-federation)
@@ -95,10 +119,10 @@ yarn add -D vite-plugin-federation
 **Peer dependency:** `vite@^5 || ^6 || ^7 || ^8` (Rolldown supported).
 **Node:** `>=20.19.0`.
 
-The plugin pulls in `@module-federation/runtime@2.3.3`, `@module-federation/sdk@2.3.3`, and
-`@module-federation/dts-plugin@2.3.3` as exact-pin dependencies, and aliases all
-`@module-federation/runtime` imports to a single bridge so federation state stays shared
-across consumers in your app.
+The plugin exact-pins `@module-federation/runtime@2.3.3`,
+`@module-federation/sdk@2.3.3`, and `@module-federation/dts-plugin@2.3.3`.
+It also aliases all `@module-federation/runtime` imports to a single bridge so federation state
+stays shared across consumers in your app.
 
 ---
 
@@ -286,9 +310,9 @@ exposes: {
 }
 ```
 
-`'manual'` writes CSS hrefs to the global CSS bucket instead of appending styles to
-`document.head` — useful for Shadow DOM or staged migration. `dontAppendStylesToHead: true` is
-accepted as the OriginJS-compatible alias.
+`'manual'` writes CSS hrefs to the global CSS bucket instead of appending styles to `document.head`.
+This is useful for Shadow DOM or staged migration.
+`dontAppendStylesToHead: true` is accepted as the OriginJS-compatible alias.
 
 ### Remotes
 
@@ -335,8 +359,8 @@ shared: {
 
 ## Runtime API
 
-Imported from `vite-plugin-federation/runtime`. Full reference in
-[`docs/runtime-api.md`](docs/runtime-api.md).
+Imported from `vite-plugin-federation/runtime`.
+Full reference: [`docs/runtime-api.md`](docs/runtime-api.md).
 
 ```ts
 import {
@@ -377,10 +401,10 @@ import {
 } from 'vite-plugin-federation/runtime';
 ```
 
-The most useful production helper is `loadRemoteFromManifest()` — it fetches + validates the
-manifest, picks the correct entry for the target (`web` or `node`), optionally verifies
-integrity, registers the remote with the MF runtime, and loads the expose, all with cache
-TTL / retries / circuit breaker support.
+The most useful production helper is `loadRemoteFromManifest()`.
+It fetches and validates the manifest, picks the correct entry for the target (`web` or `node`),
+optionally verifies integrity, registers the remote with the MF runtime, and loads the expose.
+The helper also applies cache TTL, retries, and circuit breaker support.
 
 ---
 
@@ -401,9 +425,9 @@ JSON Schemas: [`docs/schemas/`](docs/schemas).
 
 ## Dev Experience
 
-The dev pipeline runs the federation virtual modules through a sidecar runtime so the host
-sees real updates from a remote without a rebuild cycle. See [`docs/dev-hmr.md`](docs/dev-hmr.md)
-for the full strategy table.
+The dev pipeline runs the federation virtual modules through a sidecar runtime.
+That lets the host see real updates from a remote without a rebuild cycle.
+See [`docs/dev-hmr.md`](docs/dev-hmr.md) for the full strategy table.
 
 ```ts
 federation({
@@ -440,14 +464,14 @@ Dev endpoints exposed by the dev server:
 
 ## SSR
 
-- `target: 'node'` (auto-detected from `build.ssr`) emits a separate `ssrRemoteEntry.js` per
-  remote and tree-shakes browser-only branches via the `ENV_TARGET` define.
+- `target: 'node'` is auto-detected from `build.ssr`. It emits a separate `ssrRemoteEntry.js`
+  per remote and tree-shakes browser-only branches via the `ENV_TARGET` define.
 - The runtime exposes `createServerFederationInstance()` with `inBrowser: false` and the Node
-  remote-entry loader; the manifest registration helpers prefer `ssrRemoteEntry` for `node`
-  targets and fall back to `remoteEntry` if no SSR entry is declared.
-- `collectFederationManifestPreloadLinks()` returns deduplicated `<link>` descriptors
-  (`modulepreload` / `stylesheet`) for streaming HTML, deduped across multiple expose hits in
-  the same render pass.
+  remote-entry loader. Manifest registration prefers `ssrRemoteEntry` for `node` targets. It falls
+  back to `remoteEntry` if no SSR entry is declared.
+- `collectFederationManifestPreloadLinks()` returns deduplicated `<link>` descriptors for streaming
+  HTML. It dedupes `modulepreload` and `stylesheet` links across multiple expose hits in the same
+  render pass.
 - Vite's module-preload helper is patched to short-circuit when `document` / `window` are
   absent, so an expose evaluated during SSR cannot crash the renderer.
 
@@ -512,8 +536,8 @@ Concurrent calls for the same manifest URL **collapse into a single in-flight fe
 Cached entries record `sourceUrl` (which fallback URL actually served), latency, integrity
 mode used, and breaker state for each call.
 
-See [`docs/production-runtime.md`](docs/production-runtime.md) and the full option reference in
-[`docs/runtime-api.md`](docs/runtime-api.md).
+See [`docs/production-runtime.md`](docs/production-runtime.md) and [`docs/runtime-api.md`](docs/runtime-api.md)
+for the full option reference.
 
 ---
 
@@ -605,9 +629,10 @@ import {
 ```
 
 Legacy paths like `./Button` are normalized to `remote/Button` and routed through
-`@module-federation/runtime`. CSS migration: `dontAppendStylesToHead: true` is preserved as a
-synonym for `css.inject: 'manual'`. The end-to-end `examples/originjs-compat-host` validates
-this against a real `remoteEntry.js` and a webpack `library.type: 'system'` remote.
+`@module-federation/runtime`.
+For CSS migration, `dontAppendStylesToHead: true` is preserved as a `css.inject: 'manual'` synonym.
+The end-to-end `examples/originjs-compat-host` validates this against a real `remoteEntry.js`.
+It also validates a webpack `library.type: 'system'` remote.
 
 Compatibility is intentionally scoped: browser CommonJS remotes are not supported, `systemjs`
 remotes require `globalThis.System.import`, and unsupported `from` values produce `MFV-007`
@@ -741,8 +766,9 @@ pnpm --filter example-react-remote preview
 pnpm --filter example-react-ssr-host serve
 ```
 
-The SSR host launches Node with `--experimental-vm-modules` because the MF runtime uses the
-VM module loader for remote ESM evaluation on the server.
+The SSR host launches Node with `--experimental-vm-modules`.
+The flag is required because the MF runtime uses the VM module loader for remote ESM evaluation on
+the server.
 
 ### Internal docs
 
@@ -764,8 +790,8 @@ pnpm version-packages      # bump versions + update generated release files
 pnpm release               # build the package and publish via Changesets
 ```
 
-The release workflow publishes from a semver tag (`v*.*.*`) or manual dispatch with a matching
-tag. The full policy, quality gates, and step-by-step instructions live in
+The release workflow publishes from a semver tag (`v*.*.*`) or manual dispatch with a matching tag.
+Full policy, quality gates, and step-by-step instructions:
 [`docs/release-checklist.md`](docs/release-checklist.md).
 
 ---

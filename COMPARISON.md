@@ -1,15 +1,17 @@
 # Vite Module Federation — Plugin Comparison
 
-A feature-by-feature comparison of three Vite Module Federation plugins, based on npm
-package metadata, published package source, shipped docs, and this repository's local tests.
-For `@module-federation/vite@1.15.4`, this table counts the official Vite adapter together
-with the official `@module-federation/runtime@2.4.0` and
-`@module-federation/runtime-core@2.4.0` packages in its dependency chain. When a feature is
-available through those lower-level runtime APIs or an optional official runtime plugin
-rather than as a turnkey Vite-adapter helper, the cell says so explicitly. Optional runtime
-plugins are noted as separate installs; they are not counted as adapter defaults. npm also publishes
-`@module-federation/core@1.0.0-canary.1`, but that package is not in
-`@module-federation/vite@1.15.4`'s dependency graph; no comparison claim below relies on it.
+A feature-by-feature comparison of three Vite Module Federation plugins.
+The comparison is based on npm package metadata, published package source, shipped docs, and this
+repository's local tests.
+
+For `@module-federation/vite@1.15.4`, this table counts the official Vite adapter plus two runtime
+packages: `@module-federation/runtime@2.4.0` and `@module-federation/runtime-core@2.4.0`.
+When a feature is available through those lower-level runtime APIs or an optional official runtime
+plugin rather than as a turnkey Vite-adapter helper, the cell says so explicitly.
+Optional runtime plugins are noted as separate installs; they are not counted as adapter defaults.
+npm also publishes `@module-federation/core@1.0.0-canary.1`.
+That package is not in `@module-federation/vite@1.15.4`'s dependency graph.
+No comparison claim below relies on it.
 
 | Symbol | Meaning                                     |
 | ------ | ------------------------------------------- |

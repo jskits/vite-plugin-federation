@@ -1,7 +1,7 @@
 # Production Runtime Guide
 
-This guide defines the production contract for manifest-first federation in this repository. It
-focuses on behavior that matters after deployment: artifact traceability, resilient manifest
+This guide defines the production contract for manifest-first federation in this repository.
+It focuses on behavior that matters after deployment: artifact traceability, resilient manifest
 loading, SSR entry selection, asset discovery, and runtime observability.
 
 ## Remote Artifact Contract
@@ -34,9 +34,10 @@ The emitted `pluginVersion` is injected from the package version during the pack
 published artifacts can be traced back to the plugin version that generated them.
 
 Generated manifests also include `release.id`, `metaData.buildInfo.releaseId`, and entry-level
-`integrity`/`contentHash` metadata for `remoteEntry` and `ssrRemoteEntry` when those files are in
-the build output. Set `VITE_PLUGIN_FEDERATION_RELEASE_ID` or `MF_RELEASE_ID` in CI for a stable
-application release id; otherwise it defaults to `buildName:buildVersion`.
+`integrity`/`contentHash` metadata for `remoteEntry` and `ssrRemoteEntry`.
+That metadata is emitted when the entry files are present in the build output.
+Set `VITE_PLUGIN_FEDERATION_RELEASE_ID` or `MF_RELEASE_ID` in CI for a stable application release id;
+otherwise it defaults to `buildName:buildVersion`.
 
 Expose assets and manifest preload hints can also declare optional integrity metadata. Use
 `verifyFederationManifestAssets()` for annotated asset verification. See
@@ -84,28 +85,33 @@ federation({
 ```
 
 `allowNodeModulesSuffixMatch` lets resolved ids from pnpm, nested `node_modules`, and symlinked
-workspace layouts match by the path segment after the final `node_modules/`. This is useful when a
-shared package appears at different absolute paths between host and remote builds. Generated
-`mf-stats.json` diagnostics include the flag so production incidents can distinguish exact,
-trailing-slash, and suffix-enabled shared rules.
+workspace layouts match by the path segment after the final `node_modules/`.
+This is useful when a shared package appears at different absolute paths between host and remote
+builds.
+Generated `mf-stats.json` diagnostics include the flag so production incidents can distinguish
+exact, trailing-slash, and suffix-enabled shared rules.
 
 Runtime hosts created through `vite-plugin-federation/runtime` also install a shared diagnostics
-plugin. The runtime records registered shared providers, the active share scope, each async/sync
-`loadShare` decision, candidate versions, selected provider, fallback mode, and `MFV-003`
-diagnostics for shared misses, fallback selection, and semver range mismatches. Each graph entry
-includes `versionSatisfied` when a selected provider can be compared to `requiredVersion`, and
-singleton entries include rejected candidate versions when multiple providers are present.
+plugin.
+The runtime records registered shared providers, the active share scope, each async/sync `loadShare`
+decision, candidate versions, selected provider, fallback mode, and `MFV-003` diagnostics for shared
+misses, fallback selection, and semver range mismatches.
+Each graph entry includes `versionSatisfied` when a selected provider can be compared to the
+configured `requiredVersion`.
+Singleton entries include rejected candidate versions when multiple providers are present.
 Generated local providers and internal `loadShare` requests also carry `sourcePath` and
-`resolvedImportSource` annotations, so `getFederationDebugInfo()` can tie a shared decision back to
-the exact local import id or resolved pnpm/workspace file path.
-By default singleton conflicts are diagnostics only. Set `strictSingleton: true` on a shared
-package to upgrade those conflicts to an `MFV-003` runtime error while still recording the selected
-and rejected providers in `getFederationDebugInfo()`.
+`resolvedImportSource` annotations.
+Those annotations let `getFederationDebugInfo()` tie a shared decision back to the exact local import
+id or resolved pnpm/workspace file path.
+By default singleton conflicts are diagnostics only.
+Set `strictSingleton: true` on a shared package to upgrade those conflicts to an `MFV-003` runtime
+error while still recording the selected and rejected providers in `getFederationDebugInfo()`.
 
-For generated shared wrappers, `import: false` is treated as host-only: if the host does not provide
-the package, the wrapper throws an explicit error that includes `requiredVersion` and
-`strictVersion`. Non-host-only wrappers use the local prebuild source as a fallback when the runtime
-cannot find a registered provider.
+For generated shared wrappers, `import: false` is treated as host-only.
+If the host does not provide the package, the wrapper throws an explicit error that includes
+`requiredVersion` and `strictVersion`.
+Non-host-only wrappers use the local prebuild source as a fallback when the runtime cannot find any
+registered provider.
 
 ## Browser Host Loading
 
@@ -158,8 +164,8 @@ const checkout = await loadRemote('checkout/App');
 
 ## Manifest Fetch Controls
 
-`fetchFederationManifest`, `registerManifestRemote`, `registerManifestRemotes`, and
-`loadRemoteFromManifest` share the same production fetch controls.
+`fetchFederationManifest`, `registerManifestRemote`, `registerManifestRemotes`, and `loadRemoteFromManifest`
+share the same production fetch controls.
 
 | Option                 | Default            | Use case                                                                        |
 | ---------------------- | ------------------ | ------------------------------------------------------------------------------- |
@@ -208,16 +214,17 @@ await loadRemoteFromManifest('catalog/Button', catalogManifestUrl, {
 ```
 
 When a fallback manifest URL succeeds, relative remote entries and assets are resolved from the
-winning manifest origin. `getFederationDebugInfo()` exposes both the configured `manifestUrl` and
-the effective `sourceUrl` in manifest cache and registered manifest remote snapshots.
+manifest origin that won.
+`getFederationDebugInfo()` exposes both the configured `manifestUrl` and the effective `sourceUrl`
+in manifest cache and registered manifest remote snapshots.
 
 `circuitBreaker: true` uses `failureThreshold: 3` and `cooldownMs: 30000`. During the open window,
 the runtime rejects immediately with `MFV-004` and records a `circuit-open` manifest fetch event.
 
 Hook events use `{ kind, stage, timestamp }` plus contextual fields such as `manifestUrl`,
 `sourceUrl`, `remoteId`, `entry`, `target`, `status`, `statusCode`, `durationMs`, and `error`.
-Available `kind` values are `manifest-fetch`, `remote-register`, `remote-load`, and
-`remote-refresh`; stages are `before`, `after`, and `error`.
+Available `kind` values are `manifest-fetch`, `remote-register`, `remote-load`, and `remote-refresh`.
+Stages are `before`, `after`, and `error`.
 
 ## Refresh And Rollout Behavior
 
@@ -262,9 +269,9 @@ export async function loadCatalogRoute() {
 
 ## SSR And Node Hosts
 
-Server hosts should create a server runtime instance and pass `target: 'node'` when loading from a
-manifest. The runtime selects `ssrRemoteEntry` first and falls back to `remoteEntry` only if the SSR
-entry is absent.
+Server hosts should create a server runtime instance and pass `target: 'node'` for manifest loading.
+The runtime selects `ssrRemoteEntry` first and falls back to `remoteEntry` only if the SSR entry is
+absent.
 
 ```ts
 import {
@@ -295,11 +302,13 @@ const [manifest, remoteModule] = await Promise.all([
 ]);
 ```
 
-Node SSR currently relies on the VM module loader for remote ESM evaluation. Run SSR examples with
-`--experimental-vm-modules` until the Node loading strategy is replaced or no longer needs the flag.
+Node SSR currently relies on the VM module loader for remote ESM evaluation.
+Run SSR examples with `--experimental-vm-modules` until the Node loading strategy is replaced or no
+longer needs the flag.
 The VM module loader is treated as a temporary Node bridge hidden behind
-`createServerFederationInstance()`: keep application code on the runtime APIs above so the loader can
-move to native Node import/materialized server chunks later without changing host code.
+`createServerFederationInstance()`.
+Keep application code on the runtime APIs above so the loader can move to native Node
+import/materialized server chunks later without changing host code.
 
 Production SSR hosts should keep the server and browser federation paths explicitly comparable:
 
@@ -312,13 +321,14 @@ Production SSR hosts should keep the server and browser federation paths explici
   versions on both sides. The React SSR example fails hydration early if the manifest URL, remote id,
   share scope, or React version diverges.
 - The host SSR build should leave `vite-plugin-federation/runtime` external so Node uses the package
-  runtime entry and a single debug state. The React remote example keeps React SSR packages in
+  runtime entry and a single debug state. The React remote example keeps React SSR packages under
   `ssr.noExternal` and validates the generated `ssrRemoteEntry` through the SSR e2e test.
 
 When SSR remote loading fails, `getFederationDebugInfo().runtime.lastLoadError` includes the error
 code, `remoteId`, `remoteAlias`, selected `entry`, `manifestUrl`, `target`, and `shareScope` when
-that context is available. Node entry loader failures are wrapped as `MFV-004` with guidance to
-check server-side fetch reachability, ESM SSR output, and the `--experimental-vm-modules` flag.
+that context is available.
+Node entry loader failures are wrapped as `MFV-004` with guidance to check server-side fetch
+reachability, ESM SSR output, and the `--experimental-vm-modules` flag.
 
 ## SSR Asset Collection
 
@@ -352,15 +362,17 @@ chunks as well. Module preload links default to `crossorigin="anonymous"`; set
 `crossorigin: false` to omit the attribute.
 
 For route-aware shells, use `createFederationManifestPreloadPlan` to generate a deduped plan from
-route-to-expose usage and optional manifest `preload` hints. Use `warmFederationRemotes` to register
-and preload selected remotes before a critical navigation. See
-[preload-performance.md](preload-performance.md) for the full API and performance budget guidance.
+route-to-expose usage plus optional manifest `preload` hints.
+Use `warmFederationRemotes` to register and preload selected remotes before a critical navigation.
+See [preload-performance.md](preload-performance.md) for the full API and performance budget
+guidance.
 
 If browser and remote assets are served from different origins, also account for root-relative
-dependencies emitted inside remote chunks. Either configure the remote so those preloads resolve to
-the remote origin, or proxy the relevant asset paths from the SSR host. The React SSR example proxies
-`/assets/*` to the origin that serves the remote manifest so hydration can reuse the same manifest
-URL without asset 404s.
+dependencies emitted inside remote chunks.
+Either configure the remote so those preloads resolve to the remote origin, or proxy the relevant
+asset paths from the SSR host.
+The React SSR example proxies `/assets/*` to the origin that serves the remote manifest so hydration
+can reuse the same manifest URL without asset 404s.
 
 ## Observability
 
@@ -384,9 +396,9 @@ console.table(getFederationDebugInfo().runtime.remoteLoadMetrics);
 console.table(getFederationDebugInfo().runtime.sharedResolutionGraph);
 ```
 
-Browser runtimes also dispatch `vite-plugin-federation:debug` events after runtime mutations. The
-devtools sidecar consumes the same event stream. The stable browser global contract is documented in
-[devtools-runtime-contract.md](devtools-runtime-contract.md).
+Browser runtimes also dispatch `vite-plugin-federation:debug` events after runtime mutations.
+The devtools sidecar consumes the same event stream.
+The stable browser global contract is documented in [devtools-runtime-contract.md](devtools-runtime-contract.md).
 
 ## Error Handling
 

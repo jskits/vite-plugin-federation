@@ -1,19 +1,20 @@
 # Migrating from `@module-federation/vite`
 
-`vite-plugin-federation` is API-compatible with `@module-federation/vite` for the build-time
-plugin shape and exact-pins its Module Federation runtime stack at `2.3.3`. Current
-`@module-federation/vite` releases may pin a newer MF runtime, so check your lockfile when
-your application imports `@module-federation/runtime` directly. Most applications can still
-switch with a one-line dependency change. The net gains are a curated runtime entry,
-manifest-first host loading policy, multi-tenant scoping, integrity verification, SSR helpers,
-classified dev remote HMR, and stable error codes.
+`vite-plugin-federation` is API-compatible with `@module-federation/vite` for the build-time plugin
+shape and exact-pins its Module Federation runtime stack at `2.3.3`.
+Current `@module-federation/vite` releases may pin a newer MF runtime, so check your lockfile when
+your application imports `@module-federation/runtime` directly.
+Most applications can still switch with a one-line dependency change.
+The net gains are a curated runtime entry, manifest-first host loading policy, multi-tenant scoping,
+integrity verification, SSR helpers, classified dev remote HMR, and stable error codes.
 
 This guide does not treat official runtime/core features as missing. `@module-federation/vite`
 already exposes official runtime behavior through `@module-federation/runtime`, including
 helpers such as `registerPlugins`, `registerRemotes`, `preloadRemote`, `loadRemote`, runtime
 hooks, manifest cache state, debug globals, and optional official plugins such as
-`@module-federation/retry-plugin`. The migration value here is the higher-level policy wrapper
-and compatibility surface this package adds around those primitives.
+`@module-federation/retry-plugin`.
+The migration value here is the higher-level policy wrapper and compatibility surface this package
+adds around those primitives.
 
 A full feature comparison lives in [`../COMPARISON.md`](../COMPARISON.md).
 
@@ -64,10 +65,11 @@ These options have identical names and semantics:
 
 ## 4. Manifest options — additive
 
-`vite-plugin-federation` emits a third artifact, `mf-debug.json`, in addition to
-`mf-manifest.json` and `mf-stats.json`. No config change is required — it just shows up in
-your build output. The host can ignore it; CI can use it for build diagnostics. See
-`docs/manifest-protocol.md`.
+`vite-plugin-federation` emits a third artifact, `mf-debug.json`, in addition to `mf-manifest.json`
+and `mf-stats.json`.
+No config change is required; it just shows up in your build output.
+The host can ignore it, and CI can use it for build diagnostics.
+See `docs/manifest-protocol.md`.
 
 ## 5. Dev — remote HMR with classification
 
@@ -81,9 +83,9 @@ update so the host can react proportionally:
 - **`types`** — sync `.d.ts` to the host without reload.
 - **`full`** — fall back to a full reload.
 
-Add `dev: { remoteHmr: true }` to opt in. See `docs/dev-hmr.md` for the strategy table and
-the disable flags (`disableLiveReload`, `disableHotTypesReload`,
-`disableDynamicRemoteTypeHints`).
+Add `dev: { remoteHmr: true }` to opt in.
+See `docs/dev-hmr.md` for the strategy table and the disable flags (`disableLiveReload`,
+`disableHotTypesReload`, `disableDynamicRemoteTypeHints`).
 
 ## 6. Runtime API — new curated entry
 
@@ -111,8 +113,8 @@ import {
 } from 'vite-plugin-federation/runtime';
 ```
 
-The full surface and option shape is documented in `docs/runtime-api.md`. There is no
-behavioral conflict with continuing to use `@module-federation/runtime` directly for
+The full surface and option shape is documented in `docs/runtime-api.md`.
+There is no behavioral conflict with continuing to use `@module-federation/runtime` directly for
 non-manifest paths.
 
 ## 7. SSR — opt-in helpers
@@ -128,8 +130,9 @@ import {
 } from 'vite-plugin-federation/runtime';
 ```
 
-See `docs/production-runtime.md` for entry selection rules and `docs/runtime-api.md` for the
-preload-link collector. Node currently needs `--experimental-vm-modules`.
+See `docs/production-runtime.md` for entry selection rules.
+See `docs/runtime-api.md` for the preload-link collector.
+Node currently needs `--experimental-vm-modules`.
 
 ## 8. Multi-tenant deployments
 

@@ -1,7 +1,7 @@
 # Manifest Protocol
 
-The federation manifest protocol is the stable artifact contract between remote builds, host
-runtime loading, debug tooling, and external deployment tooling.
+The federation manifest protocol is the stable artifact contract for remote builds, host runtime
+loading, debug tooling, and external deployment tooling.
 
 ## Artifacts
 
@@ -53,15 +53,17 @@ Optional fields:
 - `shared`: shared modules used by the build. It is omitted when asset analysis is disabled.
 - `exposes`: exposed modules and their JS/CSS assets. It is omitted when asset analysis is disabled.
 
-`metaData.remoteEntry` is the browser entry. `metaData.ssrRemoteEntry` is the Node/SSR entry when
-available. Browser hosts prefer `remoteEntry`; Node hosts prefer `ssrRemoteEntry` and fall back to
-`remoteEntry` only when necessary.
+`metaData.remoteEntry` is the browser entry.
+`metaData.ssrRemoteEntry` is the Node/SSR entry when available.
+Browser hosts prefer `remoteEntry`.
+Node hosts prefer `ssrRemoteEntry` and fall back to `remoteEntry` only when necessary.
 
-Generated entries can include `integrity` and `contentHash`. `integrity` uses the Subresource
-Integrity format for the emitted entry file, and `contentHash` is a SHA-256 hex digest for
-deployment tooling. Generated manifests also include a top-level `release` object and
-`metaData.buildInfo.releaseId`; set `VITE_PLUGIN_FEDERATION_RELEASE_ID` or `MF_RELEASE_ID` in CI
-when the release id should differ from the default `buildName:buildVersion` value.
+Generated entries can include `integrity` and `contentHash`.
+`integrity` uses the Subresource Integrity format for the emitted entry file.
+`contentHash` is a SHA-256 hex digest for deployment tooling.
+Generated manifests also include a top-level `release` object and `metaData.buildInfo.releaseId`.
+Set `VITE_PLUGIN_FEDERATION_RELEASE_ID` or `MF_RELEASE_ID` in CI when the release id should differ
+from the default `buildName:buildVersion` value.
 
 Runtime target validation:
 
@@ -90,10 +92,9 @@ Forward-compatible runtime behavior:
 
 - A `1.0.0` runtime accepts missing `schemaVersion` as a legacy manifest.
 - A `1.0.0` runtime accepts `1.x.y` manifests when required runtime fields are still usable.
-- A `1.0.0` runtime rejects `2.x.y` manifests because required fields or semantics may have
-  changed.
-- Exact JSON Schema validation remains stricter than runtime validation and is intended for
-  deployment pipelines and external tooling.
+- A `1.0.0` runtime rejects `2.x.y` manifests because required fields or semantics may have changed.
+- Exact JSON Schema validation remains stricter than runtime validation. Use it for deployment
+  pipelines and external tooling.
 
 Breaking changes that require a new major schema version:
 
