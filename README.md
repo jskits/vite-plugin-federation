@@ -42,7 +42,7 @@ vite-plugin-federation - A Vite/Rollup plugin for Module Federation.
 
 ## What is Module Federation?
 
-Module Federation lets one frontend application load code from another frontend at runtime.
+[Module Federation](https://module-federation.io/) lets one frontend application load code from another frontend at runtime.
 Each frontend can be built and deployed independently.
 
 A typical setup has:
