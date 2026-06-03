@@ -98,6 +98,7 @@ import {
   clearFederationRuntimeCaches,
   collectFederationManifestExposeAssets,
   collectFederationManifestPreloadLinks,
+  connectRuntimeRemoteHmr,
   createFederationManifestPreloadPlan,
   createFederationInstance,
   createFederationRuntimeScope,
@@ -872,6 +873,106 @@ describe('runtime api', () => {
       ],
       { force: true },
     );
+  });
+
+  it('connects runtime-registered remotes to dev HMR updates', async () => {
+    const sockets: Array<{
+      close: ReturnType<typeof vi.fn>;
+      onclose?: (() => void) | null;
+      onerror?: ((event: unknown) => void) | null;
+      onmessage?: ((event: { data: unknown }) => void) | null;
+      onopen?: (() => void) | null;
+      protocols?: string | string[];
+      url: string;
+    }> = [];
+    class WebSocketMock {
+      close = vi.fn();
+      onclose: (() => void) | null = null;
+      onerror: ((event: unknown) => void) | null = null;
+      onmessage: ((event: { data: unknown }) => void) | null = null;
+      onopen: (() => void) | null = null;
+      protocols?: string | string[];
+      url: string;
+
+      constructor(url: string, protocols?: string | string[]) {
+        this.url = url;
+        this.protocols = protocols;
+        sockets.push(this);
+      }
+    }
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        event: 'mf:remote-update',
+        remote: 'remoteApp',
+        wsUrl: 'ws://remote.example/hmr?token=dev',
+      }),
+    }));
+    getInstanceMock.mockReturnValue({
+      name: 'host',
+      options: {
+        name: 'host',
+        remotes: [
+          {
+            name: 'remoteApp',
+            entry: 'http://remote.example/assets/remoteEntry.js',
+            type: 'module',
+          },
+        ],
+      },
+    });
+
+    const connection = connectRuntimeRemoteHmr(
+      'remoteApp',
+      'http://remote.example/assets/remoteEntry.js',
+      {
+        fetch: fetchMock as any,
+        reconnect: false,
+        refreshOptions: { target: 'web' },
+        webSocket: WebSocketMock,
+      },
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fetchMock).toHaveBeenCalledWith('http://remote.example/assets/__mf_hmr');
+    expect(sockets).toHaveLength(1);
+    expect(sockets[0]?.url).toBe('ws://remote.example/hmr?token=dev');
+    expect(sockets[0]?.protocols).toBe('vite-hmr');
+
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        data: {
+          action: 'partial-reload',
+          expose: './Button',
+          file: '/src/Button.vue',
+          kind: 'expose',
+          remote: 'remoteApp',
+          strategy: 'partial',
+          ts: 123,
+        },
+        event: 'mf:remote-update',
+        type: 'custom',
+      }),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(registerRemotesMock).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          entry: expect.stringMatching(/^http:\/\/remote\.example\/assets\/remoteEntry\.js\?t=\d+$/),
+          name: 'remoteApp',
+          type: 'module',
+        }),
+      ],
+      { force: true },
+    );
+
+    connection.close();
+    expect(connection.closed).toBe(true);
+    expect(sockets[0]?.close).toHaveBeenCalled();
   });
 
   it('refreshes manifest-style runtime remotes via manifest registration', async () => {

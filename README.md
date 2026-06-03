@@ -380,6 +380,7 @@ import {
   registerManifestRemotes,
   loadRemoteFromManifest,
   refreshRemote,
+  connectRuntimeRemoteHmr,
 
   // Loading
   loadRemote,
@@ -446,6 +447,11 @@ federation({
   },
 });
 ```
+
+Hosts with configured `remotes` are wired automatically. Runtime-registered remotes created with
+`registerRemotes()` or `loadRemoteFromManifest()` are only known in the browser; call
+`connectRuntimeRemoteHmr(remoteAlias, manifestOrEntryUrl)` after registration to connect their
+`/__mf_hmr` endpoint and close the returned connection on disposal.
 
 Update classification:
 

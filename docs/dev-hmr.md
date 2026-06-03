@@ -14,6 +14,36 @@ federation({
 Hosts that configure remotes automatically inject a lightweight HMR client during Vite dev server
 usage.
 
+## Configured vs Runtime Remotes
+
+The built-in host bridge connects remotes declared in `federation({ remotes })`, because the dev
+server can read those URLs during startup.
+
+Remotes registered later with runtime APIs such as `registerRemotes()` or
+`loadRemoteFromManifest()` are only known in the browser. For those dynamic remotes, connect the
+runtime-side HMR client after registration:
+
+```ts
+import { connectRuntimeRemoteHmr, registerRemotes } from 'vite-plugin-federation/runtime';
+
+registerRemotes([{ name: 'catalog', entry: catalogManifestUrl, type: 'module' }]);
+
+const hmr = connectRuntimeRemoteHmr('catalog', catalogManifestUrl);
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => hmr.close());
+}
+```
+
+`connectRuntimeRemoteHmr()` reads the remote `/__mf_hmr` metadata, opens the remote Vite WebSocket,
+dispatches the same browser events listed below, refreshes remote stylesheet links, and calls
+`refreshRemote()` for partial expose updates. The remote still needs `dev.remoteHmr: true`.
+
+Framework-native HMR can still work without the federation bridge when the remote dev server serves
+modules that import its own Vite client. For example, Vue SFC updates can patch already mounted
+remote components through the remote Vite client. The runtime connector is still useful for dynamic
+remote cache invalidation, stylesheet refreshes, type events, and full-reload fallback decisions.
+
 ## Update Strategies
 
 Remote updates are classified before they are broadcast to hosts:
