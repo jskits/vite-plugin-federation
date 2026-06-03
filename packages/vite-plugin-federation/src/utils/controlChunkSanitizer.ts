@@ -2,6 +2,7 @@ const FEDERATION_CONTROL_CHUNK_HINTS = [
   'hostInit',
   'virtualExposes',
   'localSharedImportMap',
+  '__loadShare__',
   'REMOTE_ENTRY_ID',
   'SSR_REMOTE_ENTRY_ID',
 ] as const;

@@ -88,6 +88,24 @@ describe('controlChunkSanitizer', () => {
     );
   });
 
+  it('inlines preload helpers inside loadShare chunks', () => {
+    const code =
+      'import{p as preload}from"./remote__loadShare__core__loadShare__.mjs-Abc.js";' +
+      'const fallback=()=>preload(()=>import("./vue.runtime.esm-bundler.js"),[],import.meta.url);' +
+      'export{fallback as f};';
+
+    const result = sanitizeFederationControlChunk(
+      code,
+      'assets/remote__loadShare__vue__loadShare__.mjs-Def.js',
+      'remoteEntry.js',
+    );
+
+    expect(result).toBe(
+      'const fallback=()=>import("./vue.runtime.esm-bundler.js");' + 'export{fallback as f};',
+    );
+    expect(result).not.toContain('__loadShare__core');
+  });
+
   it('removes only loadShare imports that are used as preload helpers', () => {
     const code =
       'import{r as preload,t as sharedValue}from"./remote__loadShare__shared__loadShare__.mjs-Abc.js";' +
@@ -137,6 +155,12 @@ describe('controlChunkSanitizer', () => {
     expect(isFederationControlChunk('assets/localSharedImportMap-abc.js', 'remoteEntry.js')).toBe(
       true,
     );
+    expect(
+      isFederationControlChunk(
+        'assets/remote__loadShare__vue__loadShare__.mjs-abc.js',
+        'remoteEntry.js',
+      ),
+    ).toBe(true);
     expect(isFederationControlChunk('assets/app-abc.js', 'remoteEntry.js')).toBe(false);
   });
 });
