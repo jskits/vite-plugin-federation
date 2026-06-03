@@ -1,9 +1,29 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const { mfWarn } = vi.hoisted(() => ({
+  mfWarn: vi.fn(),
+}));
+
+vi.mock('../../utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/logger')>('../../utils/logger');
+  return {
+    ...actual,
+    mfWarn,
+  };
+});
+
 import pluginProxyRemoteEntry from '../pluginProxyRemoteEntry';
 import { getHostAutoInitPath } from '../../virtualModules';
 import { normalizeModuleFederationOptions } from '../../utils/normalizeModuleFederationOptions';
 
 describe('pluginProxyRemoteEntry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('awaits dev host auto init before loading the app entry', async () => {
     const options = normalizeModuleFederationOptions({
       filename: 'remoteEntry.js',
@@ -34,6 +54,43 @@ describe('pluginProxyRemoteEntry', () => {
     expect(result && 'code' in result ? result.code : result).toContain('await remoteEntry.init()');
     expect(result && 'code' in result ? result.code : result).not.toContain(
       '.then(remoteEntry.init)',
+    );
+  });
+
+  it('warns when an expose imports the Vite HTML entry during dev', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-entry-expose-warning-'));
+    fs.writeFileSync(
+      path.join(tempDir, 'index.html'),
+      '<html><body><script type="module" src="/src/main.tsx"></script></body></html>',
+    );
+
+    const options = normalizeModuleFederationOptions({
+      filename: 'remoteEntry.js',
+      name: 'remote',
+      exposes: {
+        './App': './src/main',
+      },
+    });
+    const plugin = pluginProxyRemoteEntry({
+      options,
+      remoteEntryId: 'virtual:mf-REMOTE_ENTRY_ID:remote',
+      ssrRemoteEntryId: 'virtual:mf-SSR_REMOTE_ENTRY_ID:remote',
+      virtualExposesId: 'virtual:mf-exposes:remote',
+    });
+
+    plugin.config?.({} as any, { command: 'serve', mode: 'development' });
+    plugin.configResolved?.({
+      base: '/',
+      root: tempDir,
+      build: { rollupOptions: {} },
+      server: {},
+    } as any);
+
+    expect(mfWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Expose "./App" imports "./src/main"'),
+    );
+    expect(mfWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Do not expose bootstrap entries'),
     );
   });
 

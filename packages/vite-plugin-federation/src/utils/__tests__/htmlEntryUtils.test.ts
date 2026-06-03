@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { injectEntryScript, rewriteEntryScripts, sanitizeDevEntryPath } from '../htmlEntryUtils';
+import {
+  collectHtmlModuleScriptSrcs,
+  injectEntryScript,
+  resolveHtmlModuleScriptPath,
+  rewriteEntryScripts,
+  sanitizeDevEntryPath,
+} from '../htmlEntryUtils';
 
 const INIT_SRC = '/__mf__virtual/hostAutoInit.js';
 
@@ -87,6 +93,34 @@ describe('injectEntryScript', () => {
     expect(result).toContain(
       `<head data-app="shell"><script type="module" src="/__mf__virtual/hostAutoInit.js"></script>`,
     );
+  });
+});
+
+describe('collectHtmlModuleScriptSrcs', () => {
+  it('collects only module script entries and skips the Vite client', () => {
+    const html =
+      '<head><script type="module" src="/@vite/client"></script></head>' +
+      '<body>' +
+      '<script src="/legacy.js"></script>' +
+      '<script type="module" src="/src/main.tsx"></script>' +
+      '<script src="./src/admin.ts" type="module"></script>' +
+      '</body>';
+
+    expect(collectHtmlModuleScriptSrcs(html)).toEqual(['/src/main.tsx', './src/admin.ts']);
+  });
+});
+
+describe('resolveHtmlModuleScriptPath', () => {
+  it('resolves root, base-prefixed, and relative module entries', () => {
+    expect(
+      resolveHtmlModuleScriptPath('/src/main.tsx', '/repo/app', '/repo/app/index.html', '/'),
+    ).toBe('/repo/app/src/main.tsx');
+    expect(
+      resolveHtmlModuleScriptPath('/base/src/main.tsx', '/repo/app', '/repo/app/index.html', '/base/'),
+    ).toBe('/repo/app/src/main.tsx');
+    expect(
+      resolveHtmlModuleScriptPath('./src/admin.ts', '/repo/app', '/repo/app/nested/index.html', '/'),
+    ).toBe('/repo/app/nested/src/admin.ts');
   });
 });
 

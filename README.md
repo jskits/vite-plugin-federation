@@ -314,6 +314,11 @@ exposes: {
 This is useful for Shadow DOM or staged migration.
 `dontAppendStylesToHead: true` is accepted as the OriginJS-compatible alias.
 
+Do not expose the same file that `index.html` loads as a Vite module entry, such as
+`src/main.ts`, `src/main.tsx`, or `src/main.js`. That file should only bootstrap and mount the
+remote app. Expose components, routes, or loader modules instead. In dev, the plugin warns when an
+`exposes` entry points at the HTML module entry.
+
 ### Remotes
 
 ```ts
