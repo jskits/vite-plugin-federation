@@ -4103,6 +4103,8 @@ export function connectRuntimeRemoteHmr(
 
     try {
       const response = await fetchImpl(endpoint);
+      if (closed) return;
+
       if (!response.ok) {
         throw new Error(`Failed to fetch runtime remote HMR metadata: HTTP ${response.status}`);
       }
@@ -4112,6 +4114,8 @@ export function connectRuntimeRemoteHmr(
         remote?: string;
         wsUrl?: string;
       };
+      if (closed) return;
+
       if (metadata.event !== RUNTIME_REMOTE_HMR_EVENT || !metadata.wsUrl) {
         throw new Error('Remote returned unexpected runtime HMR metadata.');
       }
@@ -4135,6 +4139,8 @@ export function connectRuntimeRemoteHmr(
         scheduleReconnect(opened ? 0 : attempt);
       };
     } catch (error) {
+      if (closed) return;
+
       reportRuntimeRemoteHmrError(error, options);
       scheduleReconnect(attempt);
     }

@@ -975,6 +975,68 @@ describe('runtime api', () => {
     expect(sockets[0]?.close).toHaveBeenCalled();
   });
 
+  it('does not open runtime remote HMR sockets after close during metadata fetch', async () => {
+    const sockets: Array<{
+      close: ReturnType<typeof vi.fn>;
+      protocols?: string | string[];
+      url: string;
+    }> = [];
+    class WebSocketMock {
+      close = vi.fn();
+      protocols?: string | string[];
+      url: string;
+
+      constructor(url: string, protocols?: string | string[]) {
+        this.url = url;
+        this.protocols = protocols;
+        sockets.push(this);
+      }
+    }
+    let resolveFetch: (
+      value: {
+        json: () => Promise<{ event: string; remote: string; wsUrl: string }>;
+        ok: boolean;
+        status: number;
+      },
+    ) => void = () => undefined;
+    const fetchPromise = new Promise<{
+      json: () => Promise<{ event: string; remote: string; wsUrl: string }>;
+      ok: boolean;
+      status: number;
+    }>((resolve) => {
+      resolveFetch = resolve;
+    });
+    const fetchMock = vi.fn(() => fetchPromise);
+
+    const connection = connectRuntimeRemoteHmr(
+      'remoteApp',
+      'http://remote.example/assets/remoteEntry.js',
+      {
+        fetch: fetchMock as any,
+        reconnect: false,
+        webSocket: WebSocketMock,
+      },
+    );
+
+    await Promise.resolve();
+    connection.close();
+    resolveFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        event: 'mf:remote-update',
+        remote: 'remoteApp',
+        wsUrl: 'ws://remote.example/hmr?token=dev',
+      }),
+    });
+    await fetchPromise;
+    await Promise.resolve();
+
+    expect(connection.closed).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith('http://remote.example/assets/__mf_hmr');
+    expect(sockets).toHaveLength(0);
+  });
+
   it('refreshes manifest-style runtime remotes via manifest registration', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
