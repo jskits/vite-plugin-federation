@@ -185,6 +185,18 @@ const Manifest = (): Plugin[] => {
   const getEffectiveSsrRemoteEntryFile = () =>
     ssrRemoteEntryFile ||
     (Object.keys(mfOptions.exposes).length > 0 ? getSsrRemoteEntryFileName(filename) : filename);
+  const getManifestPublicPath = () => {
+    if (
+      _command === 'build' &&
+      !mfOptions.publicPath &&
+      _originalConfigBase === undefined &&
+      publicPath === '/'
+    ) {
+      return 'auto';
+    }
+
+    return publicPath;
+  };
 
   return [
     {
@@ -515,7 +527,7 @@ const Manifest = (): Plugin[] => {
         types: getTypesMetadata(options),
         globalName: name,
         pluginVersion: PLUGIN_VERSION,
-        ...(getPublicPath ? { getPublicPath } : { publicPath }),
+        ...(getPublicPath ? { getPublicPath } : { publicPath: getManifestPublicPath() }),
       },
       ...(disableAssetsAnalyze ? {} : { shared }),
       remotes,

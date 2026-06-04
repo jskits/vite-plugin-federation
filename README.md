@@ -314,6 +314,11 @@ exposes: {
 This is useful for Shadow DOM or staged migration.
 `dontAppendStylesToHead: true` is accepted as the OriginJS-compatible alias.
 
+Do not expose the same file that `index.html` loads as a Vite module entry, such as
+`src/main.ts`, `src/main.tsx`, or `src/main.js`. That file should only bootstrap and mount the
+remote app. Expose components, routes, or loader modules instead. In dev, the plugin warns when an
+`exposes` entry points at the HTML module entry.
+
 ### Remotes
 
 ```ts
@@ -375,6 +380,7 @@ import {
   registerManifestRemotes,
   loadRemoteFromManifest,
   refreshRemote,
+  connectRuntimeRemoteHmr,
 
   // Loading
   loadRemote,
@@ -441,6 +447,11 @@ federation({
   },
 });
 ```
+
+Hosts with configured `remotes` are wired automatically. Runtime-registered remotes created with
+`registerRemotes()` or `loadRemoteFromManifest()` are only known in the browser; call
+`connectRuntimeRemoteHmr(remoteAlias, manifestOrEntryUrl)` after registration to connect their
+`/__mf_hmr` endpoint and close the returned connection on disposal.
 
 Update classification:
 

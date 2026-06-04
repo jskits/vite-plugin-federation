@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { Plugin } from 'vite';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getLoadShareImportId } from '../virtualModules/virtualShared_preBuild';
@@ -35,7 +38,7 @@ vi.mock('../utils/logger', async () => {
 });
 
 import { federation } from '../index';
-import { getPreBuildLibImportId, LOAD_SHARE_TAG } from '../virtualModules';
+import { getPreBuildLibImportId, LOAD_REMOTE_TAG, LOAD_SHARE_TAG } from '../virtualModules';
 import { virtualRuntimeInitStatus } from '../virtualModules/virtualRuntimeInitStatus';
 
 function getEsmShimsPlugin(): Plugin {
@@ -124,6 +127,11 @@ function getModuleFederationVitePlugin(): Plugin {
 
   if (!plugin) throw new Error('vite-plugin-federation plugin not found');
   return plugin;
+}
+
+async function callLoadHook(plugin: Plugin, id: string) {
+  const loadHook = typeof plugin.load === 'function' ? plugin.load : plugin.load?.handler;
+  return loadHook?.call({ meta: {} } as any, id);
 }
 
 describe('federation in test environment', () => {
@@ -309,6 +317,42 @@ describe('module-federation-esm-shims', () => {
     const warnCountAfterFirstRun = mfWarn.mock.calls.length;
     configHook?.call({} as any, config, { command: 'build', mode: 'test' });
     expect(mfWarn).toHaveBeenCalledTimes(warnCountAfterFirstRun);
+  });
+
+  it('unwraps default exports for build remote shims', async () => {
+    const plugin = getEsmShimsPlugin();
+    const tempDir = mkdtempSync(path.join(tmpdir(), 'mf-remote-shim-'));
+    const shimPath = path.join(tempDir, `remoteApp${LOAD_REMOTE_TAG}Button.js`);
+    writeFileSync(shimPath, 'const exportModule = await res;\nexport default exportModule;');
+
+    try {
+      const result = await callLoadHook(plugin, shimPath);
+      const code = typeof result === 'string' ? result : result?.code;
+
+      expect(code).toContain('export const __moduleExports = exportModule;');
+      expect(code).toContain('export default exportModule.default ?? exportModule');
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it('keeps CJS default interop for build shared shims', async () => {
+    const plugin = getEsmShimsPlugin();
+    const tempDir = mkdtempSync(path.join(tmpdir(), 'mf-share-shim-'));
+    const shimPath = path.join(tempDir, `react${LOAD_SHARE_TAG}.js`);
+    writeFileSync(shimPath, 'const exportModule = await res;\nexport default exportModule;');
+
+    try {
+      const result = await callLoadHook(plugin, shimPath);
+      const code = typeof result === 'string' ? result : result?.code;
+
+      expect(code).toContain('export const __moduleExports = exportModule;');
+      expect(code).toContain(
+        'export default exportModule.__esModule ? exportModule.default : exportModule',
+      );
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 
   it('reapplies patched rolldown output in buildApp after Vite overwrites it', async () => {

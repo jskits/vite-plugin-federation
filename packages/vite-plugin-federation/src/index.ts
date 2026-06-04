@@ -565,6 +565,10 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           code = code.replace(/import\s+["'][^"']*__prebuild__[^"']*["']\s*;?/g, '');
           code = code.replace(/export\s+\*\s+from\s+["'][^"']*__prebuild__[^"']*["']\s*;?/g, '');
 
+          const defaultExportExpression = id.includes(LOAD_REMOTE_TAG)
+            ? 'exportModule.default ?? exportModule'
+            : 'exportModule.__esModule ? exportModule.default : exportModule';
+
           /**
            * Shared/remote shims only have `export default exportModule`.
            *
@@ -576,6 +580,11 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
            * `import styled from '@emotion/styled'` must receive the .default
            * function, not the raw namespace object.
            *
+           * Remote shims use the dev-path default unwrap instead: Module
+           * Federation returns exposed modules as `{ default: Component }`, and
+           * default consumers such as Vue async components need the component
+           * itself.
+           *
            * Using 'default' as the syntheticNamedExports key would skip the
            * interop and break default imports.
            *
@@ -584,7 +593,7 @@ function federation(mfUserOptions: ModuleFederationOptions): Plugin[] {
           code = code.replace(
             'export default exportModule',
             'export const __moduleExports = exportModule;\n' +
-              'export default exportModule.__esModule ? exportModule.default : exportModule',
+              `export default ${defaultExportExpression}`,
           );
           // Rollup supports syntheticNamedExports to resolve named imports
           // from the __moduleExports namespace.  Rolldown (Vite 8+) does not

@@ -11,6 +11,8 @@ import {
   createEmptyAssetMap,
   processModuleAssets,
 } from '../utils/cssModuleHelpers';
+import { collectHtmlModuleScriptSrcs, resolveHtmlModuleScriptPath } from '../utils/htmlEntryUtils';
+import { mfWarn } from '../utils/logger';
 import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap';
 import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
 import { resolvePublicPath } from '../utils/publicPath';
@@ -37,6 +39,7 @@ const DEV_NODE_TARGET_QUERY_KEY = 'mf_target';
 const DEV_NODE_TARGET_QUERY_VALUE = 'node';
 const STYLE_REQUEST_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/i;
 const ABSOLUTE_URL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:/;
+const JS_ENTRY_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 
 function isBareSpecifier(requestPath: string) {
   return (
@@ -46,6 +49,42 @@ function isBareSpecifier(requestPath: string) {
   );
 }
 
+function normalizeRequestFilePath(requestPath: string, root: string): string | undefined {
+  const cleanPath = requestPath.split(/[?#]/)[0]?.replace(/\\\\?/g, '/');
+  if (!cleanPath || ABSOLUTE_URL_RE.test(cleanPath) || isBareSpecifier(cleanPath)) return;
+
+  if (cleanPath.startsWith('/')) {
+    return path.resolve(root, `.${cleanPath}`);
+  }
+
+  return path.resolve(root, cleanPath);
+}
+
+function stripKnownJsEntryExtension(filePath: string) {
+  const ext = path.extname(filePath);
+  if (!JS_ENTRY_EXTENSIONS.has(ext)) return filePath;
+  return path.join(path.dirname(filePath), path.basename(filePath, ext));
+}
+
+function normalizeComparableFilePath(filePath: string) {
+  return path.normalize(filePath).replace(/\\\\?/g, '/');
+}
+
+function entryPathsMatch(left: string, right: string) {
+  const normalizedLeft = normalizeComparableFilePath(left);
+  const normalizedRight = normalizeComparableFilePath(right);
+
+  return (
+    normalizedLeft === normalizedRight ||
+    stripKnownJsEntryExtension(normalizedLeft) === stripKnownJsEntryExtension(normalizedRight)
+  );
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return typeof error === 'string' ? error : String(error);
+}
+
 export default function ({
   options,
   remoteEntryId,
@@ -53,6 +92,7 @@ export default function ({
   virtualExposesId,
 }: ProxyRemoteEntryParams): Plugin {
   let viteConfig: any, _command: string, root: string, devServer: any;
+  const warnedHtmlEntryExposes = new Set<string>();
   let optimizeDepsMetadata:
     | {
         browserHash?: string;
@@ -70,6 +110,60 @@ export default function ({
         `${base}${getSsrRemoteEntryFileName(options.filename)}`,
       ].map((value) => value.replace(/\/{2,}/g, '/')),
     );
+  };
+  const getHtmlEntryFilePaths = () => {
+    const input = viteConfig?.build?.rollupOptions?.input;
+    const inputFiles = (() => {
+      if (!input) return ['index.html'];
+      if (typeof input === 'string') return [input];
+      if (Array.isArray(input)) return input;
+      if (typeof input === 'object') return Object.values(input);
+      return [];
+    })();
+
+    return inputFiles
+      .filter((entry): entry is string => typeof entry === 'string' && entry.endsWith('.html'))
+      .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(root, entry)));
+  };
+  const warnExposesThatMatchHtmlEntries = () => {
+    if (_command !== 'serve' || Object.keys(options.exposes).length === 0) return;
+
+    const htmlModuleEntries = getHtmlEntryFilePaths().flatMap((htmlFilePath) => {
+      if (!existsSync(htmlFilePath)) return [];
+
+      return collectHtmlModuleScriptSrcs(readFileSync(htmlFilePath, 'utf8'))
+        .map((src) => ({
+          htmlFilePath,
+          resolvedPath: resolveHtmlModuleScriptPath(src, root, htmlFilePath, viteConfig?.base),
+          src,
+        }))
+        .filter((entry): entry is { htmlFilePath: string; resolvedPath: string; src: string } =>
+          Boolean(entry.resolvedPath),
+        );
+    });
+
+    if (htmlModuleEntries.length === 0) return;
+
+    for (const [exposeName, expose] of Object.entries(options.exposes)) {
+      const exposePath = normalizeRequestFilePath(expose.import, root);
+      if (!exposePath) continue;
+
+      const matchedEntry = htmlModuleEntries.find((entry) =>
+        entryPathsMatch(exposePath, entry.resolvedPath),
+      );
+      if (!matchedEntry) continue;
+
+      const warningKey = `${exposeName}:${expose.import}:${matchedEntry.resolvedPath}`;
+      if (warnedHtmlEntryExposes.has(warningKey)) continue;
+      warnedHtmlEntryExposes.add(warningKey);
+
+      mfWarn(
+        `Expose "${exposeName}" imports "${expose.import}", which is also loaded by ` +
+          `${path.relative(root, matchedEntry.htmlFilePath) || matchedEntry.htmlFilePath} ` +
+          `as the Vite HTML entry "${matchedEntry.src}". Do not expose bootstrap entries ` +
+          `such as src/main.ts or src/main.tsx; expose a component, route, or loader module instead.`,
+      );
+    }
   };
   const toNodeTargetUrl = (origin: string, requestPath: string) => {
     const resolved = new URL(
@@ -354,6 +448,7 @@ export default function ({
     configResolved(config) {
       viteConfig = config;
       root = config.root;
+      warnExposesThatMatchHtmlEntries();
     },
     config(config, { command }) {
       _command = command;
@@ -414,21 +509,32 @@ export default function ({
           return;
         }
 
-        const transformed = await server.transformRequest(transformTargetId, { ssr: true });
-        if (!transformed?.code) {
-          next();
-          return;
+        try {
+          const transformed = await server.transformRequest(transformTargetId, { ssr: true });
+          if (!transformed?.code) {
+            next();
+            return;
+          }
+
+          const code = await normalizeNodeTargetModuleCode(
+            transformed.code,
+            origin,
+            transformTargetId,
+          );
+
+          res.setHeader('Content-Type', 'text/javascript');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.end(code);
+        } catch (error) {
+          const message =
+            `Failed to transform dev node-target module "${transformTargetId}": ` +
+            getErrorMessage(error);
+          mfWarn(message);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'text/javascript');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.end(`throw new Error(${JSON.stringify(`[Module Federation] ${message}`)});\n`);
         }
-
-        const code = await normalizeNodeTargetModuleCode(
-          transformed.code,
-          origin,
-          transformTargetId,
-        );
-
-        res.setHeader('Content-Type', 'text/javascript');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.end(code);
       });
     },
     async buildStart() {

@@ -212,6 +212,7 @@ describe('pluginMFManifest', () => {
       buildName: 'basicRemote',
       buildVersion: 'local',
     });
+    expect(manifest.metaData.publicPath).toBe('auto');
     expect(manifest.metaData.remoteEntry.integrity).toMatch(/^sha384-/);
     expect(manifest.metaData.remoteEntry.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.metaData.ssrRemoteEntry).toEqual({

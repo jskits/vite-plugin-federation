@@ -1,24 +1,49 @@
 <script setup>
 import { defineAsyncComponent } from 'vue';
+import { useVueCoreLabel } from '@mf-examples/vue-shared-core';
+import { connectRuntimeRemoteHmr, loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
 
 const RemoteBadge = defineAsyncComponent(() => import('vueRemote/RemoteBadge'));
+const runtimeRemoteManifestUrl =
+  import.meta.env.VITE_VUE_REMOTE_MANIFEST_URL || 'http://localhost:4210/mf-manifest.json';
+const RuntimeRemoteBadge = defineAsyncComponent(async () => {
+  const mod = await loadRemoteFromManifest(
+    'vueRuntimeRemote/RemoteBadge',
+    runtimeRemoteManifestUrl,
+    {
+      remoteName: 'vueRuntimeRemote',
+    },
+  );
+
+  return mod.default ?? mod;
+});
+const { label: hostCoreLabel } = useVueCoreLabel('host');
+const hostEyebrow = 'Vue host';
+const hostTitle = 'Vue host consuming a manifest remote';
+const hostDescription =
+  'This example validates that Vue SFC output, shared Vue singleton metadata, and manifest remote loading work together in production builds.';
+
+if (import.meta.hot) {
+  const runtimeHmr = connectRuntimeRemoteHmr('vueRuntimeRemote', runtimeRemoteManifestUrl, {
+    refresh: false,
+  });
+  import.meta.hot.dispose(() => runtimeHmr.close());
+}
 </script>
 
 <template>
-  <main class="vue-host-shell">
+  <main class="vue-host-shell" data-testid="vue-host-ready">
     <section class="hero">
-      <p class="eyebrow">Vue host</p>
-      <h1>Vue host consuming a manifest remote</h1>
-      <p>
-        This example validates that Vue SFC output, shared Vue singleton metadata, and manifest
-        remote loading work together in production builds.
-      </p>
+      <p class="eyebrow">{{ hostEyebrow }}</p>
+      <h1>{{ hostTitle }}</h1>
+      <p>{{ hostDescription }}</p>
+      <p data-testid="vue-core-host">{{ hostCoreLabel }}</p>
     </section>
     <Suspense>
       <RemoteBadge label="Loaded from vueRemote/RemoteBadge" />
-      <template #fallback>
-        <p>Loading Vue remote...</p>
-      </template>
+    </Suspense>
+    <Suspense>
+      <RuntimeRemoteBadge label="Runtime loaded from vueRuntimeRemote/RemoteBadge" />
     </Suspense>
   </main>
 </template>

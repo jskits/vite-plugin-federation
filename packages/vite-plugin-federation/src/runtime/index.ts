@@ -21,6 +21,7 @@ import {
   createModuleFederationError,
   getModuleFederationDebugState,
   mfErrorWithCode,
+  mfWarn,
   mfWarnWithCode,
   type ModuleFederationErrorCode,
 } from '../utils/logger';
@@ -41,6 +42,14 @@ const SHARED_DIAGNOSTICS_PLUGIN_NAME = 'vite-plugin-federation:shared-diagnostic
 const MAX_SHARED_RESOLUTION_EVENTS = 100;
 const DEVTOOLS_CONTRACT_VERSION = '1.0.0';
 const MAX_DEVTOOLS_EVENTS = 50;
+const RUNTIME_REMOTE_HMR_ENDPOINT = '__mf_hmr';
+const RUNTIME_REMOTE_HMR_EVENT = 'mf:remote-update';
+const RUNTIME_HOST_REMOTE_UPDATE_EVENT = 'vite-plugin-federation:remote-update';
+const RUNTIME_HOST_EXPOSE_UPDATE_EVENT = 'vite-plugin-federation:remote-expose-update';
+const RUNTIME_HOST_STYLE_UPDATE_EVENT = 'vite-plugin-federation:remote-style-update';
+const RUNTIME_HOST_TYPES_UPDATE_EVENT = 'vite-plugin-federation:remote-types-update';
+const RUNTIME_REMOTE_HMR_RECONNECT_DELAY_MS = 1000;
+const RUNTIME_REMOTE_HMR_MAX_RETRIES = 10;
 
 export type FederationRuntimeTarget = 'web' | 'node';
 
@@ -3760,6 +3769,65 @@ export interface RefreshRemoteOptions extends RegisterManifestRemoteOptions {
   manifestUrl?: string;
 }
 
+export type RuntimeRemoteHmrAction =
+  | 'full-reload'
+  | 'partial-reload'
+  | 'style-update'
+  | 'types-update';
+
+export interface RuntimeRemoteHmrPayload {
+  action: RuntimeRemoteHmrAction;
+  batchId?: string;
+  dependencyGraph?: unknown;
+  expose?: string;
+  fallbackReason?: string;
+  file?: string;
+  hostRemote: string;
+  kind?: string;
+  reason?: string;
+  remote?: string;
+  remoteOrigin?: string;
+  remoteRequestId?: string;
+  strategy?: string;
+  ts?: number;
+  [key: string]: unknown;
+}
+
+export interface RuntimeRemoteHmrConnection {
+  close: () => void;
+  readonly closed: boolean;
+  readonly endpoint?: string;
+  readonly remoteAlias: string;
+}
+
+type RuntimeRemoteHmrWebSocket = {
+  close: () => void;
+  onclose?: (() => void) | null;
+  onerror?: ((event: unknown) => void) | null;
+  onmessage?: ((event: { data: unknown }) => void) | null;
+  onopen?: (() => void) | null;
+};
+
+type RuntimeRemoteHmrWebSocketConstructor = new (
+  url: string,
+  protocols?: string | string[],
+) => RuntimeRemoteHmrWebSocket;
+
+export interface ConnectRuntimeRemoteHmrOptions {
+  dispatchEvents?: boolean;
+  fetch?: typeof fetch;
+  fullReload?: boolean;
+  maxReconnectAttempts?: number;
+  onError?: (error: unknown) => void;
+  onUpdate?: (payload: RuntimeRemoteHmrPayload) => void | Promise<void>;
+  reconnect?: boolean;
+  reconnectDelayMs?: number;
+  refresh?: boolean;
+  refreshOptions?: RefreshRemoteOptions;
+  remoteName?: string;
+  webSocket?: RuntimeRemoteHmrWebSocketConstructor;
+}
+
 function getRegisteredManifestRemote(
   remoteAlias: string,
   target: FederationRuntimeTarget,
@@ -3790,6 +3858,310 @@ function getRegisteredRuntimeRemote(remoteAlias: string) {
 
 function isManifestRemoteEntry(entry: unknown) {
   return typeof entry === 'string' && MANIFEST_URL_RE.test(entry);
+}
+
+function getRuntimeLocationHref() {
+  const globalLocation = globalThis as {
+    location?: { href?: string };
+    window?: { location?: { href?: string } };
+  };
+  return (
+    globalLocation.window?.location?.href || globalLocation.location?.href || 'http://localhost/'
+  );
+}
+
+function getRuntimeRemoteUrl(remoteEntryOrManifestUrl: string) {
+  return new URL(remoteEntryOrManifestUrl, getRuntimeLocationHref());
+}
+
+function getRuntimeRemoteOrigin(remoteEntryOrManifestUrl: string) {
+  try {
+    return getRuntimeRemoteUrl(remoteEntryOrManifestUrl).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function getRuntimeRemoteHmrEndpoint(remoteEntryOrManifestUrl: string) {
+  try {
+    const remoteUrl = getRuntimeRemoteUrl(remoteEntryOrManifestUrl);
+    if (remoteUrl.pathname.split('/').filter(Boolean).at(-1) === RUNTIME_REMOTE_HMR_ENDPOINT) {
+      remoteUrl.search = '';
+      remoteUrl.hash = '';
+      return remoteUrl.toString();
+    }
+
+    const parts = remoteUrl.pathname.split('/').filter(Boolean);
+    remoteUrl.pathname = `/${parts.slice(0, -1).join('/')}`;
+    if (!remoteUrl.pathname.endsWith('/')) {
+      remoteUrl.pathname += '/';
+    }
+    remoteUrl.search = '';
+    remoteUrl.hash = '';
+    return new URL(RUNTIME_REMOTE_HMR_ENDPOINT, remoteUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function parseRuntimeRemoteHmrMessage(rawData: unknown) {
+  if (typeof rawData !== 'string') return null;
+
+  try {
+    const parsed = JSON.parse(rawData);
+    if (parsed?.type !== 'custom' || parsed?.event !== RUNTIME_REMOTE_HMR_EVENT) return null;
+    return parsed?.data && typeof parsed.data === 'object'
+      ? (parsed.data as RuntimeRemoteHmrPayload)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function dispatchRuntimeRemoteHmrEvent(eventName: string, payload: RuntimeRemoteHmrPayload) {
+  const browserWindow = (globalThis as { window?: { dispatchEvent?: (event: unknown) => void } })
+    .window;
+  const CustomEventCtor = (
+    globalThis as { CustomEvent?: new (type: string, init?: { detail?: unknown }) => unknown }
+  ).CustomEvent;
+
+  if (browserWindow?.dispatchEvent && typeof CustomEventCtor === 'function') {
+    browserWindow.dispatchEvent(new CustomEventCtor(eventName, { detail: payload }));
+  }
+}
+
+function refreshRuntimeRemoteStylesheets(payload: RuntimeRemoteHmrPayload) {
+  const browserGlobals = globalThis as {
+    document?: {
+      querySelectorAll?: (selector: string) => Iterable<{
+        after?: (node: unknown) => void;
+        cloneNode?: () => {
+          href?: string;
+          onerror?: () => void;
+          onload?: () => void;
+        };
+        getAttribute?: (name: string) => string | null;
+        remove?: () => void;
+      }>;
+    };
+    window?: { location?: { href?: string } };
+  };
+  if (!browserGlobals.document?.querySelectorAll) return false;
+
+  const timestamp = String(payload.ts || Date.now());
+  const remoteOrigin = payload.remoteOrigin;
+  let refreshedCount = 0;
+
+  for (const link of browserGlobals.document.querySelectorAll('link[rel="stylesheet"][href]')) {
+    const href = link.getAttribute?.('href');
+    if (!href || !link.cloneNode || !link.after) continue;
+
+    try {
+      const currentUrl = new URL(
+        href,
+        browserGlobals.window?.location?.href || getRuntimeLocationHref(),
+      );
+      if (remoteOrigin && currentUrl.origin !== remoteOrigin) continue;
+      currentUrl.searchParams.set('t', timestamp);
+      const nextLink = link.cloneNode();
+      nextLink.href = currentUrl.toString();
+      nextLink.onload = () => link.remove?.();
+      nextLink.onerror = () => link.remove?.();
+      link.after(nextLink);
+      refreshedCount += 1;
+    } catch {
+      // Ignore malformed stylesheet hrefs and continue refreshing the rest.
+    }
+  }
+
+  return refreshedCount > 0;
+}
+
+function reloadRuntimeWindow() {
+  const browserWindow = (globalThis as { window?: { location?: { reload?: () => void } } }).window;
+  browserWindow?.location?.reload?.();
+}
+
+function toRuntimeRemoteHmrPayload(
+  remoteAlias: string,
+  remoteEntryOrManifestUrl: string,
+  payload: RuntimeRemoteHmrPayload,
+): RuntimeRemoteHmrPayload {
+  const remoteExpose =
+    typeof payload.expose === 'string' ? normalizeExposeName(payload.expose) : '';
+  return {
+    ...payload,
+    hostRemote: remoteAlias,
+    remoteOrigin: getRuntimeRemoteOrigin(remoteEntryOrManifestUrl),
+    remoteRequestId: remoteExpose ? `${remoteAlias}/${remoteExpose}` : remoteAlias,
+  };
+}
+
+async function handleRuntimeRemoteHmrPayload(
+  remoteAlias: string,
+  remoteEntryOrManifestUrl: string,
+  payload: RuntimeRemoteHmrPayload,
+  options: ConnectRuntimeRemoteHmrOptions,
+) {
+  const runtimePayload = toRuntimeRemoteHmrPayload(remoteAlias, remoteEntryOrManifestUrl, payload);
+  await options.onUpdate?.(runtimePayload);
+
+  if (options.dispatchEvents !== false) {
+    dispatchRuntimeRemoteHmrEvent(RUNTIME_HOST_REMOTE_UPDATE_EVENT, runtimePayload);
+    if (runtimePayload.action === 'partial-reload') {
+      dispatchRuntimeRemoteHmrEvent(RUNTIME_HOST_EXPOSE_UPDATE_EVENT, runtimePayload);
+    } else if (runtimePayload.action === 'style-update') {
+      dispatchRuntimeRemoteHmrEvent(RUNTIME_HOST_STYLE_UPDATE_EVENT, runtimePayload);
+    } else if (runtimePayload.action === 'types-update') {
+      dispatchRuntimeRemoteHmrEvent(RUNTIME_HOST_TYPES_UPDATE_EVENT, runtimePayload);
+    }
+  }
+
+  if (runtimePayload.action === 'types-update') {
+    return;
+  }
+
+  if (runtimePayload.action === 'style-update') {
+    if (!refreshRuntimeRemoteStylesheets(runtimePayload) && options.fullReload !== false) {
+      reloadRuntimeWindow();
+    }
+    return;
+  }
+
+  if (runtimePayload.action === 'partial-reload') {
+    if (options.refresh !== false) {
+      await refreshRemote(runtimePayload.remoteRequestId || remoteAlias, {
+        ...options.refreshOptions,
+        manifestUrl:
+          options.refreshOptions?.manifestUrl ||
+          (isManifestRemoteEntry(remoteEntryOrManifestUrl) ? remoteEntryOrManifestUrl : undefined),
+        remoteName: options.remoteName || runtimePayload.remote,
+      });
+    }
+    return;
+  }
+
+  if (options.fullReload !== false) {
+    reloadRuntimeWindow();
+  }
+}
+
+function reportRuntimeRemoteHmrError(error: unknown, options: ConnectRuntimeRemoteHmrOptions) {
+  options.onError?.(error);
+  mfWarn(`Runtime remote HMR error: ${getRuntimeErrorMessage(error)}`);
+}
+
+export function connectRuntimeRemoteHmr(
+  remoteAlias: string,
+  remoteEntryOrManifestUrl: string,
+  options: ConnectRuntimeRemoteHmrOptions = {},
+): RuntimeRemoteHmrConnection {
+  let closed = false;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let socket: RuntimeRemoteHmrWebSocket | undefined;
+  const endpoint = getRuntimeRemoteHmrEndpoint(remoteEntryOrManifestUrl);
+  const fetchImpl = options.fetch || globalThis.fetch;
+  const WebSocketImpl =
+    options.webSocket ||
+    (globalThis as { WebSocket?: RuntimeRemoteHmrWebSocketConstructor }).WebSocket;
+
+  const close = () => {
+    closed = true;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
+    }
+    try {
+      socket?.close();
+    } catch {
+      // Ignore close errors from browser-provided WebSocket implementations.
+    }
+  };
+
+  const scheduleReconnect = (attempt: number) => {
+    if (closed || options.reconnect === false) return;
+    const maxAttempts = options.maxReconnectAttempts ?? RUNTIME_REMOTE_HMR_MAX_RETRIES;
+    if (attempt >= maxAttempts) return;
+    const reconnectDelayMs = options.reconnectDelayMs ?? RUNTIME_REMOTE_HMR_RECONNECT_DELAY_MS;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = undefined;
+      void connect(attempt + 1);
+    }, reconnectDelayMs);
+  };
+
+  const connect = async (attempt = 0) => {
+    if (closed) return;
+    if (!endpoint) {
+      reportRuntimeRemoteHmrError(
+        new Error(`Unable to resolve runtime remote HMR endpoint for "${remoteAlias}".`),
+        options,
+      );
+      return;
+    }
+    if (typeof fetchImpl !== 'function' || typeof WebSocketImpl !== 'function') {
+      reportRuntimeRemoteHmrError(
+        new Error('Runtime remote HMR requires browser fetch and WebSocket APIs.'),
+        options,
+      );
+      return;
+    }
+
+    try {
+      const response = await fetchImpl(endpoint);
+      if (closed) return;
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch runtime remote HMR metadata: HTTP ${response.status}`);
+      }
+
+      const metadata = (await response.json()) as {
+        event?: string;
+        remote?: string;
+        wsUrl?: string;
+      };
+      if (closed) return;
+
+      if (metadata.event !== RUNTIME_REMOTE_HMR_EVENT || !metadata.wsUrl) {
+        throw new Error('Remote returned unexpected runtime HMR metadata.');
+      }
+
+      let opened = false;
+      socket = new WebSocketImpl(metadata.wsUrl, 'vite-hmr');
+      socket.onopen = () => {
+        opened = true;
+      };
+      socket.onmessage = (event) => {
+        const payload = parseRuntimeRemoteHmrMessage(event.data);
+        if (!payload) return;
+        void handleRuntimeRemoteHmrPayload(remoteAlias, remoteEntryOrManifestUrl, payload, {
+          ...options,
+          remoteName: options.remoteName || metadata.remote,
+        }).catch((error) => reportRuntimeRemoteHmrError(error, options));
+      };
+      socket.onerror = (error) => reportRuntimeRemoteHmrError(error, options);
+      socket.onclose = () => {
+        socket = undefined;
+        scheduleReconnect(opened ? 0 : attempt);
+      };
+    } catch (error) {
+      if (closed) return;
+
+      reportRuntimeRemoteHmrError(error, options);
+      scheduleReconnect(attempt);
+    }
+  };
+
+  void connect();
+
+  return {
+    close,
+    get closed() {
+      return closed;
+    },
+    endpoint,
+    remoteAlias,
+  };
 }
 
 export async function refreshRemote(remoteIdOrAlias: string, options: RefreshRemoteOptions = {}) {
@@ -4299,6 +4671,15 @@ export function createFederationRuntimeScope(runtimeKey: string) {
   const normalizedRuntimeKey = getRuntimeKey(runtimeKey);
 
   return {
+    connectRuntimeRemoteHmr: (
+      remoteAlias: string,
+      remoteEntryOrManifestUrl: string,
+      options?: ConnectRuntimeRemoteHmrOptions,
+    ) =>
+      connectRuntimeRemoteHmr(remoteAlias, remoteEntryOrManifestUrl, {
+        ...options,
+        refreshOptions: withRuntimeScope(normalizedRuntimeKey, options?.refreshOptions),
+      }),
     fetchFederationManifest: (manifestUrl: string, options?: ManifestFetchOptions) =>
       fetchFederationManifest(manifestUrl, withRuntimeScope(normalizedRuntimeKey, options)),
     getFederationDebugInfo: () => getFederationRuntimeScopeDebugInfo(normalizedRuntimeKey),

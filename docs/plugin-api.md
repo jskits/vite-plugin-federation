@@ -95,6 +95,11 @@ Expose config:
 `manual` CSS exposes write hrefs to the global CSS bucket instead of appending styles to `head`.
 Use this for Shadow DOM or migration compatibility.
 
+Do not expose the same file that `index.html` loads as a Vite module entry, such as
+`src/main.ts`, `src/main.tsx`, or `src/main.js`. That file should only bootstrap and mount the
+remote app. Expose components, routes, or loader modules instead. In dev, the plugin warns when an
+`exposes` entry points at the HTML module entry.
+
 ## Remotes
 
 String remotes are treated as manifest-first remotes:

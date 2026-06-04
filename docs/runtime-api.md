@@ -133,6 +133,28 @@ await refreshRemote('catalog', {
 });
 ```
 
+### `connectRuntimeRemoteHmr(remoteAlias, manifestOrEntryUrl, options?)`
+
+Connects a browser runtime-registered remote to its dev HMR endpoint. Use this when a remote is
+registered dynamically with `registerRemotes()` or `loadRemoteFromManifest()`, because the Vite dev
+server cannot automatically connect remotes it did not see in `federation({ remotes })`.
+
+```ts
+import { connectRuntimeRemoteHmr, registerRemotes } from 'vite-plugin-federation/runtime';
+
+registerRemotes([{ name: 'catalog', entry: catalogManifestUrl, type: 'module' }]);
+
+const hmr = connectRuntimeRemoteHmr('catalog', catalogManifestUrl);
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => hmr.close());
+}
+```
+
+The connector reads the remote `/__mf_hmr` metadata, opens the remote Vite WebSocket, dispatches
+remote update browser events, refreshes remote stylesheet links, and calls `refreshRemote()` for
+partial expose updates. The remote must enable `dev.remoteHmr: true`.
+
 ## Shared APIs
 
 The runtime re-exports and wraps shared APIs:
@@ -199,7 +221,8 @@ await tenant.registerManifestRemote('catalog', manifestUrl, {
 
 `runtimeKey` partitions manifest cache, pending requests, circuit breaker state, registered manifest
 remote debug records, and remote load metrics. Use `tenant.getFederationDebugInfo()` for a filtered
-debug snapshot.
+debug snapshot. `tenant.connectRuntimeRemoteHmr()` also scopes the refresh options it passes to
+`refreshRemote()`.
 
 ### `warmFederationRemotes(remotes, options?)`
 

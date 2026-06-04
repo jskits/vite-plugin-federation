@@ -1,0 +1,13 @@
+{
+  "name": "@mf-examples/vue-shared-core",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "vue": "3.5.33"
+  }
+}

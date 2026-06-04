@@ -457,6 +457,12 @@ const loadShareCacheMap: Record<string, VirtualModule> = {};
 function shouldUseEsmLoadShare(pkg: string, command?: string, isRolldown?: boolean): boolean {
   return command === 'build' || !!isRolldown || pkg === 'lit' || pkg.startsWith('lit/');
 }
+
+function shouldSkipServePrebuildWarmup(pkg: string, command: string) {
+  if (command === 'build') return false;
+  return pkg === 'lit' || pkg.startsWith('lit/') || pkg === 'vue' || pkg.startsWith('vue/');
+}
+
 export function getLoadShareImportId(pkg: string, isRolldown: boolean, command?: string): string {
   if (!loadShareCacheMap[pkg]) {
     const useESM = shouldUseEsmLoadShare(pkg, command, isRolldown);
@@ -578,7 +584,7 @@ export function writeLoadShareModule(
   const localProviderPath = getLocalProviderImportPath(pkg);
   const isWorkspacePackage =
     isWorkspaceFilePath(localProviderPath) || isWorkspaceFilePath(concreteSharedImportSource);
-  const skipServePrebuildWarmup = command !== 'build' && (pkg === 'lit' || pkg.startsWith('lit/'));
+  const skipServePrebuildWarmup = shouldSkipServePrebuildWarmup(pkg, command);
   const providerImportId = localProviderPath || concreteSharedImportSource || sharedImportSource;
   const localProviderNamedExports = getLocalFileNamedExports(
     concreteSharedImportSource || localProviderPath,

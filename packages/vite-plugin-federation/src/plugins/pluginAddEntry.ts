@@ -4,6 +4,7 @@ import type { Plugin } from 'vite';
 import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap';
 
 import {
+  collectHtmlModuleScriptSrcs,
   injectEntryScript,
   injectScriptIntoHead,
   rewriteEntryScripts,
@@ -171,12 +172,7 @@ const addEntry = ({
 
         if (_command === 'serve' && htmlFilePath && fs.existsSync(htmlFilePath)) {
           const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
-          const scriptRegex = /<script\s+[^>]*src=["']([^"']+)["'][^>]*>/gi;
-          let match: RegExpExecArray | null;
-
-          while ((match = scriptRegex.exec(htmlContent)) !== null) {
-            entryFiles.push(match[1]);
-          }
+          entryFiles.push(...collectHtmlModuleScriptSrcs(htmlContent));
         }
       },
       buildStart() {
@@ -194,12 +190,7 @@ const addEntry = ({
         emitFileId = this.emitFile(emitFileOptions);
         if (htmlFilePath && fs.existsSync(htmlFilePath)) {
           const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
-          const scriptRegex = /<script\s+[^>]*src=["']([^"']+)["'][^>]*>/gi;
-          let match: RegExpExecArray | null;
-
-          while ((match = scriptRegex.exec(htmlContent)) !== null) {
-            entryFiles.push(match[1]);
-          }
+          entryFiles.push(...collectHtmlModuleScriptSrcs(htmlContent));
         }
       },
       generateBundle(options, bundle) {

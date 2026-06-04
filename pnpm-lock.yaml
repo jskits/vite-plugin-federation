@@ -330,6 +330,9 @@ importers:
 
   examples/vue-host:
     dependencies:
+      '@mf-examples/vue-shared-core':
+        specifier: workspace:*
+        version: link:../vue-shared-core
       vite-plugin-federation:
         specifier: workspace:*
         version: link:../../packages/vite-plugin-federation
@@ -346,6 +349,9 @@ importers:
 
   examples/vue-remote:
     dependencies:
+      '@mf-examples/vue-shared-core':
+        specifier: workspace:*
+        version: link:../vue-shared-core
       vite-plugin-federation:
         specifier: workspace:*
         version: link:../../packages/vite-plugin-federation
@@ -359,6 +365,12 @@ importers:
       vite:
         specifier: 8.0.8
         version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.46.2)(yaml@2.8.3)
+
+  examples/vue-shared-core:
+    dependencies:
+      vue:
+        specifier: 3.5.33
+        version: 3.5.33(typescript@5.9.3)
 
   examples/webpack-systemjs-remote:
     devDependencies:

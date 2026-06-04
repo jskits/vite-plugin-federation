@@ -76,6 +76,19 @@ function warnOnReservedInternalNamePrefix(name: string, kind: 'containerName' | 
   );
 }
 
+function isManifestRemoteEntry(entry: string) {
+  return /\.json$/i.test(entry.split(/[?#]/, 1)[0]);
+}
+
+function isUrlRemoteEntrySpecifier(entry: string) {
+  try {
+    new URL(entry);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeExposesItem(
   key: string,
   item: string | { import: string; css?: ExposeCssOptions; dontAppendStylesToHead?: boolean },
@@ -158,18 +171,23 @@ function normalizeRemoteItem(key: string, remote: string | RemoteObjectConfig): 
   if (typeof remote === 'string') {
     // Scoped packages start with '@', so the name/entry separator is the
     // first '@' after the optional scope prefix, not the last '@' overall.
-    const separatorIndex = remote.startsWith('@') ? remote.indexOf('@', 1) : remote.indexOf('@');
+    const separatorIndex = isUrlRemoteEntrySpecifier(remote)
+      ? -1
+      : remote.startsWith('@')
+        ? remote.indexOf('@', 1)
+        : remote.indexOf('@');
     let entryGlobalName: string;
     let entry: string;
     if (separatorIndex > 0) {
       entryGlobalName = remote.slice(0, separatorIndex);
       entry = remote.slice(separatorIndex + 1);
     } else {
-      entryGlobalName = remote;
+      entryGlobalName = isManifestRemoteEntry(remote) ? key : remote;
       entry = remote;
     }
+    const isManifestRemote = isManifestRemoteEntry(entry);
     return {
-      type: 'var',
+      type: isManifestRemote ? 'module' : 'var',
       name: key,
       internalName: toInternalModuleFederationName(key),
       entry,
