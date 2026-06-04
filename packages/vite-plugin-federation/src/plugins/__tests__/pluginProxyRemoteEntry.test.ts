@@ -89,9 +89,7 @@ describe('pluginProxyRemoteEntry', () => {
     expect(mfWarn).toHaveBeenCalledWith(
       expect.stringContaining('Expose "./App" imports "./src/main"'),
     );
-    expect(mfWarn).toHaveBeenCalledWith(
-      expect.stringContaining('Do not expose bootstrap entries'),
-    );
+    expect(mfWarn).toHaveBeenCalledWith(expect.stringContaining('Do not expose bootstrap entries'));
   });
 
   it('normalizes vite ssr helpers into standard node-loadable esm in dev mode', async () => {

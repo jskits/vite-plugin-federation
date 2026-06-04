@@ -49,8 +49,7 @@ function inlinePreloadHelperCalls(
         else if (char === ')') {
           if (depth === 0) break;
           depth--;
-        }
-        else if (char === ',' && depth === 0) {
+        } else if (char === ',' && depth === 0) {
           argsStart = cursor + 1;
           break;
         }
@@ -118,8 +117,7 @@ function inlineEmptyPreloadHelperCalls(code: string, aliases: string[]): string 
         else if (char === ')') {
           if (depth === 0) break;
           depth--;
-        }
-        else if (char === ',' && depth === 0) {
+        } else if (char === ',' && depth === 0) {
           argsStart = cursor + 1;
           break;
         }

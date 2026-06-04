@@ -893,30 +893,27 @@ describe('writeLoadShareModule', () => {
     expect(generatedCode).not.toContain('import("transitive-pkg")');
   });
 
-  it.each(['vue', 'vue/runtime-dom'])(
-    'skips dev prewarm imports for %s in serve mode',
-    (pkg) => {
-      const mockShareItem: ShareItem = {
-        name: pkg,
-        from: '',
-        version: '3.5.33',
-        shareConfig: {
-          singleton: true,
-          strictVersion: false,
-          requiredVersion: '^3.0.0',
-        },
-        scope: 'default',
-      };
+  it.each(['vue', 'vue/runtime-dom'])('skips dev prewarm imports for %s in serve mode', (pkg) => {
+    const mockShareItem: ShareItem = {
+      name: pkg,
+      from: '',
+      version: '3.5.33',
+      shareConfig: {
+        singleton: true,
+        strictVersion: false,
+        requiredVersion: '^3.0.0',
+      },
+      scope: 'default',
+    };
 
-      writeLoadShareModule(pkg, mockShareItem, 'serve', false);
+    writeLoadShareModule(pkg, mockShareItem, 'serve', false);
 
-      const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
+    const generatedCode = writeSyncSpy.mock.calls.at(-1)?.[0] as string;
 
-      expect(generatedCode).toContain('runtime.loadShare');
-      expect(generatedCode).not.toContain(`import "${pkg}"`);
-      expect(generatedCode).not.toContain(`import(${JSON.stringify(pkg)})`);
-    },
-  );
+    expect(generatedCode).toContain('runtime.loadShare');
+    expect(generatedCode).not.toContain(`import "${pkg}"`);
+    expect(generatedCode).not.toContain(`import(${JSON.stringify(pkg)})`);
+  });
 
   it('generates ESM loadShare wrappers for lit subpath shares in serve mode', () => {
     const pkg = 'lit/directives/class-map.js';

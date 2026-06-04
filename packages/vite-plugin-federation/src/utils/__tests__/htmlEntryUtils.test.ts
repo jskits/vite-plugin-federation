@@ -116,10 +116,20 @@ describe('resolveHtmlModuleScriptPath', () => {
       resolveHtmlModuleScriptPath('/src/main.tsx', '/repo/app', '/repo/app/index.html', '/'),
     ).toBe('/repo/app/src/main.tsx');
     expect(
-      resolveHtmlModuleScriptPath('/base/src/main.tsx', '/repo/app', '/repo/app/index.html', '/base/'),
+      resolveHtmlModuleScriptPath(
+        '/base/src/main.tsx',
+        '/repo/app',
+        '/repo/app/index.html',
+        '/base/',
+      ),
     ).toBe('/repo/app/src/main.tsx');
     expect(
-      resolveHtmlModuleScriptPath('./src/admin.ts', '/repo/app', '/repo/app/nested/index.html', '/'),
+      resolveHtmlModuleScriptPath(
+        './src/admin.ts',
+        '/repo/app',
+        '/repo/app/nested/index.html',
+        '/',
+      ),
     ).toBe('/repo/app/nested/src/admin.ts');
   });
 });

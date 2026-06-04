@@ -3865,7 +3865,9 @@ function getRuntimeLocationHref() {
     location?: { href?: string };
     window?: { location?: { href?: string } };
   };
-  return globalLocation.window?.location?.href || globalLocation.location?.href || 'http://localhost/';
+  return (
+    globalLocation.window?.location?.href || globalLocation.location?.href || 'http://localhost/'
+  );
 }
 
 function getRuntimeRemoteUrl(remoteEntryOrManifestUrl: string) {
@@ -3955,7 +3957,10 @@ function refreshRuntimeRemoteStylesheets(payload: RuntimeRemoteHmrPayload) {
     if (!href || !link.cloneNode || !link.after) continue;
 
     try {
-      const currentUrl = new URL(href, browserGlobals.window?.location?.href || getRuntimeLocationHref());
+      const currentUrl = new URL(
+        href,
+        browserGlobals.window?.location?.href || getRuntimeLocationHref(),
+      );
       if (remoteOrigin && currentUrl.origin !== remoteOrigin) continue;
       currentUrl.searchParams.set('t', timestamp);
       const nextLink = link.cloneNode();
@@ -3982,7 +3987,8 @@ function toRuntimeRemoteHmrPayload(
   remoteEntryOrManifestUrl: string,
   payload: RuntimeRemoteHmrPayload,
 ): RuntimeRemoteHmrPayload {
-  const remoteExpose = typeof payload.expose === 'string' ? normalizeExposeName(payload.expose) : '';
+  const remoteExpose =
+    typeof payload.expose === 'string' ? normalizeExposeName(payload.expose) : '';
   return {
     ...payload,
     hostRemote: remoteAlias,

@@ -962,7 +962,9 @@ describe('runtime api', () => {
     expect(registerRemotesMock).toHaveBeenCalledWith(
       [
         expect.objectContaining({
-          entry: expect.stringMatching(/^http:\/\/remote\.example\/assets\/remoteEntry\.js\?t=\d+$/),
+          entry: expect.stringMatching(
+            /^http:\/\/remote\.example\/assets\/remoteEntry\.js\?t=\d+$/,
+          ),
           name: 'remoteApp',
           type: 'module',
         }),
@@ -992,13 +994,11 @@ describe('runtime api', () => {
         sockets.push(this);
       }
     }
-    let resolveFetch: (
-      value: {
-        json: () => Promise<{ event: string; remote: string; wsUrl: string }>;
-        ok: boolean;
-        status: number;
-      },
-    ) => void = () => undefined;
+    let resolveFetch: (value: {
+      json: () => Promise<{ event: string; remote: string; wsUrl: string }>;
+      ok: boolean;
+      status: number;
+    }) => void = () => undefined;
     const fetchPromise = new Promise<{
       json: () => Promise<{ event: string; remote: string; wsUrl: string }>;
       ok: boolean;

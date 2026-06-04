@@ -1,10 +1,7 @@
 <script setup>
 import { defineAsyncComponent } from 'vue';
 import { useVueCoreLabel } from '@mf-examples/vue-shared-core';
-import {
-  connectRuntimeRemoteHmr,
-  loadRemoteFromManifest,
-} from 'vite-plugin-federation/runtime';
+import { connectRuntimeRemoteHmr, loadRemoteFromManifest } from 'vite-plugin-federation/runtime';
 
 const RemoteBadge = defineAsyncComponent(() => import('vueRemote/RemoteBadge'));
 const runtimeRemoteManifestUrl =

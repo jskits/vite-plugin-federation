@@ -11,10 +11,7 @@ import {
   createEmptyAssetMap,
   processModuleAssets,
 } from '../utils/cssModuleHelpers';
-import {
-  collectHtmlModuleScriptSrcs,
-  resolveHtmlModuleScriptPath,
-} from '../utils/htmlEntryUtils';
+import { collectHtmlModuleScriptSrcs, resolveHtmlModuleScriptPath } from '../utils/htmlEntryUtils';
 import { mfWarn } from '../utils/logger';
 import { mapCodeToCodeWithSourcemap } from '../utils/mapCodeToCodeWithSourcemap';
 import type { NormalizedModuleFederationOptions } from '../utils/normalizeModuleFederationOptions';
@@ -140,9 +137,8 @@ export default function ({
           resolvedPath: resolveHtmlModuleScriptPath(src, root, htmlFilePath, viteConfig?.base),
           src,
         }))
-        .filter(
-          (entry): entry is { htmlFilePath: string; resolvedPath: string; src: string } =>
-            Boolean(entry.resolvedPath),
+        .filter((entry): entry is { htmlFilePath: string; resolvedPath: string; src: string } =>
+          Boolean(entry.resolvedPath),
         );
     });
 

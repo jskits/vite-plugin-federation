@@ -460,12 +460,7 @@ function shouldUseEsmLoadShare(pkg: string, command?: string, isRolldown?: boole
 
 function shouldSkipServePrebuildWarmup(pkg: string, command: string) {
   if (command === 'build') return false;
-  return (
-    pkg === 'lit' ||
-    pkg.startsWith('lit/') ||
-    pkg === 'vue' ||
-    pkg.startsWith('vue/')
-  );
+  return pkg === 'lit' || pkg.startsWith('lit/') || pkg === 'vue' || pkg.startsWith('vue/');
 }
 
 export function getLoadShareImportId(pkg: string, isRolldown: boolean, command?: string): string {
