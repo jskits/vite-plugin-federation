@@ -1,10 +1,14 @@
 <script setup>
+import { useVueCoreLabel } from '@mf-examples/vue-shared-core';
+
 defineProps({
   label: {
     type: String,
     default: 'Loaded from vueRemote/RemoteBadge',
   },
 });
+
+const { label: remoteCoreLabel } = useVueCoreLabel('remote');
 </script>
 
 <template>
@@ -12,7 +16,10 @@ defineProps({
     <span class="remote-badge__mark">Vue</span>
     <div>
       <h2>{{ label }}</h2>
-      <p>Shared Vue singleton resolution is exercised through this federated component.</p>
+      <p data-testid="vue-core-remote">{{ remoteCoreLabel }}</p>
+      <p data-testid="vue-remote-copy">
+        Shared Vue singleton resolution is exercised through this federated component.
+      </p>
     </div>
   </article>
 </template>
