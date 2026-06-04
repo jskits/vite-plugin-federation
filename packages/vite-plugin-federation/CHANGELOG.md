@@ -1,5 +1,11 @@
 # vite-plugin-federation
 
+## 1.0.2
+
+### Fixed
+
+- Rebuilt the npm release package after `1.0.1` was published without `dist` artifacts.
+
 ## 1.0.0
 
 `vite-plugin-federation` is now generally available for production Vite Module Federation 2.0
