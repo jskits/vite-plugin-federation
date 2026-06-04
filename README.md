@@ -813,8 +813,10 @@ Full policy, quality gates, and step-by-step instructions:
   runs the package smoke test and Vite peer runtime matrix smoke.
 - **`.github/workflows/extended-e2e.yml`** — manual and weekly Playwright coverage for compat,
   shared runtime, multi-remote, browser matrix, SSR, and DTS dev sync on Node 20 and 22.
-- **`.github/workflows/release.yml`** — publishes matching `v*.*.*` tags or a manual tag dispatch.
-- Publishing requires `NPM_AUTH_TOKEN` / `NODE_AUTH_TOKEN` to be configured in GitHub secrets.
+- **`.github/workflows/release.yml`** — publishes matching `v*.*.*` tags or a manual tag dispatch
+  through npm Trusted Publisher / OIDC.
+- Publishing does not use `NPM_AUTH_TOKEN` / `NODE_AUTH_TOKEN`; the npm Trusted Publisher entry must
+  match this repository and `release.yml`.
 - Published packages use `provenance: true`.
 
 ---

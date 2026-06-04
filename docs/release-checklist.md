@@ -72,8 +72,8 @@ port collisions fail with a direct override hint.
 5. Commit the version and changelog changes.
 6. Create and push a tag that matches `packages/vite-plugin-federation/package.json`, for example
    `v1.0.0`.
-7. Let the Release workflow validate the tag, dry-run the package tarball, and publish with npm
-   provenance.
+7. Let the Release workflow validate the tag, dry-run the package tarball, and publish through npm
+   Trusted Publisher with provenance.
 
 ## Rollback Notes
 

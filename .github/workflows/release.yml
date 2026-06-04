@@ -12,7 +12,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 env:
@@ -21,6 +21,7 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -37,9 +38,25 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: pnpm
+          node-version: 24
           registry-url: https://registry.npmjs.org
+
+      - name: Verify publish tooling
+        run: |
+          node --version
+          npm --version
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process');
+
+          const version = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim();
+          const [major, minor, patch] = version.split('.').map(Number);
+          const isSupported =
+            major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)));
+
+          if (!isSupported) {
+            throw new Error(`npm ${version} does not satisfy Trusted Publishing's npm >=11.5.1 requirement`);
+          }
+          NODE
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -69,11 +86,7 @@ jobs:
           NODE
 
       - name: Validate package tarball
-        run: pnpm --filter vite-plugin-federation pack --dry-run
+        run: npm pack ./packages/vite-plugin-federation --dry-run --json
 
       - name: Publish package
-        run: pnpm release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+        run: npm publish ./packages/vite-plugin-federation --access public
