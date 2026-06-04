@@ -142,6 +142,46 @@ describe('normalizeModuleFederationOption', () => {
       });
     });
 
+    it('should normalize a manifest remote string as a module remote', () => {
+      expect(
+        normalizeModuleFederationOptions({
+          ...minimalOptions,
+          remotes: {
+            remote1: 'http://localhost:3001/mf-manifest.json',
+          },
+        }).remotes,
+      ).toEqual({
+        remote1: {
+          type: 'module',
+          name: 'remote1',
+          internalName: '__mfe_internal__remote1',
+          entry: 'http://localhost:3001/mf-manifest.json',
+          entryGlobalName: 'remote1',
+          shareScope: 'default',
+        },
+      });
+    });
+
+    it('should preserve an explicit global name for a manifest remote string', () => {
+      expect(
+        normalizeModuleFederationOptions({
+          ...minimalOptions,
+          remotes: {
+            remote1: 'catalog@http://localhost:3001/mf-manifest.json?cache=1',
+          },
+        }).remotes,
+      ).toEqual({
+        remote1: {
+          type: 'module',
+          name: 'remote1',
+          internalName: '__mfe_internal__remote1',
+          entry: 'http://localhost:3001/mf-manifest.json?cache=1',
+          entryGlobalName: 'catalog',
+          shareScope: 'default',
+        },
+      });
+    });
+
     it('should normalize a scoped-package remote string', () => {
       expect(
         normalizeModuleFederationOptions({
