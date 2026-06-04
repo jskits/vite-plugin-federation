@@ -250,6 +250,75 @@ describe('pluginProxyRemoteEntry', () => {
     );
   });
 
+  it('returns a javascript 500 when node-target transforms fail', async () => {
+    const middlewares: Array<(req: any, res: any, next: () => void) => void | Promise<void>> = [];
+    const transformRequest = vi.fn(async () => {
+      throw new Error('bad transform');
+    });
+    const plugin = pluginProxyRemoteEntry({
+      options: {
+        exposes: {
+          './Button': { import: './src/Button.tsx' },
+        },
+        filename: 'remoteEntry.js',
+      } as any,
+      remoteEntryId: 'virtual:mf-REMOTE_ENTRY_ID:remote',
+      ssrRemoteEntryId: 'virtual:mf-SSR_REMOTE_ENTRY_ID:remote',
+      virtualExposesId: 'virtual:mf-exposes:remote',
+    });
+
+    plugin.config?.({} as any, { command: 'serve', mode: 'development' });
+    plugin.configResolved?.({
+      base: '/',
+      root: '/repo',
+    } as any);
+    plugin.configureServer?.({
+      config: {
+        base: '/',
+        server: {
+          host: '127.0.0.1',
+          https: false,
+          port: 4174,
+        },
+      },
+      middlewares: {
+        use(handler: (req: any, res: any, next: () => void) => void | Promise<void>) {
+          middlewares.push(handler);
+        },
+      },
+      transformRequest,
+    } as any);
+
+    const next = vi.fn();
+    const res = {
+      end: vi.fn(),
+      setHeader: vi.fn(),
+      statusCode: 200,
+    };
+
+    await middlewares[0](
+      {
+        headers: {
+          host: '127.0.0.1:4174',
+        },
+        url: '/@id/virtual:mf-exposes:remote?mf_target=node',
+      },
+      res,
+      next,
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(500);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/javascript');
+    expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
+    expect(res.end).toHaveBeenCalledWith(
+      expect.stringContaining('throw new Error("[Module Federation] Failed to transform'),
+    );
+    expect(mfWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to transform dev node-target module'),
+    );
+  });
+
   it('decodes encoded dev ids before forwarding them to vite ssr transforms', async () => {
     const middlewares: Array<(req: any, res: any, next: () => void) => void | Promise<void>> = [];
     const transformRequest = vi.fn(async () => ({

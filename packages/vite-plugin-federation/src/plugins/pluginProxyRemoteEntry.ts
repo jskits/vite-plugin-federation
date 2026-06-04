@@ -83,6 +83,11 @@ function entryPathsMatch(left: string, right: string) {
   );
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return typeof error === 'string' ? error : String(error);
+}
+
 export default function ({
   options,
   remoteEntryId,
@@ -508,21 +513,32 @@ export default function ({
           return;
         }
 
-        const transformed = await server.transformRequest(transformTargetId, { ssr: true });
-        if (!transformed?.code) {
-          next();
-          return;
+        try {
+          const transformed = await server.transformRequest(transformTargetId, { ssr: true });
+          if (!transformed?.code) {
+            next();
+            return;
+          }
+
+          const code = await normalizeNodeTargetModuleCode(
+            transformed.code,
+            origin,
+            transformTargetId,
+          );
+
+          res.setHeader('Content-Type', 'text/javascript');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.end(code);
+        } catch (error) {
+          const message =
+            `Failed to transform dev node-target module "${transformTargetId}": ` +
+            getErrorMessage(error);
+          mfWarn(message);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'text/javascript');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.end(`throw new Error(${JSON.stringify(`[Module Federation] ${message}`)});\n`);
         }
-
-        const code = await normalizeNodeTargetModuleCode(
-          transformed.code,
-          origin,
-          transformTargetId,
-        );
-
-        res.setHeader('Content-Type', 'text/javascript');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.end(code);
       });
     },
     async buildStart() {
