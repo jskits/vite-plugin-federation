@@ -46,7 +46,10 @@ function inlinePreloadHelperCalls(
       while (cursor < nextCode.length) {
         const char = nextCode[cursor];
         if (char === '(') depth++;
-        else if (char === ')') depth--;
+        else if (char === ')') {
+          if (depth === 0) break;
+          depth--;
+        }
         else if (char === ',' && depth === 0) {
           argsStart = cursor + 1;
           break;
@@ -112,7 +115,10 @@ function inlineEmptyPreloadHelperCalls(code: string, aliases: string[]): string 
       while (cursor < nextCode.length) {
         const char = nextCode[cursor];
         if (char === '(') depth++;
-        else if (char === ')') depth--;
+        else if (char === ')') {
+          if (depth === 0) break;
+          depth--;
+        }
         else if (char === ',' && depth === 0) {
           argsStart = cursor + 1;
           break;

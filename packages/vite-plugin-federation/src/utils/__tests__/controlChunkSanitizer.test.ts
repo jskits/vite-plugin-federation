@@ -135,6 +135,25 @@ describe('controlChunkSanitizer', () => {
     );
   });
 
+  it('does not treat loadShare-imported Vue helpers as preload helpers', () => {
+    const code =
+      'import{d as defineAsyncComponent}from"./remote__loadShare__vue__loadShare__.mjs-Abc.js";' +
+      'const RemoteBadge=defineAsyncComponent(()=>import("./remote.js").then(wrap)),other=1;';
+
+    expect(stripLoadSharePreloadHelperCalls(code)).toBe(code);
+  });
+
+  it('preserves loadShare-imported wrappers while inlining nested preload helpers', () => {
+    const code =
+      'import{d as defineAsyncComponent,p as preload}from"./remote__loadShare__vue__loadShare__.mjs-Abc.js";' +
+      'const RemoteBadge=defineAsyncComponent(()=>preload(()=>import("./remote.js").then(wrap),[])),other=1;';
+
+    expect(stripLoadSharePreloadHelperCalls(code)).toBe(
+      'import{d as defineAsyncComponent}from"./remote__loadShare__vue__loadShare__.mjs-Abc.js";' +
+        'const RemoteBadge=defineAsyncComponent(()=>import("./remote.js").then(wrap)),other=1;',
+    );
+  });
+
   it('ignores empty preload-shaped callbacks that are not dynamic imports', () => {
     const code =
       'import{t as preload}from"./preload-helper-abc.js";' +
