@@ -26,7 +26,8 @@ pnpm check
 pnpm test:package:smoke
 P0_P1_SMOKE_PACKAGE_SPEC=1.0.0-rc.0 pnpm test:p0-p1:smoke
 pnpm test:vite-matrix:smoke
-pnpm --filter vite-plugin-federation pack --dry-run
+npm pack ./packages/vite-plugin-federation --dry-run --json \
+  | node scripts/validate-package-tarball.mjs --package-dir=packages/vite-plugin-federation
 ```
 
 The package smoke test validates:

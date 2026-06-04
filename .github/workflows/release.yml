@@ -89,7 +89,9 @@ jobs:
         run: pnpm --filter vite-plugin-federation build
 
       - name: Validate package tarball
-        run: npm pack ./packages/vite-plugin-federation --dry-run --json
+        run: |
+          npm pack ./packages/vite-plugin-federation --dry-run --json \
+            | node scripts/validate-package-tarball.mjs --package-dir=packages/vite-plugin-federation
 
       - name: Publish package
         run: npm publish ./packages/vite-plugin-federation --access public
