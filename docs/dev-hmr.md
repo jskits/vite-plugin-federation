@@ -40,9 +40,58 @@ dispatches the same browser events listed below, refreshes remote stylesheet lin
 `refreshRemote()` for partial expose updates. The remote still needs `dev.remoteHmr: true`.
 
 Framework-native HMR can still work without the federation bridge when the remote dev server serves
-modules that import its own Vite client. For example, Vue SFC updates can patch already mounted
-remote components through the remote Vite client. The runtime connector is still useful for dynamic
-remote cache invalidation, stylesheet refreshes, type events, and full-reload fallback decisions.
+modules that import its own Vite client. This is framework-specific and depends on the framework HMR
+runtime being able to find the already mounted component instances. The runtime connector is still
+useful for dynamic remote cache invalidation, stylesheet refreshes, type events, and full-reload
+fallback decisions.
+
+## Vue Runtime HMR Caveat
+
+`connectRuntimeRemoteHmr()` keeps the federation runtime synchronized with a remote registered in
+the browser. It does not merge framework-native HMR runtimes.
+
+Vue dev mode exposes its HMR API on `globalThis.__VUE_HMR_RUNTIME__`, while the component record map
+used by that API lives inside the evaluated Vue runtime module. If a host and a remote on different
+dev origins both evaluate separate Vue dev runtimes, the later runtime can replace the global
+`__VUE_HMR_RUNTIME__` reference. In that state, remote update events may still arrive, but Vue can
+miss already mounted component records because they belong to the other runtime instance. A common
+symptom is that a remote SFC update only appears after the component is unmounted and mounted again.
+
+Prefer these options for Vue dev setups:
+
+- Share `vue` and `vue/*` as singletons between host and remote.
+- Avoid evaluating a second Vue dev runtime in the host page when possible.
+- Use `connectRuntimeRemoteHmr()` for remotes added through `registerRemotes()` or
+  `loadRemoteFromManifest()`.
+- Expose components, route modules, or loaders instead of the HTML bootstrap entry such as
+  `src/main.ts` or `src/main.tsx`.
+
+For vendor-style dev flows where a remote is attached to a running host at runtime and a second Vue
+dev runtime is unavoidable, a host can use a dev-only workaround that preserves the host Vue HMR
+runtime after Vue is imported and restores it after loading the remote:
+
+```ts
+import { loadRemote } from 'vite-plugin-federation/runtime';
+import { createApp } from 'vue';
+import App from './App.vue';
+
+const hostVueHmrRuntime = import.meta.env.DEV ? (globalThis as any).__VUE_HMR_RUNTIME__ : undefined;
+
+createApp(App).mount('#app');
+
+async function loadVendorRemote() {
+  const mod = await loadRemote('vendor/Button');
+
+  if (import.meta.env.DEV && hostVueHmrRuntime) {
+    (globalThis as any).__VUE_HMR_RUNTIME__ = hostVueHmrRuntime;
+  }
+
+  return mod;
+}
+```
+
+Treat this as a development integration workaround, not a production API. Test the exact host and
+remote combination because framework-native HMR behavior is owned by the framework runtime.
 
 ## Update Strategies
 

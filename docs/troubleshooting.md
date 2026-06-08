@@ -113,6 +113,28 @@ Actions:
 - Keep unsupported compatibility combinations isolated behind migration code.
 - See [originjs-migration.md](originjs-migration.md).
 
+## Vue Remote SFC HMR Updates Only After Remount
+
+Typical causes:
+
+- The host and a runtime-added remote evaluated separate Vue dev runtimes in the same browser page.
+- A remote Vue runtime replaced `globalThis.__VUE_HMR_RUNTIME__`, while already mounted component
+  records still belong to the host Vue runtime instance.
+- The remote is registered only through runtime APIs, so the configured-remotes HMR bridge was not
+  injected during host dev server startup.
+- The remote exposes an HTML bootstrap entry such as `src/main.ts` or `src/main.tsx` instead of a
+  component, route module, or loader.
+
+Actions:
+
+- Share `vue` and `vue/*` as singletons between host and remote.
+- For runtime-added remotes, call `connectRuntimeRemoteHmr()` after `registerRemotes()` or
+  `loadRemoteFromManifest()`.
+- Confirm whether `globalThis.__VUE_HMR_RUNTIME__` changes after the remote component is loaded.
+- If a second Vue dev runtime is unavoidable, preserve the host Vue HMR runtime after importing Vue
+  and restore it after loading the remote. Keep this workaround dev-only.
+- See [dev-hmr.md](dev-hmr.md#vue-runtime-hmr-caveat).
+
 ## Debug Snapshot Checklist
 
 Capture this when reporting production incidents:
