@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">vite-plugin-federation logo</title>
+  <desc id="desc">Connected host and remote modules.</desc>
+  <rect width="128" height="128" rx="28" fill="#0f172a" />
+  <path
+    d="M34 36h24v24H34V36Zm36 0h24v24H70V36ZM34 72h24v24H34V72Zm36 0h24v24H70V72Z"
+    fill="#5eead4"
+  />
+  <path d="M58 48h12M46 60v12m36-12v12M58 84h12" stroke="#f59e0b" stroke-width="8" stroke-linecap="round" />
+  <circle cx="46" cy="48" r="7" fill="#2563eb" />
+  <circle cx="82" cy="48" r="7" fill="#2563eb" />
+  <circle cx="46" cy="84" r="7" fill="#2563eb" />
+  <circle cx="82" cy="84" r="7" fill="#2563eb" />
+</svg>

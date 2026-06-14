@@ -642,17 +642,17 @@ federation({
 
 ## Documentation
 
-- [Full repository README](https://github.com/jskits/vite-plugin-federation#readme)
-- [Public API contract](https://github.com/jskits/vite-plugin-federation/blob/main/docs/public-api-contract.md)
-- [Plugin API](https://github.com/jskits/vite-plugin-federation/blob/main/docs/plugin-api.md)
-- [Runtime API](https://github.com/jskits/vite-plugin-federation/blob/main/docs/runtime-api.md)
-- [Manifest protocol](https://github.com/jskits/vite-plugin-federation/blob/main/docs/manifest-protocol.md)
-- [Production runtime](https://github.com/jskits/vite-plugin-federation/blob/main/docs/production-runtime.md)
-- [DTS workflows](https://github.com/jskits/vite-plugin-federation/blob/main/docs/dts-workflows.md)
-- [Dev HMR](https://github.com/jskits/vite-plugin-federation/blob/main/docs/dev-hmr.md)
-- [Security](https://github.com/jskits/vite-plugin-federation/blob/main/docs/security.md)
-- [OriginJS migration](https://github.com/jskits/vite-plugin-federation/blob/main/docs/originjs-migration.md)
-- [Compatibility matrix](https://github.com/jskits/vite-plugin-federation/blob/main/docs/compatibility-matrix.md)
+- [Documentation site](https://jskits.github.io/vite-plugin-federation/)
+- [Public API contract](https://jskits.github.io/vite-plugin-federation/public-api-contract)
+- [Plugin API](https://jskits.github.io/vite-plugin-federation/plugin-api)
+- [Runtime API](https://jskits.github.io/vite-plugin-federation/runtime-api)
+- [Manifest protocol](https://jskits.github.io/vite-plugin-federation/manifest-protocol)
+- [Production runtime](https://jskits.github.io/vite-plugin-federation/production-runtime)
+- [DTS workflows](https://jskits.github.io/vite-plugin-federation/dts-workflows)
+- [Dev HMR](https://jskits.github.io/vite-plugin-federation/dev-hmr)
+- [Security](https://jskits.github.io/vite-plugin-federation/security)
+- [OriginJS migration](https://jskits.github.io/vite-plugin-federation/originjs-migration)
+- [Compatibility matrix](https://jskits.github.io/vite-plugin-federation/compatibility-matrix)
 
 ## Examples
 

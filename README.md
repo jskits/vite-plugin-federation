@@ -6,6 +6,8 @@
 
 vite-plugin-federation - A Vite/Rollup plugin for Module Federation.
 
+Documentation site: <https://jskits.github.io/vite-plugin-federation/>
+
 ---
 
 ## Table of Contents

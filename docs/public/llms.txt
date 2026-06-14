@@ -1,0 +1,42 @@
+# vite-plugin-federation
+
+> Production-grade Module Federation for Vite hosts, remotes, SSR, and manifest-first runtime loading.
+
+Repository: https://github.com/jskits/vite-plugin-federation
+npm: https://www.npmjs.com/package/vite-plugin-federation
+
+## Documentation
+
+- Getting Started: /getting-started - Install the plugin, configure the first remote and host, and load a manifest remote.
+- Public API Contract: /public-api-contract - Stable v1 compatibility surface for plugin options, runtime exports, schemas, and errors.
+- Plugin API: /plugin-api - Build-time `federation()` options for remotes, hosts, shared dependencies, DTS, and compat.
+- Runtime API: /runtime-api - Manifest loading, runtime scopes, preload helpers, debug snapshots, and telemetry hooks.
+- Manifest Protocol: /manifest-protocol - The `mf-manifest.json`, `mf-stats.json`, and `mf-debug.json` artifact contract.
+- Production Runtime: /production-runtime - Remote artifact publishing, host loading controls, SSR, observability, and deployment rules.
+- Preload And Performance: /preload-performance - Route-level preload plans, manifest hints, remote warming, and performance budgets.
+- Multi-Tenant Runtime Isolation: /multi-tenant - Runtime-key scoped manifests, circuit breakers, debug records, and share scopes.
+- Security: /security - Integrity metadata, private manifests, CSP, Trusted Types, and signed manifest design.
+- Dev Remote HMR: /dev-hmr - Configured and runtime remote HMR behavior, update classes, batching, and browser events.
+- DTS Workflows: /dts-workflows - Remote type artifacts, host consumption, dev hot sync, and repository verification.
+- DevTools Runtime Contract: /devtools-runtime-contract - Browser globals, debug payloads, runtime events, snapshots, and overlay panel contracts.
+- Compiler Adapter Notes: /compiler-adapter - Rollup, Rolldown, control chunks, Vite matrix notes, and CJS build warnings.
+- Compatibility Matrix: /compatibility-matrix - OriginJS virtual API, remote formats, CSS behavior, and verification status.
+- Plugin Comparison: /comparison - Feature-by-feature comparison with `@module-federation/vite` and OriginJS.
+- Migrate From @module-federation/vite: /migrate-from-module-federation-vite - Dependency, import, runtime, SSR, and verification changes when switching adapters.
+- OriginJS Migration: /originjs-migration - OriginJS compatibility defaults, virtual API coverage, CSS mapping, and migration checklist.
+- Troubleshooting: /troubleshooting - MFV error codes, Vue remote HMR caveat, and debug snapshot checklist.
+- Release Checklist: /release-checklist - Versioning policy, package quality gates, release steps, and rollback notes.
+- Production Readiness Status: /remaining-production-todos - Baseline, blockers, production-quality improvements, ecosystem work, and differentiators.
+- 1.0 Article: /articles/vite-plugin-federation-v1.0 - Long-form overview of the 1.0 production-era feature set and architecture.
+- Reference Index: /reference/ - Generated map of the documentation, package metadata, examples, schemas, and LLM assets.
+- Package Metadata: /reference/package - Generated package entry points, engine floor, peer dependencies, runtime dependencies, and scripts.
+- Examples: /reference/examples - Generated inventory of example workspaces and their available npm scripts.
+- Schemas And Fixtures: /reference/schemas - Generated links to manifest JSON Schemas and protocol compatibility fixtures.
+- LLMs: /llms - Generated entry point for `llms.txt` and `llms-full.txt`.
+
+## Recommended Imports
+
+```ts
+import federation from "vite-plugin-federation";
+import { loadRemoteFromManifest } from "vite-plugin-federation/runtime";
+```

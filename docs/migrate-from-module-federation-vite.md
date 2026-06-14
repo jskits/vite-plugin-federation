@@ -16,7 +16,7 @@ hooks, manifest cache state, debug globals, and optional official plugins such a
 The migration value here is the higher-level policy wrapper and compatibility surface this package
 adds around those primitives.
 
-A full feature comparison lives in [`../COMPARISON.md`](../COMPARISON.md).
+A full feature comparison lives in [comparison.md](comparison.md).
 
 ---
 
@@ -176,4 +176,4 @@ After switching:
 
 ---
 
-_See [`../COMPARISON.md`](../COMPARISON.md) for the full plugin-by-plugin feature matrix._
+_See [comparison.md](comparison.md) for the full plugin-by-plugin feature matrix._

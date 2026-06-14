@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vite-plugin-federation.dev/schemas/mf-debug.schema.json",
+  "title": "Vite Plugin Federation Debug Artifact",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "manifestFile",
+    "statsFile",
+    "metaData",
+    "options",
+    "capabilities",
+    "remotes",
+    "shared",
+    "exposes",
+    "diagnostics",
+    "snapshot"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "enum": ["1.0.0"]
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "manifestFile": {
+      "type": "string"
+    },
+    "statsFile": {
+      "type": "string"
+    },
+    "metaData": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["pluginName", "pluginVersion"],
+      "properties": {
+        "pluginName": {
+          "type": "string"
+        },
+        "pluginVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "remotes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "shared": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "exposes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "snapshot": {
+      "$ref": "./mf-manifest.schema.json"
+    }
+  }
+}

@@ -14,6 +14,10 @@
     "commit": "cz",
     "changeset": "changeset",
     "dev": "turbo run dev --parallel",
+    "docs:build": "node scripts/generate-site-docs.mjs && vitepress build docs",
+    "docs:dev": "node scripts/generate-site-docs.mjs && vitepress dev docs",
+    "docs:generate": "node scripts/generate-site-docs.mjs",
+    "docs:preview": "vitepress preview docs",
     "examples:build": "pnpm --filter example-react-remote build && pnpm --filter example-react-host build && pnpm --filter example-react-ssr-host build && pnpm examples:dts:build",
     "examples:dts:build": "pnpm --filter vite-plugin-federation build && pnpm --filter example-dts-remote test:invalid-types && pnpm --filter example-dts-remote test:artifacts && pnpm --filter example-dts-host test:types && pnpm --filter example-dts-host test:types:failures",
     "examples:ssr:build": "pnpm --filter example-react-remote build && pnpm --filter example-react-ssr-host build",
@@ -70,6 +74,7 @@
     "turbo": "2.9.6",
     "typescript": "5.9.3",
     "typescript-eslint": "8.58.2",
+    "vitepress": "1.6.4",
     "vitest": "4.1.4"
   }
 }

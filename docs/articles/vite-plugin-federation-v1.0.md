@@ -492,7 +492,7 @@ Another option may be a better fit if:
 The real micro-frontend problem is not whether code can be split into another build. The production question is whether that split code can be released, rolled back, diagnosed, and monitored reliably. `vite-plugin-federation` 1.0 is designed to complete that production checklist and make Module Federation a governable capability in the Vite era.
 
 - GitHub: [jskits/vite-plugin-federation](https://github.com/jskits/vite-plugin-federation)
-- Full comparison and migration guides: [COMPARISON.md](../../COMPARISON.md), [docs/migrate-from-module-federation-vite.md](../migrate-from-module-federation-vite.md), [docs/originjs-migration.md](../originjs-migration.md)
+- Full comparison and migration guides: [comparison.md](../comparison.md), [docs/migrate-from-module-federation-vite.md](../migrate-from-module-federation-vite.md), [docs/originjs-migration.md](../originjs-migration.md)
 - Public API contract: [docs/public-api-contract.md](../public-api-contract.md)
 
 If you are starting a new micro-frontend project, or preparing to move Vite 5+ federation into production, install `vite-plugin-federation@1.0.0`, validate it against your deployment topology, open issues, and contribute cases.
